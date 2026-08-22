@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'features/auth/views/login_screen.dart';
 
 void main() {
-  runApp(const MainApp());
+  runApp(const TrikrMobileApp());
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class TrikrMobileApp extends StatelessWidget {
+  const TrikrMobileApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(body: Center(child: Text('Hello World!'))),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Trikr Driver & Rider',
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
+      home: const LoginScreen(), // Boots directly into your auth screen
     );
   }
 }
