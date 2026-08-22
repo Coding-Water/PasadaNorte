@@ -29,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: _phoneController,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
-                labelText: 'Mobile Number',
+                labelText: 'Mobile Number!',
                 prefixText: '+63',
                 border: OutlineInputBorder(),
               ),
