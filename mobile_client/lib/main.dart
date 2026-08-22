@@ -14,7 +14,7 @@ class TrikrMobileApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Trikr Driver & Rider',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
-      home: const LoginScreen(), // Boots directly into your auth screen
+      home: const LoginScreen(), 
     );
   }
 }
