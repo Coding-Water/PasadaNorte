@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'features/auth/views/login_screen.dart';
+import 'core/theme/app_theme.dart';
+import 'features/auth/views/phone_input_screen.dart';
 
 void main() {
   runApp(const PasadaNorteMobileApp());
@@ -12,9 +13,9 @@ class PasadaNorteMobileApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'PasadaNorte Driver & Rider',
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
-      home: const LoginScreen(), 
+      title: 'Pasada Norte',
+      theme: AppTheme.lightTheme,
+      home: const PhoneInputScreen(),
     );
   }
 }
