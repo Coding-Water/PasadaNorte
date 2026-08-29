@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'features/auth/views/login_screen.dart';
 
 void main() {
-  runApp(const TrikrMobileApp());
+  runApp(const PasadaNorteMobileApp());
 }
 
-class TrikrMobileApp extends StatelessWidget {
-  const TrikrMobileApp({super.key});
+class PasadaNorteMobileApp extends StatelessWidget {
+  const PasadaNorteMobileApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Trikr Driver & Rider',
+      title: 'PasadaNorte Driver & Rider',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
       home: const LoginScreen(), 
     );

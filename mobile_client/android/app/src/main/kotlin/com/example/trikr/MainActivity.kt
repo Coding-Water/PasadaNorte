@@ -1,4 +1,4 @@
-package com.example.trikr
+package com.example.pasadanorte
 
 import io.flutter.embedding.android.FlutterActivity
 
