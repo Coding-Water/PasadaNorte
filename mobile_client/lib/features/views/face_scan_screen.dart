@@ -160,7 +160,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ] else ...[
-                        Icon(Icons.face_retouching_natural, color: Colors.white.withOpacity(0.8), size: 80),
+                        Icon(Icons.face_retouching_natural, color: Colors.white.withValues(alpha: 0.8), size: 80),
                         const SizedBox(height: 16),
                         const Text(
                           'Position Face Inside Circle',

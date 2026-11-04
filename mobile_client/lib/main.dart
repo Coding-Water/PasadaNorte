@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'core/services/supabase_service.dart';
 import 'core/theme/app_theme.dart';
-import 'features/auth/views/phone_input_screen.dart';
+import 'features/auth/views/welcome_onboarding_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseService.initialize();
   runApp(const PasadaNorteMobileApp());
 }
 
@@ -13,9 +16,9 @@ class PasadaNorteMobileApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Pasada Norte',
+      title: 'PasadaNorte Laoag City',
       theme: AppTheme.lightTheme,
-      home: const PhoneInputScreen(),
+      home: const WelcomeOnboardingScreen(),
     );
   }
 }

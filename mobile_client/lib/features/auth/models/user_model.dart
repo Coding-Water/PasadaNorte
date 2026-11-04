@@ -1,3 +1,5 @@
+import '../../fare/services/fare_calculator_service.dart';
+
 enum UserRole { rider, driver, none }
 
 enum VerificationStatus { pending, approved, rejected, reUploadRequested }
@@ -7,6 +9,7 @@ class UserModel {
   final String phoneNumber;
   final String fullName;
   final UserRole role;
+  final PassengerCategory passengerCategory;
   final String? idCardUrl;
   final String? faceScanUrl;
   final VerificationStatus verificationStatus;
@@ -17,6 +20,7 @@ class UserModel {
     required this.phoneNumber,
     required this.fullName,
     required this.role,
+    this.passengerCategory = PassengerCategory.regular,
     this.idCardUrl,
     this.faceScanUrl,
     this.verificationStatus = VerificationStatus.pending,
@@ -29,6 +33,7 @@ class UserModel {
       'phone_number': phoneNumber,
       'full_name': fullName,
       'role': role.name,
+      'passenger_category': passengerCategory.name,
       'id_card_url': idCardUrl,
       'face_scan_url': faceScanUrl,
       'verification_status': verificationStatus.name,
@@ -44,6 +49,10 @@ class UserModel {
       role: UserRole.values.firstWhere(
         (e) => e.name == json['role'],
         orElse: () => UserRole.none,
+      ),
+      passengerCategory: PassengerCategory.values.firstWhere(
+        (e) => e.name == json['passenger_category'],
+        orElse: () => PassengerCategory.regular,
       ),
       idCardUrl: json['id_card_url'],
       faceScanUrl: json['face_scan_url'],

@@ -44,6 +44,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _isLoading = true;
     });
 
+    // Simulate OTP Verification Network Request
     await Future.delayed(const Duration(seconds: 1));
 
     if (!mounted) return;
@@ -51,6 +52,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _isLoading = false;
     });
 
+    // Navigate to Role Selection Screen
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -101,6 +103,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               
               const SizedBox(height: 36),
 
+              // 6 Digit Pin Code Fields
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(
@@ -167,6 +170,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
               const Spacer(),
 
+              // Verify Button
               ElevatedButton(
                 onPressed: _isLoading ? null : _verifyOtp,
                 child: _isLoading

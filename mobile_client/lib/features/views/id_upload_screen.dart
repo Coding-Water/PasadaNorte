@@ -108,7 +108,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
               const SizedBox(height: 28),
 
               DropdownButtonFormField<String>(
-                value: _selectedIdType,
+                initialValue: _selectedIdType,
                 decoration: const InputDecoration(
                   labelText: 'Select ID Type',
                   prefixIcon: Icon(Icons.badge),
