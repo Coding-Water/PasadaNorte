@@ -34,6 +34,9 @@ class SupabaseService {
   // Pulls live Fare Guide Table, TODA Terminal Geofences, and 1:1 Face Verification Queue from Supabase PostgreSQL/PostGIS
   static Future<void> syncAllFromSupabase() async {
     if (!_isConnected) return;
+    // Allow emulator network stack and DNS (10.0.2.3) a moment to settle on cold start
+    await Future.delayed(const Duration(milliseconds: 600));
+
     final sb = Supabase.instance.client;
 
     try {
