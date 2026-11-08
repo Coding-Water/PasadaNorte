@@ -256,7 +256,17 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     });
   }
 
-  // PHASE 2: Rider takes passenger and heads along road route to destination
+  @override
+  void reassemble() {
+    super.reassemble();
+    // Ensure hot-reload immediately transitions if driver already reached pickup
+    if (_ridePhase == _RidePhase.driverHeadingToPickup &&
+        (_trackingTimer == null || !_trackingTimer!.isActive)) {
+      _beginHeadingToDestinationPhase();
+    }
+  }
+
+  // PHASE 2: Rider takes passenger and heads along road route from Point A (Pickup) to Point B (Destination)
   void _beginHeadingToDestinationPhase() {
     _trackingTimer?.cancel();
     if (!mounted) return;
@@ -273,14 +283,18 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       _etaToDestinationMinutes = _totalTripDurationMinutes;
     });
 
-    _fitDestinationRouteBounds();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _fitDestinationRouteBounds();
+      }
+    });
 
     // Advance along the road polyline so the passenger sees live distance/ETA countdown to their destination
     final int stepIncrement =
-        max(1, (_destinationRoutePath.length / 18).ceil());
+        max(1, (_destinationRoutePath.length / 20).ceil());
 
     _trackingTimer =
-        Timer.periodic(const Duration(milliseconds: 600), (timer) {
+        Timer.periodic(const Duration(milliseconds: 650), (timer) {
       if (!mounted) return;
       if (_destinationRoutePath.length > 1 &&
           _currentDestinationIndex < _destinationRoutePath.length - 1) {
@@ -307,6 +321,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                   .ceil()
                   .clamp(1, _totalTripDurationMinutes);
         });
+        _followActiveDestinationJourney();
       } else {
         timer.cancel();
         _triggerArrivedAtDestinationPhase();
@@ -331,17 +346,46 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
   void _fitDestinationRouteBounds() {
     try {
-      final bounds = LatLngBounds.fromPoints(_destinationRoutePath);
+      final pointsToFit = <LatLng>[
+        widget.pickupPoint.latLng,
+        _tricycleLivePos,
+        widget.dropoffPoint.latLng,
+        ..._destinationRoutePath,
+      ];
+      final bounds = LatLngBounds.fromPoints(pointsToFit);
       _mapController.fitCamera(
         CameraFit.bounds(
           bounds: bounds,
-          padding: const EdgeInsets.fromLTRB(58, 130, 58, 90),
-          maxZoom: 16.3,
+          padding: const EdgeInsets.fromLTRB(54, 150, 54, 95),
+          maxZoom: 16.2,
         ),
       );
     } catch (_) {
       _mapController.move(widget.dropoffPoint.latLng, 15.6);
     }
+  }
+
+  // Smoothly updates the map camera as the vehicle moves from Point A toward Point B
+  // so both the moving tricycle and the destination (Point B) remain clearly framed on screen
+  void _followActiveDestinationJourney() {
+    try {
+      final remainingSlice = _destinationRoutePath.sublist(
+        _currentDestinationIndex.clamp(0, _destinationRoutePath.length - 1),
+      );
+      final points = <LatLng>[
+        _tricycleLivePos,
+        widget.dropoffPoint.latLng,
+        ...remainingSlice,
+      ];
+      final bounds = LatLngBounds.fromPoints(points);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.fromLTRB(62, 155, 62, 100),
+          maxZoom: 16.5,
+        ),
+      );
+    } catch (_) {}
   }
 
   @override
@@ -723,11 +767,53 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                     if (_ridePhase != _RidePhase.findingDriver)
                       Marker(
                         point: _tricycleLivePos,
-                        width: 68,
-                        height: 68,
-                        child: Transform.rotate(
-                          angle: _tricycleBearingRadians,
-                          child: _buildTopDownTricycleMarker(),
+                        width: 130,
+                        height: 98,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_ridePhase ==
+                                    _RidePhase.driverHeadingToPickup ||
+                                _ridePhase == _RidePhase.headingToDestination)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 3),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _ridePhase ==
+                                          _RidePhase.headingToDestination
+                                      ? AppTheme.accentEmerald
+                                      : AppTheme.primarySlate,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black26,
+                                      blurRadius: 5,
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  _ridePhase == _RidePhase.headingToDestination
+                                      ? '${_formatRemainingDestinationDistance()} • ${_etaToDestinationMinutes}m'
+                                      : '${_distanceToPassengerMeters.toStringAsFixed(0)}m',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            SizedBox(
+                              width: 64,
+                              height: 64,
+                              child: Transform.rotate(
+                                angle: _tricycleBearingRadians,
+                                child: _buildTopDownTricycleMarker(),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                   ],
@@ -736,7 +822,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
           ),
 
-          // 2. FLOATING TOP PICKUP & DESTINATION CARD
+          // 2. FLOATING TOP PICKUP (POINT A) & DESTINATION (POINT B) CARD WITH LIVE DISTANCE
           if (_ridePhase != _RidePhase.arrivedAtDestination)
             SafeArea(
               child: Padding(
@@ -778,6 +864,26 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                               ),
                             ),
                           ),
+                          if (_ridePhase == _RidePhase.headingToDestination)
+                            Container(
+                              margin: const EdgeInsets.only(left: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.accentEmeraldLight,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Picked Up',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.accentEmerald,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                       Padding(
@@ -808,6 +914,27 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                               ),
                             ),
                           ),
+                          if (_ridePhase == _RidePhase.headingToDestination)
+                            Container(
+                              margin: const EdgeInsets.only(left: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    AppTheme.cancelRed.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${_formatRemainingDestinationDistance()} • ${_etaToDestinationMinutes}m',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.cancelRed,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ],
