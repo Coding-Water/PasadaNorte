@@ -108,51 +108,61 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppTheme.accentEmerald,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(
-                                Icons.electric_rickshaw_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'PasadaNorte',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.4,
-                                  ),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.accentEmerald,
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
-                                Text(
-                                  'Laoag City • Ilocos Norte',
-                                  style: TextStyle(
-                                    color: Colors.white60,
-                                    fontSize: 11.5,
-                                  ),
+                                child: const Icon(
+                                  Icons.electric_rickshaw_rounded,
+                                  color: Colors.white,
+                                  size: 22,
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                              const SizedBox(width: 10),
+                              const Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'PasadaNorte',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18.5,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.4,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Laoag City • Ilocos Norte',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             GestureDetector(
                               onTap: () => _checkAndPromptAndroidPermissions(forceShowAll: true),
                               child: Container(
-                                margin: const EdgeInsets.only(right: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                margin: const EdgeInsets.only(right: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                                 decoration: BoxDecoration(
                                   color: _permState.allGranted
                                       ? AppTheme.accentEmerald.withValues(alpha: 0.22)
@@ -160,6 +170,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                                 child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
                                       _permState.allGranted
@@ -173,7 +184,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                     const SizedBox(width: 4),
                                     Text(
                                       _permState.allGranted
-                                          ? '4/4 Perms Active'
+                                          ? '4/4 Active'
                                           : 'Permissions',
                                       style: TextStyle(
                                         color: _permState.allGranted
@@ -192,14 +203,16 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                               style: TextButton.styleFrom(
                                 foregroundColor: Colors.white,
                                 backgroundColor: Colors.white.withValues(alpha: 0.1),
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                               ),
                               child: const Text(
                                 'Skip',
-                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                               ),
                             ),
                           ],
