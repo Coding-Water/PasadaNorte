@@ -890,6 +890,16 @@
     "zone_code": "Z02"
   },
   {
+    "name": "AMA Computer University (AMA Laoag), 5HVW+GJ8, Pacific Building, II Don E. Ruiz Street and Abadilla Street, Laoag City, Ilocos Norte",
+    "raw_name": "AMA Computer University (AMA Laoag)",
+    "street": "5HVW+GJ8, II Don E. Ruiz Street and Abadilla Street",
+    "barangay_or_district": "Laoag City",
+    "category": "university",
+    "latitude": 18.19375,
+    "longitude": 120.596722,
+    "zone_code": "Z01"
+  },
+  {
     "name": "AMBS Laoag, Manila North Road, San Lorenzo",
     "raw_name": "AMBS Laoag",
     "street": "Manila North Road",
@@ -6730,16 +6740,6 @@
     "zone_code": "Z08"
   },
   {
-    "name": "College of Arts and Trades, Bgy. No. 12 San Isidro, Laoag City",
-    "raw_name": "College of Arts and Trades",
-    "street": "",
-    "barangay_or_district": "Bgy. No. 12 San Isidro",
-    "category": "college",
-    "latitude": 18.203699,
-    "longitude": 120.592987,
-    "zone_code": "Z02"
-  },
-  {
     "name": "Colonel Bonoan Street, Laoag City",
     "raw_name": "Colonel Bonoan Street",
     "street": "",
@@ -10550,16 +10550,6 @@
     "zone_code": "Z05"
   },
   {
-    "name": "INNHS Irrigation Bridge 1, Laoag City",
-    "raw_name": "INNHS Irrigation Bridge 1",
-    "street": "",
-    "barangay_or_district": "",
-    "category": "landmark",
-    "latitude": 18.205223,
-    "longitude": 120.592105,
-    "zone_code": "Z02"
-  },
-  {
     "name": "Iglesia Filipina Independiente Parish of Saint William, Jose Rizal Avenue, Bgy. No. 15 San Guillermo, Laoag City",
     "raw_name": "Iglesia Filipina Independiente Parish of Saint William",
     "street": "Jose Rizal Avenue",
@@ -10730,23 +10720,13 @@
     "zone_code": "Z06"
   },
   {
-    "name": "Ilocos Norte College of Arts and Trades High School, P. Gomez Street, Laoag City",
-    "raw_name": "Ilocos Norte College of Arts and Trades High School",
-    "street": "P. Gomez Street",
-    "barangay_or_district": "",
-    "category": "school",
-    "latitude": 18.204193,
-    "longitude": 120.592653,
-    "zone_code": "Z02"
-  },
-  {
-    "name": "Ilocos Norte College of Arts and Trades, Mayor Mamerto Remigio Street, Bgy. No. 8 San Vicente, Laoag City",
-    "raw_name": "Ilocos Norte College of Arts and Trades",
-    "street": "Mayor Mamerto Remigio Street",
-    "barangay_or_district": "Bgy. No. 8 San Vicente",
-    "category": "school",
-    "latitude": 18.203471,
-    "longitude": 120.592714,
+    "name": "Ilocos Norte College of Arts and Trades (INCAT), 6H3V+F83, P. Gomez, Laoag City, 2900 Ilocos Norte",
+    "raw_name": "Ilocos Norte College of Arts and Trades (INCAT)",
+    "street": "6H3V+F83, P. Gomez",
+    "barangay_or_district": "Laoag City",
+    "category": "college",
+    "latitude": 18.2035,
+    "longitude": 120.592639,
     "zone_code": "Z02"
   },
   {
@@ -10760,23 +10740,13 @@
     "zone_code": "Z05"
   },
   {
-    "name": "Ilocos Norte National High School, Gov. Roque V. Ablan Avenue, Bgy. No. 21 San Pedro, Laoag City",
-    "raw_name": "Ilocos Norte National High School",
-    "street": "Gov. Roque V. Ablan Avenue",
-    "barangay_or_district": "Bgy. No. 21 San Pedro",
+    "name": "Ilocos Norte National High School (INNHS), 6H3R+MFX, Gov. Roque B. Ablan, Laoag City, Ilocos Norte",
+    "raw_name": "Ilocos Norte National High School (INNHS)",
+    "street": "6H3R+MFX, Gov. Roque B. Ablan",
+    "barangay_or_district": "Laoag City",
     "category": "school",
-    "latitude": 18.206002,
-    "longitude": 120.592607,
-    "zone_code": "Z02"
-  },
-  {
-    "name": "Ilocos Norte National High School, P. Hernando Street, Bgy. No. 21 San Pedro, Laoag City",
-    "raw_name": "Ilocos Norte National High School",
-    "street": "P. Hernando Street",
-    "barangay_or_district": "Bgy. No. 21 San Pedro",
-    "category": "school",
-    "latitude": 18.204635,
-    "longitude": 120.590818,
+    "latitude": 18.204056,
+    "longitude": 120.591583,
     "zone_code": "Z02"
   },
   {
@@ -19097,6 +19067,16 @@
     "category": "government",
     "latitude": 18.193616,
     "longitude": 120.596574,
+    "zone_code": "Z01"
+  },
+  {
+    "name": "STI College Laoag, 5HVW+JPP, Laoag City, 2900 Ilocos Norte",
+    "raw_name": "STI College Laoag",
+    "street": "5HVW+JPP",
+    "barangay_or_district": "Laoag City",
+    "category": "college",
+    "latitude": 18.194111,
+    "longitude": 120.596889,
     "zone_code": "Z01"
   },
   {

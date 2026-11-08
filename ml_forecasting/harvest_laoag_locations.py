@@ -328,6 +328,72 @@ def main():
             )
 
     places_list = sorted(all_places.values(), key=lambda x: x["name"])
+
+    # Enforce exact verified coordinates for key Laoag schools & colleges (INCAT, INNHS, STI, AMA)
+    filtered_places = []
+    for p in places_list:
+        low = p["name"].lower()
+        if any(
+            sub in low
+            for sub in [
+                "college of arts and trades",
+                "incat",
+                "ilocos norte national high school",
+                "innhs",
+                "sti college",
+                "sti laoag",
+                "ama computer",
+                "ama laoag",
+            ]
+        ):
+            continue
+        filtered_places.append(p)
+
+    verified_school_overrides = [
+        {
+            "name": "Ilocos Norte College of Arts and Trades (INCAT), 6H3V+F83, P. Gomez, Laoag City, 2900 Ilocos Norte",
+            "raw_name": "Ilocos Norte College of Arts and Trades (INCAT)",
+            "street": "6H3V+F83, P. Gomez",
+            "barangay_or_district": "Laoag City",
+            "category": "college",
+            "latitude": 18.203500,
+            "longitude": 120.592639,
+            "zone_code": "Z02",
+        },
+        {
+            "name": "Ilocos Norte National High School (INNHS), 6H3R+MFX, Gov. Roque B. Ablan, Laoag City, Ilocos Norte",
+            "raw_name": "Ilocos Norte National High School (INNHS)",
+            "street": "6H3R+MFX, Gov. Roque B. Ablan",
+            "barangay_or_district": "Laoag City",
+            "category": "school",
+            "latitude": 18.204056,
+            "longitude": 120.591583,
+            "zone_code": "Z02",
+        },
+        {
+            "name": "STI College Laoag, 5HVW+JPP, Laoag City, 2900 Ilocos Norte",
+            "raw_name": "STI College Laoag",
+            "street": "5HVW+JPP",
+            "barangay_or_district": "Laoag City",
+            "category": "college",
+            "latitude": 18.194111,
+            "longitude": 120.596889,
+            "zone_code": "Z01",
+        },
+        {
+            "name": "AMA Computer University (AMA Laoag), 5HVW+GJ8, Pacific Building, II Don E. Ruiz Street and Abadilla Street, Laoag City, Ilocos Norte",
+            "raw_name": "AMA Computer University (AMA Laoag)",
+            "street": "5HVW+GJ8, II Don E. Ruiz Street and Abadilla Street",
+            "barangay_or_district": "Laoag City",
+            "category": "university",
+            "latitude": 18.193750,
+            "longitude": 120.596722,
+            "zone_code": "Z01",
+        },
+    ]
+    places_list = sorted(
+        filtered_places + verified_school_overrides, key=lambda x: x["name"]
+    )
     print("Total unique verified Laoag City places extracted:", len(places_list))
 
     with open(json_path, "w", encoding="utf-8") as f:

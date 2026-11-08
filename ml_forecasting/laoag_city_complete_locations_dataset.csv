@@ -88,6 +88,7 @@ name,raw_name,street,barangay_or_district,category,latitude,longitude,zone_code
 "ACE Petroleum, Governor Ablan Avenue, Laoag City",ACE Petroleum,Governor Ablan Avenue,,fuel,18.201903,120.59045,Z02
 "AJ Gasoline Station, Bgy. No. 2 Santa Joaquina, Laoag City",AJ Gasoline Station,,Bgy. No. 2 Santa Joaquina,fuel,18.205765,120.585421,Z09
 "AJ Seafood Hauz, Mayor Mamerto Remigio Street, Bgy. No. 14 Santo Tomas, Laoag City",AJ Seafood Hauz,Mayor Mamerto Remigio Street,Bgy. No. 14 Santo Tomas,restaurant,18.201725,120.596534,Z02
+"AMA Computer University (AMA Laoag), 5HVW+GJ8, Pacific Building, II Don E. Ruiz Street and Abadilla Street, Laoag City, Ilocos Norte",AMA Computer University (AMA Laoag),"5HVW+GJ8, II Don E. Ruiz Street and Abadilla Street",Laoag City,university,18.19375,120.596722,Z01
 "AMBS Laoag, Manila North Road, San Lorenzo",AMBS Laoag,Manila North Road,San Lorenzo,landmark,18.149293,120.586244,Z08
 "AMWSLAI, General Segundo Avenue, Laoag City",AMWSLAI,General Segundo Avenue,,company,18.196007,120.594269,Z06
 "ANGELO JUSTINE STORE, Aglipay Street, Laoag City",ANGELO JUSTINE STORE,Aglipay Street,,convenience,18.230588,120.644376,Z05
@@ -672,7 +673,6 @@ Camella Homes Laoag,Camella Homes Laoag,,,village,18.191768,120.550672,Z10
 "Coffee Project - Laoag, Airport Road",Coffee Project - Laoag,Airport Road,,cafe,18.188757,120.55006,Z10
 "Coke Admin Bldg., Laoag City",Coke Admin Bldg.,,,yes,18.167278,120.610302,Z08
 "Coke Plant Clinic, Laoag City",Coke Plant Clinic,,,hospital,18.167576,120.609722,Z08
-"College of Arts and Trades, Bgy. No. 12 San Isidro, Laoag City",College of Arts and Trades,,Bgy. No. 12 San Isidro,college,18.203699,120.592987,Z02
 "Colonel Bonoan Street, Laoag City",Colonel Bonoan Street,,,residential,18.172176,120.591443,Z08
 "Colonel Bonoan Street, Laoag City",Colonel Bonoan Street,,,residential,18.175708,120.593715,Z08
 "Comet Philippines Technology of Performance, Paco Roman Street, Bgy. No. 14 Santo Tomas, Laoag City",Comet Philippines Technology of Performance,Paco Roman Street,Bgy. No. 14 Santo Tomas,school,18.199559,120.59511,Z06
@@ -1054,7 +1054,6 @@ IBC Laoag,IBC Laoag,,,landmark,18.185345,120.562842,Z07
 "ICT Building, Laoag City",ICT Building,,,school,18.203852,120.592493,Z02
 "ILOCOS CONSOLIDATED COOPERATIVE BANK Batac, Balintawak Street, Bgy. No. 11 Santa Balbina, Laoag City",ILOCOS CONSOLIDATED COOPERATIVE BANK Batac,Balintawak Street,Bgy. No. 11 Santa Balbina,bank,18.195965,120.591585,Z06
 "INEC Power Station, Bgy. No. 54-A Lagui-Sail, Laoag City",INEC Power Station,,Bgy. No. 54-A Lagui-Sail,place_of_worship,18.1989,120.610246,Z05
-"INNHS Irrigation Bridge 1, Laoag City",INNHS Irrigation Bridge 1,,,landmark,18.205223,120.592105,Z02
 "Iglesia Filipina Independiente Parish of Saint William, Jose Rizal Avenue, Bgy. No. 15 San Guillermo, Laoag City",Iglesia Filipina Independiente Parish of Saint William,Jose Rizal Avenue,Bgy. No. 15 San Guillermo,place_of_worship,18.195653,120.593788,Z03
 "Iglesia Filipina Independiente, Laoag City",Iglesia Filipina Independiente,,,place_of_worship,18.157101,120.645832,Z08
 "Iglesia Filipina Independiente, Parish of St. William, J. P. Rizal Avenue, Laoag City",Iglesia Filipina Independiente,J. P. Rizal Avenue,,place_of_worship,18.195801,120.593855,Z06
@@ -1072,11 +1071,9 @@ IBC Laoag,IBC Laoag,,,landmark,18.185345,120.562842,Z07
 "Ilocos Centennial Arena, Laoag City",Ilocos Centennial Arena,,,landmark,18.205715,120.591752,Z02
 "Ilocos Norte Adventist School, Bgy. No. 20 San Miguel, Laoag City",Ilocos Norte Adventist School,,Bgy. No. 20 San Miguel,school,18.194965,120.598707,Z01
 "Ilocos Norte Capitol, Bgy. No. 14 Santo Tomas, Laoag City",Ilocos Norte Capitol,,Bgy. No. 14 Santo Tomas,government,18.196226,120.59327,Z06
-"Ilocos Norte College of Arts and Trades High School, P. Gomez Street, Laoag City",Ilocos Norte College of Arts and Trades High School,P. Gomez Street,,school,18.204193,120.592653,Z02
-"Ilocos Norte College of Arts and Trades, Mayor Mamerto Remigio Street, Bgy. No. 8 San Vicente, Laoag City",Ilocos Norte College of Arts and Trades,Mayor Mamerto Remigio Street,Bgy. No. 8 San Vicente,school,18.203471,120.592714,Z02
+"Ilocos Norte College of Arts and Trades (INCAT), 6H3V+F83, P. Gomez, Laoag City, 2900 Ilocos Norte",Ilocos Norte College of Arts and Trades (INCAT),"6H3V+F83, P. Gomez",Laoag City,college,18.2035,120.592639,Z02
 "Ilocos Norte Electric Cooperative, Laoag City",Ilocos Norte Electric Cooperative,,,landmark,18.199112,120.610083,Z05
-"Ilocos Norte National High School, Gov. Roque V. Ablan Avenue, Bgy. No. 21 San Pedro, Laoag City",Ilocos Norte National High School,Gov. Roque V. Ablan Avenue,Bgy. No. 21 San Pedro,school,18.206002,120.592607,Z02
-"Ilocos Norte National High School, P. Hernando Street, Bgy. No. 21 San Pedro, Laoag City",Ilocos Norte National High School,P. Hernando Street,Bgy. No. 21 San Pedro,school,18.204635,120.590818,Z02
+"Ilocos Norte National High School (INNHS), 6H3R+MFX, Gov. Roque B. Ablan, Laoag City, Ilocos Norte",Ilocos Norte National High School (INNHS),"6H3R+MFX, Gov. Roque B. Ablan",Laoag City,school,18.204056,120.591583,Z02
 "Ilocos Norte Police Provincial Office, Bgy. No. 23 San Matias, Laoag City",Ilocos Norte Police Provincial Office,,Bgy. No. 23 San Matias,police_station,18.1966,120.604043,Z05
 "Ilocos Norte Provincial Capitol, J. P. Rizal Avenue, Laoag City",Ilocos Norte Provincial Capitol,J. P. Rizal Avenue,,office,18.196379,120.59312,Z06
 "Ilocos Norte Provincial Engineering Office, Laoag City",Ilocos Norte Provincial Engineering Office,,,government,18.208753,120.594089,Z02
@@ -1909,6 +1906,7 @@ SM City Laoag Transport Terminal,SM City Laoag Transport Terminal,,,bus_station,
 "SSAM, Laoag City",SSAM,,,landmark,18.221476,120.64762,Z05
 "SSAM, Laoag City",SSAM,,,convenience,18.227255,120.647086,Z05
 "SSS Building, Don E. Ruiz Street, Bgy. No. 19 Santa Marcela, Laoag City",SSS Building,Don E. Ruiz Street,Bgy. No. 19 Santa Marcela,government,18.193616,120.596574,Z01
+"STI College Laoag, 5HVW+JPP, Laoag City, 2900 Ilocos Norte",STI College Laoag,5HVW+JPP,Laoag City,college,18.194111,120.596889,Z01
 "SYM, Manila North Road, Laoag City",SYM,Manila North Road,,motorcycle,18.17555,120.592631,Z08
 "Sabangan Beach, Laoag City",Sabangan Beach,,,landmark,18.213611,120.532449,Z10
 "Sabangan, Laoag City",Sabangan,,,hamlet,18.212121,120.533484,Z10
