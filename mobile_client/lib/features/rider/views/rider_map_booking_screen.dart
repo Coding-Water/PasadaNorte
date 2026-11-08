@@ -107,6 +107,28 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
         tripType: _selectedTripType,
       );
     });
+
+    _fitRouteOnMap();
+  }
+
+  void _fitRouteOnMap() {
+    final dropoff = _dropoffPoint;
+    if (dropoff == null) return;
+    try {
+      final points = _routePolyline.length >= 2
+          ? _routePolyline
+          : [_pickupPoint.latLng, dropoff.latLng];
+      final bounds = LatLngBounds.fromPoints(points);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.fromLTRB(56, 110, 56, 120),
+          maxZoom: 16.5,
+        ),
+      );
+    } catch (_) {
+      _mapController.move(dropoff.latLng, 15.5);
+    }
   }
 
   void _recalculateFareFromCurrentDistance() {

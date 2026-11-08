@@ -9,6 +9,13 @@ import '../../../core/services/location_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 
+enum _RidePhase {
+  findingDriver, // Screen 26: "Finding you a nearby driver..."
+  driverHeadingToPickup, // Screens 27 & 28: "Driver is heading to your location..."
+  headingToDestination, // Screen 33: "Heading to destination..."
+  arrivedAtDestination, // Screen 34: "You have arrived!"
+}
+
 class LiveRideTrackingScreen extends StatefulWidget {
   final String passengerName;
   final LocationPoint pickupPoint;
@@ -40,20 +47,30 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   Timer? _trackingTimer;
   late AnimationController _radarPulseController;
 
-  // Phase 0 (Screen 26): "Finding you a nearby driver..." (Live map with concentric green radar rings)
-  // Phase 1 (Screens 27 & 28): "Driver is heading to your location..." (Collapsed / Expanded bottom sheet)
-  bool _isWaitingForAcceptance = true;
+  _RidePhase _ridePhase = _RidePhase.findingDriver;
   bool _isSheetExpanded = false;
   int _waitSecondsElapsed = 0;
 
-  // Street-snapped Tricycle Live Approach Coordinates (from nearest TODA terminal to passenger pickup)
+  // Phase 1: Street-snapped Tricycle Approach Path (from nearest TODA terminal to passenger pickup)
   List<LatLng> _tricycleApproachPath = [];
   int _currentApproachIndex = 0;
+  int _etaToPassengerMinutes = 2;
+  double _distanceToPassengerMeters = 420;
+
+  // Phase 2: Street-snapped Passenger Journey Path (from pickupPoint to dropoffPoint)
+  List<LatLng> _destinationRoutePath = [];
+  int _currentDestinationIndex = 0;
+  double _totalTripDistanceKm = 1.2;
+  int _totalTripDurationMinutes = 4;
+  double _remainingDestinationKm = 1.2;
+  int _etaToDestinationMinutes = 4;
+
+  // Live Vehicle Position & Accurate Forward Street Bearing (0 rad = North / Up)
   late LatLng _tricycleLivePos;
   double _tricycleBearingRadians = 0.0;
-  int _etaToPassengerMinutes = 2;
-  double _distanceToPassengerMeters = 450;
-  bool _hasArrivedAtPickup = false;
+
+  // Phase 3 (Screen 34): Selected Mood during this trip (0..4, default 3 = Happy)
+  int _selectedMoodIndex = 3;
 
   // Verified Driver & Vehicle Documentation Data (Matched from Rank #1 TODA Pila)
   final Map<String, String> _matchedDriver = {
@@ -80,30 +97,67 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
 
+    _totalTripDistanceKm = max(0.3, widget.fareBreakdown.distanceKm);
+    _totalTripDurationMinutes =
+        max(2, (_totalTripDistanceKm / 0.36).ceil().clamp(2, 25));
+    _remainingDestinationKm = _totalTripDistanceKm;
+    _etaToDestinationMinutes = _totalTripDurationMinutes;
+
+    _destinationRoutePath = widget.routePolyline.length >= 2
+        ? List<LatLng>.from(widget.routePolyline)
+        : [widget.pickupPoint.latLng, widget.dropoffPoint.latLng];
+
     _tricycleLivePos = LocationPoint(
       name: 'Nearest Queued TODA Terminal',
-      latitude: widget.pickupPoint.latitude - 0.0024,
-      longitude: widget.pickupPoint.longitude - 0.0018,
+      latitude: widget.pickupPoint.latitude - 0.0020,
+      longitude: widget.pickupPoint.longitude - 0.0015,
       zoneCode: 'TODA',
     ).latLng;
 
-    _buildApproachTrajectory();
-    _startWaitingForAcceptance();
+    _prepareRoutesAndStartDispatch();
   }
 
+  // Accurate spherical bearing in radians where 0 = North (up), pi/2 = East (right)
   double _computeBearingRadians(LatLng from, LatLng to) {
     final dLat = to.latitude - from.latitude;
     final dLng = to.longitude - from.longitude;
-    if (dLat.abs() < 1e-7 && dLng.abs() < 1e-7) return _tricycleBearingRadians;
-    // Angle relative to North (upward on map)
-    return atan2(dLng, dLat);
+    if (dLat.abs() < 1e-7 && dLng.abs() < 1e-7) {
+      return _tricycleBearingRadians;
+    }
+    final lat1 = from.latitude * pi / 180.0;
+    final lat2 = to.latitude * pi / 180.0;
+    final dLon = (to.longitude - from.longitude) * pi / 180.0;
+    final y = sin(dLon) * cos(lat2);
+    final x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon);
+    return atan2(y, x);
   }
 
-  Future<void> _buildApproachTrajectory() async {
+  // Looks ahead along the polyline so the vehicle always points cleanly toward the next road segment
+  double _computeForwardBearingOnPath(List<LatLng> path, int index) {
+    if (path.length < 2) return _tricycleBearingRadians;
+    final int clampedIdx = index.clamp(0, path.length - 1);
+    final LatLng current = path[clampedIdx];
+
+    for (int nextIdx = clampedIdx + 1; nextIdx < path.length; nextIdx++) {
+      final candidate = path[nextIdx];
+      final dLat = (candidate.latitude - current.latitude).abs();
+      final dLng = (candidate.longitude - current.longitude).abs();
+      if (dLat > 2e-5 || dLng > 2e-5) {
+        return _computeBearingRadians(current, candidate);
+      }
+    }
+
+    if (clampedIdx > 0) {
+      return _computeBearingRadians(path[clampedIdx - 1], current);
+    }
+    return _tricycleBearingRadians;
+  }
+
+  Future<void> _prepareRoutesAndStartDispatch() async {
     final todaStartPoint = LocationPoint(
       name: 'Laoag TODA Terminal Dispatch Point',
-      latitude: widget.pickupPoint.latitude - 0.0024,
-      longitude: widget.pickupPoint.longitude - 0.0018,
+      latitude: widget.pickupPoint.latitude - 0.0020,
+      longitude: widget.pickupPoint.longitude - 0.0015,
       zoneCode: 'TODA',
     );
 
@@ -112,6 +166,18 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       widget.pickupPoint,
     );
 
+    if (_destinationRoutePath.length < 4) {
+      final destRoute = await LocationService.fetchRoadRoute(
+        widget.pickupPoint,
+        widget.dropoffPoint,
+      );
+      if (destRoute.polylinePoints.length >= 2) {
+        _destinationRoutePath = destRoute.polylinePoints;
+        _totalTripDistanceKm = destRoute.distanceKm;
+        _totalTripDurationMinutes = destRoute.durationMinutes;
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _tricycleApproachPath = approachRoute.polylinePoints.isNotEmpty
@@ -119,51 +185,61 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           : [todaStartPoint.latLng, widget.pickupPoint.latLng];
       _currentApproachIndex = 0;
       _tricycleLivePos = _tricycleApproachPath.first;
-      if (_tricycleApproachPath.length > 1) {
-        _tricycleBearingRadians = _computeBearingRadians(
-          _tricycleApproachPath[0],
-          _tricycleApproachPath[1],
-        );
-      }
+      _tricycleBearingRadians =
+          _computeForwardBearingOnPath(_tricycleApproachPath, 0);
       _distanceToPassengerMeters =
-          (approachRoute.distanceKm * 1000).clamp(120, 1500);
-      _etaToPassengerMinutes = approachRoute.durationMinutes.clamp(1, 5);
+          (approachRoute.distanceKm * 1000).clamp(120, 1200);
+      _etaToPassengerMinutes = approachRoute.durationMinutes.clamp(1, 4);
     });
+
+    _startWaitingForAcceptance();
   }
 
   void _startWaitingForAcceptance() {
+    _dispatchTimer?.cancel();
     _dispatchTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       setState(() {
         _waitSecondsElapsed++;
       });
-      // After 4 seconds of radar pulse, Rank #1 queued tricycle accepts the booking
-      if (_waitSecondsElapsed >= 4) {
+      // After 3 seconds of radar pulse, Rank #1 queued tricycle accepts the booking
+      if (_waitSecondsElapsed >= 3) {
         timer.cancel();
-        setState(() {
-          _isWaitingForAcceptance = false;
-        });
-        _startLiveTricycleMovement();
+        _beginDriverApproachPhase();
       }
     });
   }
 
-  void _startLiveTricycleMovement() {
+  void _beginDriverApproachPhase() {
+    if (!mounted) return;
+    setState(() {
+      _ridePhase = _RidePhase.driverHeadingToPickup;
+    });
+
     final double initialDistMeters =
-        _distanceToPassengerMeters > 0 ? _distanceToPassengerMeters : 450;
+        _distanceToPassengerMeters > 0 ? _distanceToPassengerMeters : 400;
     final int initialEtaMins =
         _etaToPassengerMinutes > 0 ? _etaToPassengerMinutes : 2;
+    // Step size so approach finishes smoothly in ~10 ticks (~5.5 seconds)
+    final int stepIncrement =
+        max(1, (_tricycleApproachPath.length / 10).ceil());
 
-    _trackingTimer = Timer.periodic(const Duration(milliseconds: 900), (timer) {
+    _trackingTimer?.cancel();
+    _trackingTimer =
+        Timer.periodic(const Duration(milliseconds: 550), (timer) {
       if (!mounted) return;
       if (_tricycleApproachPath.length > 1 &&
           _currentApproachIndex < _tricycleApproachPath.length - 1) {
         setState(() {
-          final prevPos = _tricycleApproachPath[_currentApproachIndex];
-          _currentApproachIndex++;
-          final nextPos = _tricycleApproachPath[_currentApproachIndex];
-          _tricycleBearingRadians = _computeBearingRadians(prevPos, nextPos);
-          _tricycleLivePos = nextPos;
+          _currentApproachIndex = min(
+            _tricycleApproachPath.length - 1,
+            _currentApproachIndex + stepIncrement,
+          );
+          _tricycleLivePos = _tricycleApproachPath[_currentApproachIndex];
+          _tricycleBearingRadians = _computeForwardBearingOnPath(
+            _tricycleApproachPath,
+            _currentApproachIndex,
+          );
 
           final remainingRatio = 1.0 -
               (_currentApproachIndex / (_tricycleApproachPath.length - 1));
@@ -174,13 +250,98 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         });
       } else {
         timer.cancel();
-        setState(() {
-          _hasArrivedAtPickup = true;
-          _distanceToPassengerMeters = 0;
-          _etaToPassengerMinutes = 0;
-        });
+        // Driver has picked up the passenger — immediately transition to Phase 2 (Heading to Destination!)
+        _beginHeadingToDestinationPhase();
       }
     });
+  }
+
+  // PHASE 2 (Screen 33): Rider takes passenger and heads along road route to destination
+  void _beginHeadingToDestinationPhase() {
+    _trackingTimer?.cancel();
+    if (!mounted) return;
+
+    setState(() {
+      _ridePhase = _RidePhase.headingToDestination;
+      _isSheetExpanded = false;
+      _currentDestinationIndex = 0;
+      _tricycleLivePos = _destinationRoutePath.first;
+      // Immediately orient the tricycle along the street toward the passenger's destination!
+      _tricycleBearingRadians =
+          _computeForwardBearingOnPath(_destinationRoutePath, 0);
+      _remainingDestinationKm = _totalTripDistanceKm;
+      _etaToDestinationMinutes = _totalTripDurationMinutes;
+    });
+
+    _fitDestinationRouteBounds();
+
+    // Advance along the road polyline so the passenger sees live distance/ETA countdown to their destination
+    final int stepIncrement =
+        max(1, (_destinationRoutePath.length / 18).ceil());
+
+    _trackingTimer =
+        Timer.periodic(const Duration(milliseconds: 600), (timer) {
+      if (!mounted) return;
+      if (_destinationRoutePath.length > 1 &&
+          _currentDestinationIndex < _destinationRoutePath.length - 1) {
+        setState(() {
+          _currentDestinationIndex = min(
+            _destinationRoutePath.length - 1,
+            _currentDestinationIndex + stepIncrement,
+          );
+          _tricycleLivePos = _destinationRoutePath[_currentDestinationIndex];
+          _tricycleBearingRadians = _computeForwardBearingOnPath(
+            _destinationRoutePath,
+            _currentDestinationIndex,
+          );
+
+          final remainingRatio = 1.0 -
+              (_currentDestinationIndex / (_destinationRoutePath.length - 1));
+          _remainingDestinationKm =
+              (_totalTripDistanceKm * remainingRatio).clamp(
+            0.0,
+            _totalTripDistanceKm,
+          );
+          _etaToDestinationMinutes =
+              (_totalTripDurationMinutes * remainingRatio)
+                  .ceil()
+                  .clamp(1, _totalTripDurationMinutes);
+        });
+      } else {
+        timer.cancel();
+        _triggerArrivedAtDestinationPhase();
+      }
+    });
+  }
+
+  // PHASE 3 (Screen 34): Passenger has arrived at their destination
+  void _triggerArrivedAtDestinationPhase() {
+    _trackingTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _ridePhase = _RidePhase.arrivedAtDestination;
+      _isSheetExpanded = false;
+      _currentDestinationIndex = _destinationRoutePath.length - 1;
+      _tricycleLivePos = widget.dropoffPoint.latLng;
+      _remainingDestinationKm = 0.0;
+      _etaToDestinationMinutes = 0;
+    });
+    _mapController.move(widget.dropoffPoint.latLng, 16.5);
+  }
+
+  void _fitDestinationRouteBounds() {
+    try {
+      final bounds = LatLngBounds.fromPoints(_destinationRoutePath);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.fromLTRB(58, 130, 58, 90),
+          maxZoom: 16.3,
+        ),
+      );
+    } catch (_) {
+      _mapController.move(widget.dropoffPoint.latLng, 15.6);
+    }
   }
 
   @override
@@ -192,7 +353,21 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   }
 
   void _recenterMap() {
-    _mapController.move(widget.pickupPoint.latLng, 16.2);
+    if (_ridePhase == _RidePhase.headingToDestination) {
+      _fitDestinationRouteBounds();
+    } else if (_ridePhase == _RidePhase.arrivedAtDestination) {
+      _mapController.move(widget.dropoffPoint.latLng, 16.5);
+    } else {
+      _mapController.move(widget.pickupPoint.latLng, 16.2);
+    }
+  }
+
+  String _formatRemainingDestinationDistance() {
+    if (_remainingDestinationKm < 1.0) {
+      final meters = max(20, (_remainingDestinationKm * 1000).round());
+      return '$meters m';
+    }
+    return '${_remainingDestinationKm.toStringAsFixed(1)} km';
   }
 
   // Joyride Screen 29: Driver Information + PasadaNorte 4-Angle Tricycle Documentation
@@ -246,24 +421,64 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
+  // Joyride Screens 35, 36, 37, 38: Rate the Driver -> Add Tip -> Ride Completed
+  void _openPostTripRateDriverFlow() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _RateDriverScreen(
+          driverData: _matchedDriver,
+          fareBreakdown: widget.fareBreakdown,
+          paymentMethod: widget.paymentMethod,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDelivery = widget.fareBreakdown.tripType == TripType.pabiliPadala;
+
+    // Polyline slices for Phase 1 (Approach) and Phase 2 (Heading to Destination)
     final remainingApproachPoints = _tricycleApproachPath.isNotEmpty
-        ? _tricycleApproachPath.sublist(_currentApproachIndex)
+        ? _tricycleApproachPath.sublist(
+            _currentApproachIndex.clamp(0, _tricycleApproachPath.length - 1),
+          )
         : <LatLng>[];
 
-    // Calculate dynamic bottom padding for the map and floating buttons
-    final double bottomSheetHeight = _isWaitingForAcceptance
-        ? 250.0
-        : (_isSheetExpanded ? 495.0 : 265.0);
+    final traveledDestinationPoints = _destinationRoutePath.isNotEmpty
+        ? _destinationRoutePath.sublist(
+            0,
+            (_currentDestinationIndex + 1)
+                .clamp(1, _destinationRoutePath.length),
+          )
+        : <LatLng>[];
+
+    final remainingDestinationPoints = _destinationRoutePath.isNotEmpty
+        ? _destinationRoutePath.sublist(
+            _currentDestinationIndex.clamp(
+              0,
+              _destinationRoutePath.length - 1,
+            ),
+          )
+        : <LatLng>[];
+
+    // Dynamic bottom sheet height per phase
+    final double bottomSheetHeight = switch (_ridePhase) {
+      _RidePhase.findingDriver => 250.0,
+      _RidePhase.driverHeadingToPickup => _isSheetExpanded ? 495.0 : 285.0,
+      _RidePhase.headingToDestination => _isSheetExpanded ? 480.0 : 295.0,
+      _RidePhase.arrivedAtDestination => 520.0,
+    };
 
     return Scaffold(
       body: Stack(
         children: [
-          // 1. FULL-BLEED INTERACTIVE MAP (Used in BOTH Screen 26 Waiting & Screen 27/28 Accepted!)
+          // 1. FULL-BLEED INTERACTIVE MAP
           Positioned.fill(
-            bottom: bottomSheetHeight - 28,
+            bottom: _ridePhase == _RidePhase.arrivedAtDestination
+                ? 0
+                : (bottomSheetHeight - 28),
             child: FlutterMap(
               mapController: _mapController,
               options: MapOptions(
@@ -277,18 +492,17 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                   userAgentPackageName: 'ph.laoag.pasadanorte',
                 ),
 
-                // When Driver Accepted (Screens 27 & 28): Show Street-Snapped Green Route Line
-                if (!_isWaitingForAcceptance)
+                // Phase 1 Polylines: Driver heading to pickup
+                if (_ridePhase == _RidePhase.driverHeadingToPickup)
                   PolylineLayer(
                     polylines: [
-                      // Planned passenger destination route (subtle slate line)
-                      if (widget.routePolyline.length > 1)
+                      if (_destinationRoutePath.length > 1)
                         Polyline(
-                          points: widget.routePolyline,
+                          points: _destinationRoutePath,
                           strokeWidth: 3.5,
-                          color: const Color(0xFF94A3B8).withValues(alpha: 0.45),
+                          color:
+                              const Color(0xFF94A3B8).withValues(alpha: 0.45),
                         ),
-                      // Active street-snapped driver approach line (Joyride vibrant green #00B14F)
                       if (remainingApproachPoints.length > 1)
                         Polyline(
                           points: remainingApproachPoints,
@@ -298,10 +512,33 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                     ],
                   ),
 
+                // Phase 2 & 3 Polylines: Passenger in transit heading to destination (Screen 33)
+                if (_ridePhase == _RidePhase.headingToDestination ||
+                    _ridePhase == _RidePhase.arrivedAtDestination)
+                  PolylineLayer(
+                    polylines: [
+                      // Traveled segment from pickup to vehicle (soft mint trail, matching Screen 33)
+                      if (traveledDestinationPoints.length > 1)
+                        Polyline(
+                          points: traveledDestinationPoints,
+                          strokeWidth: 4.5,
+                          color:
+                              AppTheme.accentEmerald.withValues(alpha: 0.38),
+                        ),
+                      // Active remaining road route from vehicle to destination (vibrant green #00B14F)
+                      if (remainingDestinationPoints.length > 1)
+                        Polyline(
+                          points: remainingDestinationPoints,
+                          strokeWidth: 6.0,
+                          color: AppTheme.accentEmerald,
+                        ),
+                    ],
+                  ),
+
                 MarkerLayer(
                   markers: [
                     // SCREEN 26: Animated Concentric Green Radar Rings Around Passenger Avatar
-                    if (_isWaitingForAcceptance)
+                    if (_ridePhase == _RidePhase.findingDriver)
                       Marker(
                         point: widget.pickupPoint.latLng,
                         width: 260,
@@ -341,7 +578,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                                         ),
                                         child: Center(
                                           child: _buildPassengerPinAvatar(
-                                              size: 62),
+                                            size: 62,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -353,19 +591,29 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                         ),
                       ),
 
-                    // SCREENS 27 & 28: Green Teardrop Pin with Passenger Avatar at Pickup Point
-                    if (!_isWaitingForAcceptance)
+                    // Pickup Point Pin (Green Teardrop Pin)
+                    if (_ridePhase != _RidePhase.findingDriver)
                       Marker(
                         point: widget.pickupPoint.latLng,
-                        width: 74,
-                        height: 82,
+                        width: _ridePhase == _RidePhase.driverHeadingToPickup
+                            ? 74
+                            : 52,
+                        height: _ridePhase == _RidePhase.driverHeadingToPickup
+                            ? 82
+                            : 60,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              width: 62,
-                              height: 62,
-                              padding: const EdgeInsets.all(5),
+                              width:
+                                  _ridePhase == _RidePhase.driverHeadingToPickup
+                                      ? 62
+                                      : 42,
+                              height:
+                                  _ridePhase == _RidePhase.driverHeadingToPickup
+                                      ? 62
+                                      : 42,
+                              padding: const EdgeInsets.all(4),
                               decoration: const BoxDecoration(
                                 color: AppTheme.accentEmerald,
                                 shape: BoxShape.circle,
@@ -377,10 +625,15 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                                   ),
                                 ],
                               ),
-                              child: _buildPassengerPinAvatar(size: 50),
+                              child: _buildPassengerPinAvatar(
+                                size: _ridePhase ==
+                                        _RidePhase.driverHeadingToPickup
+                                    ? 50
+                                    : 32,
+                              ),
                             ),
                             const CustomPaint(
-                              size: Size(16, 10),
+                              size: Size(14, 8),
                               painter: _PinTrianglePainter(
                                 color: AppTheme.accentEmerald,
                               ),
@@ -389,26 +642,50 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                         ),
                       ),
 
-                    // SCREENS 27 & 28: Live Moving Top-Down Vehicle / Tricycle Marker Along Street Line
-                    if (!_isWaitingForAcceptance)
+                    // Destination Pin (Red Teardrop Pin with Live Distance Pill — Joyride Screen 33)
+                    if (_ridePhase == _RidePhase.headingToDestination ||
+                        _ridePhase == _RidePhase.arrivedAtDestination)
                       Marker(
-                        point: _tricycleLivePos,
-                        width: 64,
-                        height: 64,
-                        child: Transform.rotate(
-                          angle: _tricycleBearingRadians,
-                          child: Center(
-                            child: Container(
-                              width: 38,
-                              height: 54,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: const Color(0xFF1E293B),
-                                  width: 2,
+                        point: widget.dropoffPoint.latLng,
+                        width: 120,
+                        height: 108,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_ridePhase == _RidePhase.headingToDestination)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 3,
                                 ),
-                                boxShadow: const [
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primarySlate,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black26,
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  _formatRemainingDestinationDistance(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            Container(
+                              width: 58,
+                              height: 58,
+                              padding: const EdgeInsets.all(5),
+                              decoration: const BoxDecoration(
+                                color: AppTheme.cancelRed,
+                                shape: BoxShape.circle,
+                                boxShadow: [
                                   BoxShadow(
                                     color: Colors.black26,
                                     blurRadius: 8,
@@ -416,36 +693,41 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                                   ),
                                 ],
                               ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 24,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF1E293B),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
                                   ),
-                                  const SizedBox(height: 2),
-                                  const Icon(
-                                    Icons.electric_rickshaw_rounded,
-                                    size: 18,
-                                    color: AppTheme.accentEmerald,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Container(
-                                    width: 22,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.accentEmerald,
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                  ),
-                                ],
+                                ),
+                                child: const Icon(
+                                  Icons.storefront_rounded,
+                                  color: AppTheme.cancelRed,
+                                  size: 24,
+                                ),
                               ),
                             ),
-                          ),
+                            const CustomPaint(
+                              size: Size(16, 10),
+                              painter: _PinTrianglePainter(
+                                color: AppTheme.cancelRed,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // Live Moving Top-Down Vehicle / Tricycle Marker Oriented Along the Street
+                    if (_ridePhase != _RidePhase.findingDriver)
+                      Marker(
+                        point: _tricycleLivePos,
+                        width: 68,
+                        height: 68,
+                        child: Transform.rotate(
+                          angle: _tricycleBearingRadians,
+                          child: _buildTopDownTricycleMarker(),
                         ),
                       ),
                   ],
@@ -454,87 +736,89 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
           ),
 
-          // 2. FLOATING TOP PICKUP & DESTINATION CARD (Exact Joyride Screens 26, 27, 28)
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 18,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on_rounded,
-                          color: AppTheme.accentEmerald,
-                          size: 21,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            widget.pickupPoint.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.primarySlate,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(
-                          left: 28, top: 8, bottom: 8),
-                      child: Divider(
-                        height: 1,
-                        color: Colors.grey.shade200,
+          // 2. FLOATING TOP PICKUP & DESTINATION CARD (Screens 26, 27, 28, 33)
+          if (_ridePhase != _RidePhase.arrivedAtDestination)
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 18,
+                        offset: const Offset(0, 4),
                       ),
-                    ),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on_rounded,
-                          color: AppTheme.cancelRed,
-                          size: 21,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            widget.dropoffPoint.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.primarySlate,
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_rounded,
+                            color: AppTheme.accentEmerald,
+                            size: 21,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              widget.pickupPoint.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.primarySlate,
+                              ),
                             ),
                           ),
+                        ],
+                      ),
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(left: 28, top: 8, bottom: 8),
+                        child: Divider(
+                          height: 1,
+                          color: Colors.grey.shade200,
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_rounded,
+                            color: AppTheme.cancelRed,
+                            size: 21,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              widget.dropoffPoint.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.primarySlate,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // 3. FLOATING CIRCULAR BACK (<) AND GPS TARGET BUTTONS ABOVE BOTTOM SHEET (Joyride Screens 26 & 27)
-          if (!_isSheetExpanded) ...[
+          // 3. FLOATING CIRCULAR BACK (<) AND GPS TARGET BUTTONS ABOVE BOTTOM SHEET (Screens 26, 27, 33)
+          if (!_isSheetExpanded &&
+              _ridePhase != _RidePhase.arrivedAtDestination) ...[
             Positioned(
               left: 18,
               bottom: bottomSheetHeight + 14,
@@ -555,33 +839,141 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
           ],
 
-          // 4. BOTTOM SHEET (Switches cleanly between Screen 26 Finding Driver & Screens 27/28 Driver Heading)
+          // 4. DARKENED MAP SCRIM WHEN ARRIVED AT DESTINATION (Joyride Screen 34)
+          if (_ridePhase == _RidePhase.arrivedAtDestination)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.52),
+              ),
+            ),
+
+          // 5. BOTTOM SHEET FOR ALL 4 RIDE PHASES
           Align(
             alignment: Alignment.bottomCenter,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeOutCubic,
-              width: double.infinity,
-              decoration: const BoxDecoration(
+            child: _ridePhase == _RidePhase.arrivedAtDestination
+                ? _buildYouHaveArrivedSheet()
+                : AnimatedContainer(
+                    duration: const Duration(milliseconds: 280),
+                    curve: Curves.easeOutCubic,
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(28)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 24,
+                          offset: Offset(0, -4),
+                        ),
+                      ],
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: switch (_ridePhase) {
+                        _RidePhase.findingDriver =>
+                          _buildFindingNearbyDriverSheet(),
+                        _RidePhase.driverHeadingToPickup =>
+                          _buildDriverHeadingSheet(isDelivery: isDelivery),
+                        _RidePhase.headingToDestination =>
+                          _buildHeadingToDestinationSheet(
+                            isDelivery: isDelivery,
+                          ),
+                        _RidePhase.arrivedAtDestination =>
+                          const SizedBox.shrink(),
+                      },
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Top-down vehicle marker with unmistakable forward nose/windshield at top (North = 0 rad)
+  Widget _buildTopDownTricycleMarker() {
+    return Center(
+      child: SizedBox(
+        width: 40,
+        height: 58,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Vehicle body shadow & chassis
+            Container(
+              width: 34,
+              height: 52,
+              decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-                boxShadow: [
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                  bottomLeft: Radius.circular(10),
+                  bottomRight: Radius.circular(10),
+                ),
+                border: Border.all(
+                  color: const Color(0xFF1E293B),
+                  width: 2.2,
+                ),
+                boxShadow: const [
                   BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 24,
-                    offset: Offset(0, -4),
+                    color: Colors.black26,
+                    blurRadius: 8,
+                    offset: Offset(0, 3),
                   ),
                 ],
               ),
-              child: SafeArea(
-                top: false,
-                child: _isWaitingForAcceptance
-                    ? _buildFindingNearbyDriverSheet()
-                    : _buildDriverHeadingSheet(isDelivery: isDelivery),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Front nose / headlights + dark curved windshield at TOP (front of vehicle)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Container(
+                      width: 22,
+                      height: 11,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF0F172A),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(10),
+                          topRight: Radius.circular(10),
+                          bottomLeft: Radius.circular(3),
+                          bottomRight: Radius.circular(3),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Center emerald canopy with forward navigation arrow pointing UP (front)
+                  Container(
+                    width: 24,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentEmerald,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.navigation_rounded,
+                      size: 15,
+                      color: Colors.white,
+                    ),
+                  ),
+                  // Rear bumper / tail lights at BOTTOM
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Container(
+                      width: 20,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF334155),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -696,9 +1088,6 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
   // SCREENS 27 (Collapsed) & 28 (Expanded): "Driver is heading to your location..."
   Widget _buildDriverHeadingSheet({required bool isDelivery}) {
-    final fb = widget.fareBreakdown;
-    final double grossFare = fb.baseFare + fb.distanceFare;
-
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onVerticalDragEnd: (details) {
@@ -713,7 +1102,6 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Tap or drag handle to expand/collapse between Screen 27 and Screen 28
             InkWell(
               onTap: () => setState(() => _isSheetExpanded = !_isSheetExpanded),
               borderRadius: BorderRadius.circular(12),
@@ -746,14 +1134,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               ),
             ),
             const SizedBox(height: 8),
-
-            // Headline: "Driver is heading to your location..."
-            Text(
-              _hasArrivedAtPickup
-                  ? 'Driver has arrived at your location!'
-                  : 'Driver is heading to your location...',
+            const Text(
+              'Driver is heading to your location...',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 19.5,
                 fontWeight: FontWeight.w800,
                 color: AppTheme.primarySlate,
@@ -762,9 +1146,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
             const SizedBox(height: 6),
             Text(
-              _hasArrivedAtPickup
-                  ? 'Waiting at ${widget.pickupPoint.name}'
-                  : 'Driver will arrive in $_etaToPassengerMinutes min... (${_distanceToPassengerMeters.toStringAsFixed(0)}m away)',
+              'Driver will arrive in $_etaToPassengerMinutes min... (${_distanceToPassengerMeters.toStringAsFixed(0)}m away)',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -782,267 +1164,713 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                 color: AppTheme.primarySlate,
               ),
             ),
-
-            const SizedBox(height: 16),
-            Divider(height: 1, color: Colors.grey.shade200),
-            const SizedBox(height: 14),
-
-            // Driver Profile Row + Green Outlined Chat & Call Buttons (Joyride Screens 27 & 28)
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: _openDriverInformationScreen,
-                  child: _buildDriverAvatar(size: 56),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: _openDriverInformationScreen,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _matchedDriver['name']!,
-                          style: const TextStyle(
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.primarySlate,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.star_rounded,
-                              size: 16,
-                              color: Color(0xFFF59E0B),
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              _matchedDriver['rating']!,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Icon(
-                              Icons.phone_outlined,
-                              size: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                            const SizedBox(width: 3),
-                            Expanded(
-                              child: Text(
-                                _matchedDriver['phone']!,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.grey.shade700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Chat Button (Screen 30)
-                _buildGreenOutlinedIconButton(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  tooltip: 'Chat with Driver',
-                  onTap: _openDriverChatScreen,
-                ),
-                const SizedBox(width: 10),
-                // Call Button (Screen 31)
-                _buildGreenOutlinedIconButton(
-                  icon: Icons.phone_outlined,
-                  tooltip: 'Call Driver',
-                  onTap: _openDriverVoiceCallScreen,
-                ),
-              ],
-            ),
-
-            // EXPANDED CONTENT (Screen 28): Registered Front Tricycle Photo + Ride/Payment + Fare Summary + Cancel Ride
-            if (_isSheetExpanded) ...[
-              const SizedBox(height: 16),
-              Divider(height: 1, color: Colors.grey.shade200),
-              const SizedBox(height: 14),
-
-              // PasadaNorte Case Study Requirement: Registered Tricycle Front Photo & 4-Angle Documentation
-              InkWell(
-                onTap: _openDriverInformationScreen,
-                borderRadius: BorderRadius.circular(16),
+            const SizedBox(height: 10),
+            // Quick action chip to board immediately if desired
+            Align(
+              alignment: Alignment.center,
+              child: InkWell(
+                onTap: _beginHeadingToDestinationPhase,
+                borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.all(12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
                     color: AppTheme.accentEmeraldLight,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppTheme.accentEmerald.withValues(alpha: 0.35),
-                    ),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Row(
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 72,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: AppTheme.accentEmerald,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.electric_rickshaw_rounded,
-                              color: Colors.white,
-                              size: 26,
-                            ),
-                            Text(
-                              'FRONT VIEW',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 7.5,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Verified Tricycle (Front Photo & 4 Angles)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.primarySlate,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${_matchedDriver['toda']} • Tap for Driver Info & 4 Photos',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
+                      Icon(
+                        Icons.directions_run_rounded,
+                        size: 14,
                         color: AppTheme.accentEmerald,
                       ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Ride & Payment Summary Box (Exact Joyride Screen 28 layout)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFAFAFA),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFEEEEEE)),
-                ),
-                child: Column(
-                  children: [
-                    _buildSummaryLine(
-                      'Ride',
-                      isDelivery
-                          ? 'PasadaNorte Pa-Deliver'
-                          : 'PasadaNorte Tricycle (${fb.category.name.toUpperCase()})',
-                    ),
-                    const SizedBox(height: 10),
-                    _buildSummaryLine(
-                      'Payment',
-                      widget.paymentMethod.split(' (').first,
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Trip Fare / Discounts / Total Paid Box (Exact Joyride Screen 28 layout)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFAFAFA),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFEEEEEE)),
-                ),
-                child: Column(
-                  children: [
-                    _buildSummaryLine(
-                      'Trip Fare (${fb.distanceKm.toStringAsFixed(2)} km)',
-                      '₱${grossFare.toStringAsFixed(2)}',
-                    ),
-                    if (fb.discountAmount > 0) ...[
-                      const SizedBox(height: 10),
-                      _buildSummaryLine(
-                        'Discounts (${fb.category.name.toUpperCase()} Ordinance)',
-                        '- ₱${fb.discountAmount.toStringAsFixed(2)}',
-                        valueColor: AppTheme.accentEmerald,
+                      SizedBox(width: 5),
+                      Text(
+                        'Board Tricycle Now ➔ Start Trip to Destination',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.accentEmerald,
+                        ),
                       ),
                     ],
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Divider(height: 1, color: Colors.grey.shade200),
-                    ),
-                    _buildSummaryLine(
-                      'Total Paid',
-                      '₱${fb.finalFare.toStringAsFixed(2)}',
-                      isBold: true,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              // Cancel Ride Outlined Red Pill Button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: _openCancelRideScreen,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.cancelRed,
-                    side:
-                        const BorderSide(color: AppTheme.cancelRed, width: 1.6),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child: const Text(
-                    'Cancel Ride',
-                    style: TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.cancelRed,
-                    ),
-                  ),
-                ),
+            ),
+            const SizedBox(height: 12),
+            Divider(height: 1, color: Colors.grey.shade200),
+            const SizedBox(height: 14),
+            _buildDriverProfileRow(),
+            if (_isSheetExpanded) ...[
+              _buildExpandedTripAndFareSection(
+                isDelivery: isDelivery,
+                showCancelButton: true,
               ),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  // SCREEN 33: "Heading to destination..." (Passenger is on board traveling to designated location)
+  Widget _buildHeadingToDestinationSheet({required bool isDelivery}) {
+    final double progress = _destinationRoutePath.length > 1
+        ? (_currentDestinationIndex / (_destinationRoutePath.length - 1))
+            .clamp(0.05, 1.0)
+        : 0.5;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragEnd: (details) {
+        if ((details.primaryVelocity ?? 0) < -150) {
+          setState(() => _isSheetExpanded = true);
+        } else if ((details.primaryVelocity ?? 0) > 150) {
+          setState(() => _isSheetExpanded = false);
+        }
+      },
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: () => setState(() => _isSheetExpanded = !_isSheetExpanded),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Exact Joyride Screen 33 Title: "Heading to destination..."
+            const Text(
+              'Heading to destination...',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20.5,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.primarySlate,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // Exact Joyride Screen 33 Subtitle + Live Remaining Distance
+            Text(
+              'Will arrive at the destination in $_etaToDestinationMinutes mins... (${_formatRemainingDestinationDistance()} left)',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _matchedDriver['vehicleHeadline']!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.primarySlate,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Live Distance Progress Bar so passenger sees how far or near they are while on travel
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.accentEmeraldLight,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.assistant_navigation,
+                            size: 16,
+                            color: AppTheme.accentEmerald,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Distance left: ${_formatRemainingDestinationDistance()}',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.primarySlate,
+                            ),
+                          ),
+                        ],
+                      ),
+                      InkWell(
+                        onTap: _triggerArrivedAtDestinationPhase,
+                        child: const Text(
+                          'Arrive Now ➔',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.accentEmerald,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 6,
+                      backgroundColor: Colors.white,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppTheme.accentEmerald,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+            Divider(height: 1, color: Colors.grey.shade200),
+            const SizedBox(height: 14),
+
+            _buildDriverProfileRow(),
+
+            if (_isSheetExpanded) ...[
+              _buildExpandedTripAndFareSection(
+                isDelivery: isDelivery,
+                showCancelButton: false,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // SCREEN 34 (`page_64.png`): "You have arrived!" Modal Sheet with Floating Red Location Badge,
+  // 3 Trip Metrics (Duration, Distance, Avg. Speed), 5 Mood Emojis, and "Finish" Button
+  Widget _buildYouHaveArrivedSheet() {
+    final parts = widget.dropoffPoint.name.split(', ');
+    final destinationTitle = parts.first;
+    final destinationSubtitle = parts.length > 1
+        ? parts.sublist(1).join(', ')
+        : '${widget.dropoffPoint.name}, Laoag City, Ilocos Norte';
+
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(22, 52, 22, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 28,
+                offset: Offset(0, -6),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'You have arrived!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primarySlate,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Divider(height: 1, color: Colors.grey.shade200),
+                const SizedBox(height: 16),
+                Text(
+                  destinationTitle,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primarySlate,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  destinationSubtitle,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // 3-Column Metrics Card: Duration | Distance | Avg. Speed (Joyride Screen 34)
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFEEEEEE)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildArrivalMetricColumn(
+                        icon: Icons.access_time_rounded,
+                        value: '$_totalTripDurationMinutes mins',
+                        label: 'Duration',
+                      ),
+                      _buildArrivalMetricColumn(
+                        icon: Icons.location_on_outlined,
+                        value:
+                            '${_totalTripDistanceKm.toStringAsFixed(1)} km',
+                        label: 'Distance',
+                      ),
+                      _buildArrivalMetricColumn(
+                        icon: Icons.speed_rounded,
+                        value: '22 km/h',
+                        label: 'Avg. Speed',
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // "How was your mood during this trip?" Card with 5 Mood Faces (Joyride Screen 34)
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFEEEEEE)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'How was your mood during this trip?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primarySlate,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: List.generate(5, (index) {
+                          final bool isSelected = _selectedMoodIndex == index;
+                          return GestureDetector(
+                            onTap: () =>
+                                setState(() => _selectedMoodIndex = index),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isSelected
+                                    ? AppTheme.accentEmerald
+                                    : const Color(0xFFE0E0E0),
+                              ),
+                              child: CustomPaint(
+                                painter: _MoodFacePainter(
+                                  moodIndex: index,
+                                  faceColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Green Pill "Finish" Button -> Opens Rate Driver Flow (Screens 35-38)
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: _openPostTripRateDriverFlow,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.accentEmerald,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Finish',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Floating Red Circular Location Pin Straddling Top Edge (Exact Joyride Screen 34)
+        Positioned(
+          top: -38,
+          child: Container(
+            width: 76,
+            height: 76,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.cancelRed,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.location_on_rounded,
+                color: Colors.white,
+                size: 38,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildArrivalMetricColumn({
+    required IconData icon,
+    required String value,
+    required String label,
+  }) {
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFFEEEEEE), width: 1.5),
+          ),
+          child: Icon(icon, color: AppTheme.primarySlate, size: 22),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: AppTheme.primarySlate,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade500,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDriverProfileRow() {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: _openDriverInformationScreen,
+          child: _buildDriverAvatar(size: 56),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: GestureDetector(
+            onTap: _openDriverInformationScreen,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _matchedDriver['name']!,
+                  style: const TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primarySlate,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.star_rounded,
+                      size: 16,
+                      color: Color(0xFFF59E0B),
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      _matchedDriver['rating']!,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Icon(
+                      Icons.phone_outlined,
+                      size: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 3),
+                    Expanded(
+                      child: Text(
+                        _matchedDriver['phone']!,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _buildGreenOutlinedIconButton(
+          icon: Icons.chat_bubble_outline_rounded,
+          tooltip: 'Chat with Driver',
+          onTap: _openDriverChatScreen,
+        ),
+        const SizedBox(width: 10),
+        _buildGreenOutlinedIconButton(
+          icon: Icons.phone_outlined,
+          tooltip: 'Call Driver',
+          onTap: _openDriverVoiceCallScreen,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExpandedTripAndFareSection({
+    required bool isDelivery,
+    required bool showCancelButton,
+  }) {
+    final fb = widget.fareBreakdown;
+    final double grossFare = fb.baseFare + fb.distanceFare;
+
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Divider(height: 1, color: Colors.grey.shade200),
+        const SizedBox(height: 14),
+        InkWell(
+          onTap: _openDriverInformationScreen,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.accentEmeraldLight,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppTheme.accentEmerald.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 72,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentEmerald,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.electric_rickshaw_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                      Text(
+                        'FRONT VIEW',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 7.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Verified Tricycle (Front Photo & 4 Angles)',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primarySlate,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${_matchedDriver['toda']} • Tap for Driver Info & 4 Photos',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppTheme.accentEmerald,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAFAFA),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFEEEEEE)),
+          ),
+          child: Column(
+            children: [
+              _buildSummaryLine(
+                'Ride',
+                isDelivery
+                    ? 'PasadaNorte Pa-Deliver'
+                    : 'PasadaNorte Tricycle (${fb.category.name.toUpperCase()})',
+              ),
+              const SizedBox(height: 10),
+              _buildSummaryLine(
+                'Payment',
+                widget.paymentMethod.split(' (').first,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAFAFA),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFEEEEEE)),
+          ),
+          child: Column(
+            children: [
+              _buildSummaryLine(
+                'Trip Fare (${fb.distanceKm.toStringAsFixed(2)} km)',
+                '₱${grossFare.toStringAsFixed(2)}',
+              ),
+              if (fb.discountAmount > 0) ...[
+                const SizedBox(height: 10),
+                _buildSummaryLine(
+                  'Discounts (${fb.category.name.toUpperCase()} Ordinance)',
+                  '- ₱${fb.discountAmount.toStringAsFixed(2)}',
+                  valueColor: AppTheme.accentEmerald,
+                ),
+              ],
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Divider(height: 1, color: Colors.grey.shade200),
+              ),
+              _buildSummaryLine(
+                'Total Paid',
+                '₱${fb.finalFare.toStringAsFixed(2)}',
+                isBold: true,
+              ),
+            ],
+          ),
+        ),
+        if (showCancelButton) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton(
+              onPressed: _openCancelRideScreen,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.cancelRed,
+                side: const BorderSide(color: AppTheme.cancelRed, width: 1.6),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: const Text(
+                'Cancel Ride',
+                style: TextStyle(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.cancelRed,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -1209,6 +2037,745 @@ class _PinTrianglePainter extends CustomPainter {
       oldDelegate.color != color;
 }
 
+// Custom Painter for the 5 Expressive Mood Faces in Joyride Screen 34 ("How was your mood during this trip?")
+class _MoodFacePainter extends CustomPainter {
+  final int moodIndex; // 0 = Very Sad, 1 = Sad, 2 = Neutral, 3 = Happy, 4 = Beaming
+  final Color faceColor;
+
+  const _MoodFacePainter({
+    required this.moodIndex,
+    required this.faceColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final eyePaint = Paint()
+      ..color = faceColor
+      ..style = PaintingStyle.fill;
+
+    final mouthPaint = Paint()
+      ..color = faceColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round;
+
+    final double w = size.width;
+    final double h = size.height;
+
+    // Eyes
+    canvas.drawCircle(Offset(w * 0.36, h * 0.38), 3.0, eyePaint);
+    canvas.drawCircle(Offset(w * 0.64, h * 0.38), 3.0, eyePaint);
+
+    // Mouth based on moodIndex
+    final path = ui.Path();
+    switch (moodIndex) {
+      case 0: // Deep frown
+        path.moveTo(w * 0.30, h * 0.70);
+        path.quadraticBezierTo(w * 0.50, h * 0.52, w * 0.70, h * 0.70);
+        canvas.drawPath(path, mouthPaint);
+      case 1: // Slight frown
+        path.moveTo(w * 0.32, h * 0.67);
+        path.quadraticBezierTo(w * 0.50, h * 0.58, w * 0.68, h * 0.67);
+        canvas.drawPath(path, mouthPaint);
+      case 2: // Neutral straight line
+        canvas.drawLine(
+          Offset(w * 0.33, h * 0.64),
+          Offset(w * 0.67, h * 0.64),
+          mouthPaint,
+        );
+      case 3: // Happy smile (default selected in Screen 34)
+        path.moveTo(w * 0.30, h * 0.58);
+        path.quadraticBezierTo(w * 0.50, h * 0.74, w * 0.70, h * 0.58);
+        canvas.drawPath(path, mouthPaint);
+      default: // Very Happy / Beaming open smile
+        final openSmilePaint = Paint()
+          ..color = faceColor
+          ..style = PaintingStyle.fill;
+        path.moveTo(w * 0.28, h * 0.56);
+        path.quadraticBezierTo(w * 0.50, h * 0.78, w * 0.72, h * 0.56);
+        path.close();
+        canvas.drawPath(path, openSmilePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MoodFacePainter oldDelegate) =>
+      oldDelegate.moodIndex != moodIndex || oldDelegate.faceColor != faceColor;
+}
+
+// ============================================================================
+// JOYRIDE SCREENS 35 & 36: RATE THE DRIVER ("How was the driver?")
+// ============================================================================
+class _RateDriverScreen extends StatefulWidget {
+  final Map<String, String> driverData;
+  final FareBreakdown fareBreakdown;
+  final String paymentMethod;
+
+  const _RateDriverScreen({
+    required this.driverData,
+    required this.fareBreakdown,
+    required this.paymentMethod,
+  });
+
+  @override
+  State<_RateDriverScreen> createState() => _RateDriverScreenState();
+}
+
+class _RateDriverScreenState extends State<_RateDriverScreen> {
+  int _selectedStars = 5;
+  bool _showDetails = true;
+
+  void _submitRating() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _AddTipForDriverScreen(
+          driverData: widget.driverData,
+          selectedStars: _selectedStars,
+          paymentMethod: widget.paymentMethod,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fb = widget.fareBreakdown;
+    final bool isDelivery = fb.tripType == TripType.pabiliPadala;
+    final double grossFare = fb.baseFare + fb.distanceFare;
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+          icon: const Icon(Icons.close_rounded, color: AppTheme.primarySlate),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    // Circular Driver Avatar
+                    Container(
+                      width: 104,
+                      height: 104,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF818CF8), Color(0xFF6366F1)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.person_rounded,
+                        color: Colors.white,
+                        size: 62,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    const Text(
+                      'How was the driver?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.primarySlate,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Help PasadaNorte do better by rating this trip',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Divider(height: 1, color: Colors.grey.shade200),
+                    const SizedBox(height: 22),
+
+                    // 5 Interactive Star Icons (Screen 35 Unselected / Screen 36 Filled Orange)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        final int starNumber = index + 1;
+                        final bool isFilled = starNumber <= _selectedStars;
+                        return GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedStars = starNumber),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Icon(
+                              isFilled
+                                  ? Icons.star_rounded
+                                  : Icons.star_border_rounded,
+                              size: 48,
+                              color: isFilled
+                                  ? const Color(0xFFFF9800)
+                                  : const Color(0xFFBDBDBD),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    if (_showDetails) ...[
+                      // Ride & Payment Card (Exact Joyride Screens 35 & 36)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xFFEEEEEE)),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildDetailLine(
+                              'Ride',
+                              isDelivery
+                                  ? 'PasadaNorte Pa-Deliver'
+                                  : 'PasadaNorte Tricycle',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDetailLine(
+                              'Payment',
+                              widget.paymentMethod.split(' (').first,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Trip Fare / Discounts / Total Paid Card
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xFFEEEEEE)),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildDetailLine(
+                              'Trip Fare',
+                              '₱${grossFare.toStringAsFixed(2)}',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDetailLine(
+                              'Discounts (20%)',
+                              fb.discountAmount > 0
+                                  ? '- ₱${fb.discountAmount.toStringAsFixed(2)}'
+                                  : '₱0.00',
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                              child: Divider(
+                                height: 1,
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+                            _buildDetailLine(
+                              'Total Paid',
+                              '₱${fb.finalFare.toStringAsFixed(2)}',
+                              isBold: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
+                    TextButton(
+                      onPressed: () =>
+                          setState(() => _showDetails = !_showDetails),
+                      child: Text(
+                        _showDetails ? 'Hide details' : 'Show details',
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.accentEmerald,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Bottom "Give Rate" Button
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Colors.grey.shade100)),
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: _submitRating,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.accentEmerald,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Give Rate',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailLine(String label, String value, {bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isBold ? 15.5 : 14.5,
+            fontWeight: FontWeight.w800,
+            color: AppTheme.primarySlate,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// JOYRIDE SCREEN 37: ADD TIP FOR DRIVER ("Wow 5 Stars!")
+// ============================================================================
+class _AddTipForDriverScreen extends StatefulWidget {
+  final Map<String, String> driverData;
+  final int selectedStars;
+  final String paymentMethod;
+
+  const _AddTipForDriverScreen({
+    required this.driverData,
+    required this.selectedStars,
+    required this.paymentMethod,
+  });
+
+  @override
+  State<_AddTipForDriverScreen> createState() => _AddTipForDriverScreenState();
+}
+
+class _AddTipForDriverScreenState extends State<_AddTipForDriverScreen> {
+  static const List<int> _presetTips = [5, 10, 15, 20, 25, 30, 50, 75, 100];
+  int _selectedTipAmount = 25;
+
+  void _completeFeedbackFlow() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const _RideFeedbackCompletedScreen(),
+      ),
+    );
+  }
+
+  Future<void> _promptCustomTipAmount() async {
+    final controller =
+        TextEditingController(text: _selectedTipAmount.toString());
+    final customVal = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text(
+          'Enter Custom Tip (₱)',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppTheme.primarySlate,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(
+            prefixText: '₱ ',
+            hintText: 'e.g. 40',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final parsed = int.tryParse(controller.text.trim());
+              Navigator.pop(ctx, parsed);
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+
+    if (customVal != null && customVal > 0 && mounted) {
+      setState(() {
+        _selectedTipAmount = customVal;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: _completeFeedbackFlow,
+          icon: const Icon(Icons.close_rounded, color: AppTheme.primarySlate),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 104,
+                      height: 104,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF818CF8), Color(0xFF6366F1)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.person_rounded,
+                        color: Colors.white,
+                        size: 62,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    Text(
+                      'Wow ${widget.selectedStars} Stars!',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.primarySlate,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Would you like to add a tip to make your\ndriver's day?",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Divider(height: 1, color: Colors.grey.shade200),
+                    const SizedBox(height: 20),
+
+                    // 3x3 Grid of Selectable Tip Pills (Exact Joyride Screen 37)
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _presetTips.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 2.15,
+                      ),
+                      itemBuilder: (context, index) {
+                        final amount = _presetTips[index];
+                        final isSelected = _selectedTipAmount == amount;
+                        return InkWell(
+                          onTap: () =>
+                              setState(() => _selectedTipAmount = amount),
+                          borderRadius: BorderRadius.circular(28),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppTheme.accentEmerald
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppTheme.accentEmerald
+                                    : const Color(0xFFE0E0E0),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '₱${amount.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppTheme.primarySlate,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 14),
+                    TextButton(
+                      onPressed: _promptCustomTipAmount,
+                      child: const Text(
+                        'Enter custom amount',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.accentEmerald,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Divider(height: 1, color: Colors.grey.shade200),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Tip will be charged from your ${widget.paymentMethod.split(' (').first}.\n100% of the tip goes to drivers.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Bottom "Skip" & "Pay Tip" Buttons (Exact Joyride Screen 37)
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Colors.grey.shade100)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: _completeFeedbackFlow,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentEmeraldLight,
+                          foregroundColor: AppTheme.accentEmerald,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        child: const Text(
+                          'Skip',
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: _completeFeedbackFlow,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentEmerald,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        child: const Text(
+                          'Pay Tip',
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// JOYRIDE SCREEN 38: RIDE COMPLETED ("Thanks for your feedback!")
+// ============================================================================
+class _RideFeedbackCompletedScreen extends StatelessWidget {
+  const _RideFeedbackCompletedScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+          icon: const Icon(Icons.close_rounded, color: AppTheme.primarySlate),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 84,
+                        height: 84,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.accentEmerald,
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          color: Colors.white,
+                          size: 46,
+                        ),
+                      ),
+                      const SizedBox(height: 26),
+                      const Text(
+                        'Thanks for your feedback!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primarySlate,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'See you on your next trip!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Colors.grey.shade100)),
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: () =>
+                      Navigator.of(context).popUntil((r) => r.isFirst),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.accentEmerald,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ============================================================================
 // JOYRIDE SCREEN 29: DRIVER INFORMATION + PASADANORTE 4-ANGLE VEHICLE PHOTOS
 // ============================================================================
@@ -1245,11 +2812,12 @@ class _DriverInformationScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    // 1. Top Driver Avatar, Name & Copyable Phone Card
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                          vertical: 24, horizontal: 20),
+                        vertical: 24,
+                        horizontal: 20,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
@@ -1319,14 +2887,13 @@ class _DriverInformationScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    // 2. Rating / Ride Orders / Years Card (Exact Joyride Screen 29)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                          vertical: 20, horizontal: 16),
+                        vertical: 20,
+                        horizontal: 16,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
@@ -1352,10 +2919,7 @@ class _DriverInformationScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    // 3. Member Since / Vehicle Model / Color / Plate Number Card
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
@@ -1366,25 +2930,30 @@ class _DriverInformationScreen extends StatelessWidget {
                       child: Column(
                         children: [
                           _buildDetailRow(
-                              'Member Since', driverData['memberSince']!),
+                            'Member Since',
+                            driverData['memberSince']!,
+                          ),
                           const SizedBox(height: 14),
                           _buildDetailRow(
-                              'Tricycle Model', driverData['vehicleModel']!),
+                            'Tricycle Model',
+                            driverData['vehicleModel']!,
+                          ),
                           const SizedBox(height: 14),
                           _buildDetailRow('Color', driverData['color']!),
                           const SizedBox(height: 14),
                           _buildDetailRow(
-                              'MTOP Body Number', driverData['bodyNumber']!),
+                            'MTOP Body Number',
+                            driverData['bodyNumber']!,
+                          ),
                           const SizedBox(height: 14),
                           _buildDetailRow(
-                              'Plate Number', driverData['plateNumber']!),
+                            'Plate Number',
+                            driverData['plateNumber']!,
+                          ),
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    // 4. PasadaNorte 4-Angle Registered Tricycle Photos Grid
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(18),
@@ -1467,8 +3036,6 @@ class _DriverInformationScreen extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Bottom Action Bar: Call (Soft Mint Pill) & Chat (Solid Green Pill)
             Container(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
               decoration: const BoxDecoration(
@@ -1699,7 +3266,9 @@ class _DriverChatScreenState extends State<_DriverChatScreen> {
                         maxWidth: MediaQuery.of(context).size.width * 0.76,
                       ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: isMe
                             ? AppTheme.accentEmerald
@@ -1756,7 +3325,9 @@ class _DriverChatScreenState extends State<_DriverChatScreen> {
                           color: Colors.grey.shade500,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -1853,8 +3424,10 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
                   padding: const EdgeInsets.all(12.0),
                   child: IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back_rounded,
-                        color: Colors.white),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -1900,7 +3473,6 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Hang Up Button (Red Circle)
                     InkWell(
                       onTap: () => Navigator.pop(context),
                       customBorder: const CircleBorder(),
@@ -1919,7 +3491,6 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
                       ),
                     ),
                     const SizedBox(width: 24),
-                    // Speaker Button
                     InkWell(
                       onTap: () => setState(() => _speakerOn = !_speakerOn),
                       customBorder: const CircleBorder(),
@@ -1941,7 +3512,6 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
                       ),
                     ),
                     const SizedBox(width: 24),
-                    // Mic Mute Button
                     InkWell(
                       onTap: () => setState(() => _micMuted = !_micMuted),
                       customBorder: const CircleBorder(),
