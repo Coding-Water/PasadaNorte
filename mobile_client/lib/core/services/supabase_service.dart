@@ -22,9 +22,10 @@ class SupabaseService {
         url: supabaseUrl,
         // ignore: deprecated_member_use
         anonKey: supabasePublishableKey,
-      );
+      ).timeout(const Duration(seconds: 2));
       _isConnected = true;
-      await syncAllFromSupabase();
+      // Run cloud table sync in the background so runApp() renders the first frame immediately
+      syncAllFromSupabase();
     } catch (_) {
       _isConnected = false;
     }
@@ -41,7 +42,8 @@ class SupabaseService {
           .from('fare_guide_table')
           .select()
           .eq('id', 1)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 4));
 
       if (fareRow != null) {
         FareCalculatorService.updateFareConfig(
@@ -55,7 +57,10 @@ class SupabaseService {
       }
 
       // 2. Sync TODA Terminal Geofence Radii (Objective 4 & 5b)
-      final terminals = await sb.from('toda_terminals').select();
+      final terminals = await sb
+          .from('toda_terminals')
+          .select()
+          .timeout(const Duration(seconds: 4));
       for (final row in terminals) {
         final id = row['id'] as String?;
         final radius = (row['radius_meters'] as num?)?.toDouble();
@@ -69,7 +74,8 @@ class SupabaseService {
           .from('users')
           .select()
           .order('created_at', ascending: false)
-          .limit(25);
+          .limit(25)
+          .timeout(const Duration(seconds: 4));
 
       if (usersRows.isNotEmpty) {
         final List<FaceVerificationRecord> fetched = [];

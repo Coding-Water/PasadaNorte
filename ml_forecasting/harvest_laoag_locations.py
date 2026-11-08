@@ -417,31 +417,54 @@ def main():
         writer.writeheader()
         writer.writerows(places_list)
 
-    # Also export Dart constant list for LocationService in mobile_client
+    # Also export lazy-loaded Dart dataset for LocationService in mobile_client
     dart_lines = [
-        "// GENERATED CITY-WIDE LAOAG LOCATION DATASET (2,367 VERIFIED LOCATIONS)",
+        f"// GENERATED CITY-WIDE LAOAG LOCATION DATASET ({len(places_list)} VERIFIED LOCATIONS)",
         "// Sources: Official 80 Barangays of Laoag City (PSA/DILG), OpenStreetMap Overpass,",
         "// and Esri ArcGIS / Google Maps Verified Coordinates.",
         "import 'location_service.dart';",
         "",
-        "const List<LocationPoint> laoagCityCompleteDataset = [",
+        "List<LocationPoint>? _cachedLaoagCityDataset;",
+        "",
+        "List<LocationPoint> get laoagCityCompleteDataset {",
+        "  final existing = _cachedLaoagCityDataset;",
+        "  if (existing != null) return existing;",
+        "  final lines = _laoagCityRawData.split('\\n');",
+        "  final result = <LocationPoint>[];",
+        "  for (final line in lines) {",
+        "    if (line.isEmpty) continue;",
+        "    final parts = line.split('|');",
+        "    if (parts.length < 4) continue;",
+        "    final lat = double.tryParse(parts[1]);",
+        "    final lng = double.tryParse(parts[2]);",
+        "    if (lat == null || lng == null) continue;",
+        "    result.add(",
+        "      LocationPoint(",
+        "        name: parts[0],",
+        "        latitude: lat,",
+        "        longitude: lng,",
+        "        zoneCode: parts[3],",
+        "      ),",
+        "    );",
+        "  }",
+        "  _cachedLaoagCityDataset = result;",
+        "  return result;",
+        "}",
+        "",
+        "const String _laoagCityRawData = r'''",
     ]
     for p in places_list:
-        name_esc = (
+        clean_name = (
             p["name"]
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("$", "\\$")
+            .replace("|", "/")
             .replace("\n", " ")
             .replace("\r", " ")
         )
         lat = p["latitude"]
         lon = p["longitude"]
         zc = p["zone_code"]
-        dart_lines.append(
-            f"  LocationPoint(name: '{name_esc}', latitude: {lat}, longitude: {lon}, zoneCode: '{zc}'),"
-        )
-    dart_lines.append("];")
+        dart_lines.append(f"{clean_name}|{lat}|{lon}|{zc}")
+    dart_lines.append("''';")
     dart_lines.append("")
     dart_content = "\n".join(dart_lines)
 

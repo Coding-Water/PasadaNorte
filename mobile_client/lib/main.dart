@@ -1,12 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'core/services/supabase_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/views/welcome_onboarding_screen.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await SupabaseService.initialize();
   runApp(const PasadaNorteMobileApp());
+  unawaited(SupabaseService.initialize());
 }
 
 class PasadaNorteMobileApp extends StatelessWidget {

@@ -887,7 +887,7 @@ class LocationService {
   // ===========================================================================
   // Comprehensive Verified Gazetteer of Laoag City (Exact OpenStreetMap / Google Tile Coordinates)
   // ===========================================================================
-  static const List<LocationPoint> laoagComprehensiveGazetteer = [
+  static const List<LocationPoint> _laoagCoreGazetteer = [
     ...laoagPrimaryZones,
 
     // --- Fast Food, Restaurants & Cafes (Exact Verified Coordinates) ---
@@ -1335,10 +1335,15 @@ class LocationService {
       longitude: 120.596480,
       zoneCode: 'Z02',
     ),
-
-    // --- City-Wide Dataset (2,367 Verified Places + All 80 Official Barangays of Laoag City) ---
-    ...laoagCityCompleteDataset,
   ];
+
+  // Lazily combines the core gazetteer with the 2,365-entry city-wide dataset on first lookup
+  static List<LocationPoint>? _cachedComprehensiveGazetteer;
+  static List<LocationPoint> get laoagComprehensiveGazetteer =>
+      _cachedComprehensiveGazetteer ??= <LocationPoint>[
+        ..._laoagCoreGazetteer,
+        ...laoagCityCompleteDataset,
+      ];
 
   // Alias for compatibility
   static const List<LocationPoint> laoagLandmarks = laoagPrimaryZones;
