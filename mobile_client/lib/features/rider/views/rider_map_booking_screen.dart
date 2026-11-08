@@ -703,7 +703,7 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
           ),
           const SizedBox(height: 12),
 
-          // Joyride Dual Input Card (Your current location + Destination search field)
+          // Dual Input Card (Your current location + Destination search field)
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(

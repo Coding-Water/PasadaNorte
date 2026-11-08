@@ -2,13 +2,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Joyride / GoRide Light UI Kit Palette adapted for PasadaNorte Laoag City
-  static const Color primarySlate = Color(0xFF212121); // Joyride Deep Charcoal Heading
-  static const Color accentEmerald = Color(0xFF00B14F); // Joyride Vibrant Green (#00B14F)
+  // PasadaNorte Light Theme Palette for Laoag City Smart Paratransit
+  static const Color primarySlate = Color(0xFF212121); // Primary Deep Charcoal Heading
+  static const Color accentEmerald = Color(0xFF00B14F); // PasadaNorte Emerald Green
   static const Color accentEmeraldLight = Color(0xFFE8F8EF); // Soft Mint Pill / Surface
   static const Color primaryBlue = Color(0xFF0A84FF); // GPS Blue Halo Accent
   static const Color secondaryGold = Color(0xFFF59E0B); // Rating Star / Warning Highlight
-  static const Color cancelRed = Color(0xFFF75555); // Joyride Outlined Cancel Red
+  static const Color cancelRed = Color(0xFFF75555); // Outlined Cancel Red
   static const Color backgroundLight = Color(0xFFF8F9FA);
   static const Color cardColor = Colors.white;
 

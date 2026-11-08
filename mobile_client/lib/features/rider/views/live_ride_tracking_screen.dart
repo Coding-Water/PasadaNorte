@@ -10,10 +10,10 @@ import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 
 enum _RidePhase {
-  findingDriver, // Screen 26: "Finding you a nearby driver..."
-  driverHeadingToPickup, // Screens 27 & 28: "Driver is heading to your location..."
-  headingToDestination, // Screen 33: "Heading to destination..."
-  arrivedAtDestination, // Screen 34: "You have arrived!"
+  findingDriver, // Dispatching & finding a nearby TODA driver
+  driverHeadingToPickup, // Driver is heading to passenger pickup location
+  headingToDestination, // Passenger is on board heading to destination
+  arrivedAtDestination, // Passenger has arrived at destination
 }
 
 class LiveRideTrackingScreen extends StatefulWidget {
@@ -69,7 +69,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   late LatLng _tricycleLivePos;
   double _tricycleBearingRadians = 0.0;
 
-  // Phase 3 (Screen 34): Selected Mood during this trip (0..4, default 3 = Happy)
+  // Selected Mood during this trip (0..4, default 3 = Happy)
   int _selectedMoodIndex = 3;
 
   // Verified Driver & Vehicle Documentation Data (Matched from Rank #1 TODA Pila)
@@ -256,7 +256,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     });
   }
 
-  // PHASE 2 (Screen 33): Rider takes passenger and heads along road route to destination
+  // PHASE 2: Rider takes passenger and heads along road route to destination
   void _beginHeadingToDestinationPhase() {
     _trackingTimer?.cancel();
     if (!mounted) return;
@@ -314,7 +314,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     });
   }
 
-  // PHASE 3 (Screen 34): Passenger has arrived at their destination
+  // PHASE 3: Passenger has arrived at their destination
   void _triggerArrivedAtDestinationPhase() {
     _trackingTimer?.cancel();
     if (!mounted) return;
@@ -370,7 +370,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     return '${_remainingDestinationKm.toStringAsFixed(1)} km';
   }
 
-  // Joyride Screen 29: Driver Information + PasadaNorte 4-Angle Tricycle Documentation
+  // Driver Information + PasadaNorte 4-Angle Tricycle Documentation
   void _openDriverInformationScreen() {
     Navigator.push(
       context,
@@ -384,7 +384,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // Joyride Screen 30: In-App Chat with Driver
+  // In-App Chat with Driver
   void _openDriverChatScreen() {
     Navigator.push(
       context,
@@ -399,7 +399,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // Joyride Screen 31: Voice Call Screen
+  // Voice Call Screen
   void _openDriverVoiceCallScreen() {
     Navigator.push(
       context,
@@ -411,7 +411,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // Joyride Screen 43 & 44: Cancel Ride Reason Selection & Confirmation
+  // Cancel Ride Reason Selection & Confirmation
   void _openCancelRideScreen() {
     Navigator.push(
       context,
@@ -421,7 +421,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // Joyride Screens 35, 36, 37, 38: Rate the Driver -> Add Tip -> Ride Completed
+  // Post-Trip Rating -> Add Tip -> Ride Completed
   void _openPostTripRateDriverFlow() {
     Navigator.push(
       context,
@@ -512,12 +512,12 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                     ],
                   ),
 
-                // Phase 2 & 3 Polylines: Passenger in transit heading to destination (Screen 33)
+                // Phase 2 & 3 Polylines: Passenger in transit heading to destination
                 if (_ridePhase == _RidePhase.headingToDestination ||
                     _ridePhase == _RidePhase.arrivedAtDestination)
                   PolylineLayer(
                     polylines: [
-                      // Traveled segment from pickup to vehicle (soft mint trail, matching Screen 33)
+                      // Traveled segment from pickup to vehicle (soft mint trail)
                       if (traveledDestinationPoints.length > 1)
                         Polyline(
                           points: traveledDestinationPoints,
@@ -537,7 +537,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
                 MarkerLayer(
                   markers: [
-                    // SCREEN 26: Animated Concentric Green Radar Rings Around Passenger Avatar
+                    // Animated Concentric Green Radar Rings Around Passenger Avatar
                     if (_ridePhase == _RidePhase.findingDriver)
                       Marker(
                         point: widget.pickupPoint.latLng,
@@ -642,7 +642,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                         ),
                       ),
 
-                    // Destination Pin (Red Teardrop Pin with Live Distance Pill — Joyride Screen 33)
+                    // Destination Pin (Red Teardrop Pin with Live Distance Pill)
                     if (_ridePhase == _RidePhase.headingToDestination ||
                         _ridePhase == _RidePhase.arrivedAtDestination)
                       Marker(
@@ -736,7 +736,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
           ),
 
-          // 2. FLOATING TOP PICKUP & DESTINATION CARD (Screens 26, 27, 28, 33)
+          // 2. FLOATING TOP PICKUP & DESTINATION CARD
           if (_ridePhase != _RidePhase.arrivedAtDestination)
             SafeArea(
               child: Padding(
@@ -816,7 +816,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               ),
             ),
 
-          // 3. FLOATING CIRCULAR BACK (<) AND GPS TARGET BUTTONS ABOVE BOTTOM SHEET (Screens 26, 27, 33)
+          // 3. FLOATING CIRCULAR BACK (<) AND GPS TARGET BUTTONS ABOVE BOTTOM SHEET
           if (!_isSheetExpanded &&
               _ridePhase != _RidePhase.arrivedAtDestination) ...[
             Positioned(
@@ -839,7 +839,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
           ],
 
-          // 4. DARKENED MAP SCRIM WHEN ARRIVED AT DESTINATION (Joyride Screen 34)
+          // 4. DARKENED MAP SCRIM WHEN ARRIVED AT DESTINATION
           if (_ridePhase == _RidePhase.arrivedAtDestination)
             Positioned.fill(
               child: Container(
@@ -978,7 +978,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // SCREEN 26: "Finding you a nearby driver..." Bottom Sheet
+  // "Finding you a nearby driver..." Bottom Sheet
   Widget _buildFindingNearbyDriverSheet() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
@@ -1086,7 +1086,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // SCREENS 27 (Collapsed) & 28 (Expanded): "Driver is heading to your location..."
+  // Collapsed & Expanded Bottom Sheet: "Driver is heading to your location..."
   Widget _buildDriverHeadingSheet({required bool isDelivery}) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1216,7 +1216,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // SCREEN 33: "Heading to destination..." (Passenger is on board traveling to designated location)
+  // "Heading to destination..." (Passenger is on board traveling to designated location)
   Widget _buildHeadingToDestinationSheet({required bool isDelivery}) {
     final double progress = _destinationRoutePath.length > 1
         ? (_currentDestinationIndex / (_destinationRoutePath.length - 1))
@@ -1255,7 +1255,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
             const SizedBox(height: 12),
 
-            // Exact Joyride Screen 33 Title: "Heading to destination..."
+            // Title: "Heading to destination..."
             const Text(
               'Heading to destination...',
               textAlign: TextAlign.center,
@@ -1268,7 +1268,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
             const SizedBox(height: 6),
 
-            // Exact Joyride Screen 33 Subtitle + Live Remaining Distance
+            // Subtitle + Live Remaining Distance
             Text(
               'Will arrive at the destination in $_etaToDestinationMinutes mins... (${_formatRemainingDestinationDistance()} left)',
               textAlign: TextAlign.center,
@@ -1368,7 +1368,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // SCREEN 34 (`page_64.png`): "You have arrived!" Modal Sheet with Floating Red Location Badge,
+  // "You have arrived!" Modal Sheet with Floating Red Location Badge,
   // 3 Trip Metrics (Duration, Distance, Avg. Speed), 5 Mood Emojis, and "Finish" Button
   Widget _buildYouHaveArrivedSheet() {
     final parts = widget.dropoffPoint.name.split(', ');
@@ -1438,7 +1438,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                 ),
                 const SizedBox(height: 18),
 
-                // 3-Column Metrics Card: Duration | Distance | Avg. Speed (Joyride Screen 34)
+                // 3-Column Metrics Card: Duration | Distance | Avg. Speed
                 Container(
                   width: double.infinity,
                   padding:
@@ -1473,7 +1473,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
                 const SizedBox(height: 14),
 
-                // "How was your mood during this trip?" Card with 5 Mood Faces (Joyride Screen 34)
+                // "How was your mood during this trip?" Card with 5 Mood Faces
                 Container(
                   width: double.infinity,
                   padding:
@@ -1528,7 +1528,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
                 const SizedBox(height: 20),
 
-                // Green Pill "Finish" Button -> Opens Rate Driver Flow (Screens 35-38)
+                // Green Pill "Finish" Button -> Opens Rate Driver Flow
                 SizedBox(
                   width: double.infinity,
                   height: 54,
@@ -1556,7 +1556,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           ),
         ),
 
-        // Floating Red Circular Location Pin Straddling Top Edge (Exact Joyride Screen 34)
+        // Floating Red Circular Location Pin Straddling Top Edge
         Positioned(
           top: -38,
           child: Container(
@@ -2037,7 +2037,7 @@ class _PinTrianglePainter extends CustomPainter {
       oldDelegate.color != color;
 }
 
-// Custom Painter for the 5 Expressive Mood Faces in Joyride Screen 34 ("How was your mood during this trip?")
+// Custom Painter for the 5 Expressive Mood Faces ("How was your mood during this trip?")
 class _MoodFacePainter extends CustomPainter {
   final int moodIndex; // 0 = Very Sad, 1 = Sad, 2 = Neutral, 3 = Happy, 4 = Beaming
   final Color faceColor;
@@ -2083,7 +2083,7 @@ class _MoodFacePainter extends CustomPainter {
           Offset(w * 0.67, h * 0.64),
           mouthPaint,
         );
-      case 3: // Happy smile (default selected in Screen 34)
+      case 3: // Happy smile (default selected)
         path.moveTo(w * 0.30, h * 0.58);
         path.quadraticBezierTo(w * 0.50, h * 0.74, w * 0.70, h * 0.58);
         canvas.drawPath(path, mouthPaint);
@@ -2104,7 +2104,7 @@ class _MoodFacePainter extends CustomPainter {
 }
 
 // ============================================================================
-// JOYRIDE SCREENS 35 & 36: RATE THE DRIVER ("How was the driver?")
+// POST-TRIP DRIVER RATING SCREEN ("How was the driver?")
 // ============================================================================
 class _RateDriverScreen extends StatefulWidget {
   final Map<String, String> driverData;
@@ -2206,7 +2206,7 @@ class _RateDriverScreenState extends State<_RateDriverScreen> {
                     Divider(height: 1, color: Colors.grey.shade200),
                     const SizedBox(height: 22),
 
-                    // 5 Interactive Star Icons (Screen 35 Unselected / Screen 36 Filled Orange)
+                    // 5 Interactive Star Icons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(5, (index) {
@@ -2234,7 +2234,7 @@ class _RateDriverScreenState extends State<_RateDriverScreen> {
                     const SizedBox(height: 24),
 
                     if (_showDetails) ...[
-                      // Ride & Payment Card (Exact Joyride Screens 35 & 36)
+                      // Ride & Payment Card
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 18,
@@ -2385,7 +2385,7 @@ class _RateDriverScreenState extends State<_RateDriverScreen> {
 }
 
 // ============================================================================
-// JOYRIDE SCREEN 37: ADD TIP FOR DRIVER ("Wow 5 Stars!")
+// ADD TIP FOR DRIVER SCREEN ("Wow 5 Stars!")
 // ============================================================================
 class _AddTipForDriverScreen extends StatefulWidget {
   final Map<String, String> driverData;
@@ -2527,7 +2527,7 @@ class _AddTipForDriverScreenState extends State<_AddTipForDriverScreen> {
                     Divider(height: 1, color: Colors.grey.shade200),
                     const SizedBox(height: 20),
 
-                    // 3x3 Grid of Selectable Tip Pills (Exact Joyride Screen 37)
+                    // 3x3 Grid of Selectable Tip Pills
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -2606,7 +2606,7 @@ class _AddTipForDriverScreenState extends State<_AddTipForDriverScreen> {
               ),
             ),
 
-            // Bottom "Skip" & "Pay Tip" Buttons (Exact Joyride Screen 37)
+            // Bottom "Skip" & "Pay Tip" Buttons
             Container(
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
               decoration: BoxDecoration(
@@ -2673,7 +2673,7 @@ class _AddTipForDriverScreenState extends State<_AddTipForDriverScreen> {
 }
 
 // ============================================================================
-// JOYRIDE SCREEN 38: RIDE COMPLETED ("Thanks for your feedback!")
+// RIDE COMPLETED FEEDBACK SCREEN ("Thanks for your feedback!")
 // ============================================================================
 class _RideFeedbackCompletedScreen extends StatelessWidget {
   const _RideFeedbackCompletedScreen();
@@ -2777,7 +2777,7 @@ class _RideFeedbackCompletedScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// JOYRIDE SCREEN 29: DRIVER INFORMATION + PASADANORTE 4-ANGLE VEHICLE PHOTOS
+// DRIVER INFORMATION + PASADANORTE 4-ANGLE VEHICLE PHOTOS
 // ============================================================================
 class _DriverInformationScreen extends StatelessWidget {
   final Map<String, String> driverData;
@@ -3162,7 +3162,7 @@ class _DriverInformationScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// JOYRIDE SCREEN 30: CHAT WITH DRIVER
+// IN-APP CHAT WITH DRIVER
 // ============================================================================
 class _DriverChatScreen extends StatefulWidget {
   final Map<String, String> driverData;
@@ -3360,7 +3360,7 @@ class _DriverChatScreenState extends State<_DriverChatScreen> {
 }
 
 // ============================================================================
-// JOYRIDE SCREEN 31: VOICE CALL SCREEN
+// IN-APP VOICE CALL SCREEN
 // ============================================================================
 class _DriverVoiceCallScreen extends StatefulWidget {
   final Map<String, String> driverData;
@@ -3544,7 +3544,7 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
 }
 
 // ============================================================================
-// JOYRIDE SCREENS 43 & 44: CANCEL RIDE REASON & CANCELED CONFIRMATION
+// CANCEL RIDE REASON & CANCELED CONFIRMATION
 // ============================================================================
 class _CancelRideReasonScreen extends StatefulWidget {
   const _CancelRideReasonScreen();
