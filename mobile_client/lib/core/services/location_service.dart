@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
-import 'laoag_city_dataset.dart';
 import 'supabase_service.dart';
 
 class LocationPoint {
@@ -1371,13 +1370,8 @@ class LocationService {
     ),
   ];
 
-  // Lazily combines the core gazetteer with the 2,365-entry city-wide dataset on first lookup
-  static List<LocationPoint>? _cachedComprehensiveGazetteer;
-  static List<LocationPoint> get laoagComprehensiveGazetteer =>
-      _cachedComprehensiveGazetteer ??= <LocationPoint>[
-        ..._laoagCoreGazetteer,
-        ...laoagCityCompleteDataset,
-      ];
+  // Core offline gazetteer (major TODA zones, terminals, schools, hospitals, key landmarks)
+  static const List<LocationPoint> laoagComprehensiveGazetteer = _laoagCoreGazetteer;
 
   // Alias for compatibility
   static const List<LocationPoint> laoagLandmarks = laoagPrimaryZones;
