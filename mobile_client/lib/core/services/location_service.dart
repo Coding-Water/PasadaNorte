@@ -579,12 +579,66 @@ class LocationService {
     return 'Pinned Location (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})';
   }
 
-  // Computes actual road route distance and street-following geometry using OSRM (primary + backup mirrors)
-  // and orthogonal Laoag street-grid fallback if completely offline (never a diagonal flying line).
+  // Computes actual road route distance and street-following geometry using:
+  // 1. Valhalla OpenStreetMap Road Routing Engine (https://valhalla1.openstreetmap.de/route) — 100% Free, No API Key
+  // 2. OSRM (Open Source Routing Machine — Primary + FOSSGIS Mirror) — 100% Free, No API Key
+  // 3. Orthogonal Laoag street-grid fallback if completely offline (never a diagonal flying line).
   static Future<RouteResult> fetchRoadRoute(
     LocationPoint origin,
     LocationPoint destination,
   ) async {
+    // 1. Try Valhalla OpenStreetMap Road Routing API (fast, high-precision street routing for tricycles/auto)
+    try {
+      final valhallaPayload = jsonEncode({
+        'locations': [
+          {'lat': origin.latitude, 'lon': origin.longitude},
+          {'lat': destination.latitude, 'lon': destination.longitude},
+        ],
+        'costing': 'auto',
+        'units': 'kilometers',
+      });
+      final valhallaUri = Uri.parse(
+        'https://valhalla1.openstreetmap.de/route?json=${Uri.encodeComponent(valhallaPayload)}',
+      );
+      final valhallaResp = await http.get(
+        valhallaUri,
+        headers: {
+          'User-Agent':
+              'PasadaNorteLaoagSmartParatransit/2.0 (laoag-pasadanorte.ph)',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      if (valhallaResp.statusCode == 200) {
+        final data = jsonDecode(valhallaResp.body) as Map<String, dynamic>;
+        final trip = data['trip'] as Map<String, dynamic>?;
+        final summary = trip?['summary'] as Map<String, dynamic>?;
+        final legs = trip?['legs'] as List<dynamic>?;
+        if (summary != null && legs != null && legs.isNotEmpty) {
+          final firstLeg = legs.first as Map<String, dynamic>;
+          final encodedShape = firstLeg['shape'] as String? ?? '';
+          final decodedPoints = _decodeValhallaPolyline6(encodedShape);
+          if (decodedPoints.length >= 2) {
+            final lengthKm = (summary['length'] as num).toDouble();
+            final timeSeconds = (summary['time'] as num).toDouble();
+            final densePoints =
+                _densifyPolyline(decodedPoints, maxSegmentMeters: 18.0);
+            return RouteResult(
+              distanceKm: max(
+                0.25,
+                double.parse(lengthKm.toStringAsFixed(2)),
+              ),
+              durationMinutes: max(2, (timeSeconds / 60.0).ceil()),
+              polylinePoints: densePoints,
+              isRoadRoute: true,
+            );
+          }
+        }
+      }
+    } catch (_) {
+      // Fall through seamlessly to OSRM routing mirrors
+    }
+
+    // 2. OSRM Road Routing API (Primary + FOSSGIS Germany Backup Mirror)
     final endpoints = [
       'https://router.project-osrm.org/route/v1/driving/'
           '${origin.longitude},${origin.latitude};'
@@ -644,7 +698,7 @@ class LocationService {
       }
     }
 
-    // Offline fallback: Orthogonal Laoag street-grid path (follows Laoag's NNE-SSW / WNW-ESE street grid
+    // 3. Offline fallback: Orthogonal Laoag street-grid path (follows Laoag's NNE-SSW / WNW-ESE street grid
     // along Gen. Segundo Ave & J. P. Rizal St instead of flying diagonally through blocks)
     final gridPoints =
         _buildLaoagStreetGridFallbackPath(origin.latLng, destination.latLng);
@@ -664,6 +718,43 @@ class LocationService {
       polylinePoints: _densifyPolyline(gridPoints, maxSegmentMeters: 18.0),
       isRoadRoute: false,
     );
+  }
+
+  // Decodes Valhalla's 6-decimal-precision encoded polyline (precision = 1e-6) into LatLng coordinates
+  static List<LatLng> _decodeValhallaPolyline6(String encoded) {
+    final List<LatLng> points = [];
+    int index = 0;
+    final int len = encoded.length;
+    int lat = 0;
+    int lng = 0;
+
+    while (index < len) {
+      int b;
+      int shift = 0;
+      int result = 0;
+      do {
+        if (index >= len) break;
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      final int dlat = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        if (index >= len) break;
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      final int dlng = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+      lng += dlng;
+
+      points.add(LatLng(lat / 1e6, lng / 1e6));
+    }
+    return points;
   }
 
   // Densifies a road polyline so live tricycle animation glides smoothly along every street corner
