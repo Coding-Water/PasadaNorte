@@ -297,7 +297,8 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
               const SizedBox(height: 16),
 
               DropdownButtonFormField<String>(
-                value: _selectedIdType,
+                key: ValueKey(_selectedIdType),
+                initialValue: _selectedIdType,
                 decoration: const InputDecoration(
                   labelText: 'Required Identification Card',
                   prefixIcon: Icon(Icons.badge_rounded),

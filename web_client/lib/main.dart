@@ -8,8 +8,10 @@ const String kSupabasePublishableKey =
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
+    // ignore: deprecated_member_use
     await Supabase.initialize(
       url: kSupabaseUrl,
+      // ignore: deprecated_member_use
       anonKey: kSupabasePublishableKey,
     );
   } catch (_) {}

@@ -155,8 +155,8 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
                                   color: _permState.allGranted
-                                      ? AppTheme.accentEmerald.withOpacity(0.22)
-                                      : Colors.amber.withOpacity(0.22),
+                                      ? AppTheme.accentEmerald.withValues(alpha: 0.22)
+                                      : Colors.amber.withValues(alpha: 0.22),
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                                 child: Row(
@@ -191,7 +191,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                               onPressed: () => _goToAuth(startInRegisterMode: false),
                               style: TextButton.styleFrom(
                                 foregroundColor: Colors.white,
-                                backgroundColor: Colors.white.withOpacity(0.1),
+                                backgroundColor: Colors.white.withValues(alpha: 0.1),
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
@@ -226,7 +226,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                   gradient: LinearGradient(
                                     colors: [
                                       AppTheme.accentEmerald,
-                                      AppTheme.accentEmerald.withOpacity(0.65),
+                                      AppTheme.accentEmerald.withValues(alpha: 0.65),
                                     ],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
@@ -234,7 +234,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                   borderRadius: BorderRadius.circular(24),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppTheme.accentEmerald.withOpacity(0.35),
+                                      color: AppTheme.accentEmerald.withValues(alpha: 0.35),
                                       blurRadius: 24,
                                       offset: const Offset(0, 10),
                                     ),
@@ -250,7 +250,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.accentEmerald.withOpacity(0.18),
+                                  color: AppTheme.accentEmerald.withValues(alpha: 0.18),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(

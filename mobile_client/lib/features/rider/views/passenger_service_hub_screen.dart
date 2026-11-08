@@ -158,10 +158,10 @@ class PassengerServiceHubScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: accentColor.withOpacity(0.45), width: 1.8),
+          border: Border.all(color: accentColor.withValues(alpha: 0.45), width: 1.8),
           boxShadow: [
             BoxShadow(
-              color: accentColor.withOpacity(0.08),
+              color: accentColor.withValues(alpha: 0.08),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

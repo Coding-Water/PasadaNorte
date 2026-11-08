@@ -74,7 +74,7 @@ class TodaQueueService {
       id: 'term_02',
       name: 'INCAT School Gate TODA Pila',
       todaCode: 'INCAT-TODA',
-      centerPoint: LocationPoint(
+      centerPoint: const LocationPoint(
         name: 'INCAT (Ilocos Norte College of Arts and Trades)',
         latitude: 18.1990,
         longitude: 120.5980,

@@ -180,7 +180,7 @@ class DemandForecastService {
     required int hourOfDay,
     required bool isWeekday,
   }) {
-    final zones = LocationService.laoagPrimaryZones;
+    const zones = LocationService.laoagPrimaryZones;
     final List<DemandZoneForecast> results = [];
 
     for (final loc in zones) {

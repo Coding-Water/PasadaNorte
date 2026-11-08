@@ -233,7 +233,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       point: zone.center,
                       radius: zone.radiusMeters * 1.25,
                       useRadiusInMeter: true,
-                      color: zone.heatColor.withOpacity(0.18),
+                      color: zone.heatColor.withValues(alpha: 0.18),
                       borderStrokeWidth: 0,
                     );
                   }).toList(),
@@ -244,8 +244,8 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       point: zone.center,
                       radius: zone.radiusMeters * 0.75,
                       useRadiusInMeter: true,
-                      color: zone.heatColor.withOpacity(0.38),
-                      borderColor: zone.heatColor.withOpacity(0.75),
+                      color: zone.heatColor.withValues(alpha: 0.38),
+                      borderColor: zone.heatColor.withValues(alpha: 0.75),
                       borderStrokeWidth: 1.5,
                     );
                   }).toList(),
@@ -256,7 +256,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       point: term.centerPoint.latLng,
                       radius: term.radiusMeters,
                       useRadiusInMeter: true,
-                      color: AppTheme.primarySlate.withOpacity(0.22),
+                      color: AppTheme.primarySlate.withValues(alpha: 0.22),
                       borderColor: AppTheme.primarySlate,
                       borderStrokeWidth: 2,
                     );
@@ -400,7 +400,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: AppTheme.primarySlate.withOpacity(0.94),
+                          color: AppTheme.primarySlate.withValues(alpha: 0.94),
                           borderRadius: BorderRadius.circular(18),
                           boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
                         ),

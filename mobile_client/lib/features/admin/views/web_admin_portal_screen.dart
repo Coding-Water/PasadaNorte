@@ -642,7 +642,7 @@ class _WebAdminPortalScreenState extends State<WebAdminPortalScreen>
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<LocationPoint>(
-                  value: _selectedLoggerZone,
+                  initialValue: _selectedLoggerZone,
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Trip Origin Zone (10 Laoag City Zones)',

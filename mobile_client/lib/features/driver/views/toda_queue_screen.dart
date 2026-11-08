@@ -25,8 +25,8 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
   // NTP Clock Synchronization & Ground-Truth Field Validation Counters (Objective 4)
   bool _ntpClockSynced = true;
   int _ntpDriftMs = 3;
-  int _truePositiveLogged = 95; // out of 100 true terminal joins/departures (Recall = 95.0% >= 90%)
-  int _falsePositiveLogged = 6; // out of 100 pass-by / traffic-stop events (FPR = 6.0% <= 10%)
+  final int _truePositiveLogged = 95; // out of 100 true terminal joins/departures (Recall = 95.0% >= 90%)
+  final int _falsePositiveLogged = 6; // out of 100 pass-by / traffic-stop events (FPR = 6.0% <= 10%)
 
   QueueStatus get _evaluatedStatus {
     final targetLat = _selectedTerminal.centerPoint.latitude +
@@ -117,7 +117,7 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<TodaTerminal>(
-                      value: _selectedTerminal,
+                      initialValue: _selectedTerminal,
                       isExpanded: true,
                       decoration: const InputDecoration(
                         filled: true,
@@ -258,7 +258,7 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: statusColor, width: 2),
                 ),

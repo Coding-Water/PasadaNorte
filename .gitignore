@@ -46,5 +46,11 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+~$*.docx
+*.pdf
 Trikr_Updated.docx
 Pasada Norte.docx
+Pasada_Norte_Revised_1.docx
+Joyride Native App UI (Copy) (Community).pdf
+Pasada_Norte_Revised_3.docx
+Pasada_Norte_Revised_4.docx

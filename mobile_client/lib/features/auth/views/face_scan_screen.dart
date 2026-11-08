@@ -258,7 +258,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
                       ] else ...[
                         Icon(
                           Icons.face_retouching_natural_rounded,
-                          color: Colors.white.withOpacity(0.85),
+                          color: Colors.white.withValues(alpha: 0.85),
                           size: 76,
                         ),
                         const SizedBox(height: 14),
@@ -276,7 +276,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
 
               SwitchListTile(
                 dense: true,
-                activeColor: AppTheme.accentEmerald,
+                activeThumbColor: AppTheme.accentEmerald,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                 title: const Text(
                   'Simulate Low-Confidence Scan (< 85% Match)',

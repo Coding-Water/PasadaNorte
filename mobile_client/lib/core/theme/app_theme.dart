@@ -2,25 +2,27 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Modern Uber / Grab Super-App Palette (Deep Slate + Emerald Transit + Warm Gold)
-  static const Color primarySlate = Color(0xFF0F172A); // Deep Midnight Slate
-  static const Color accentEmerald = Color(0xFF00B14F); // Grab-style Transit Green
-  static const Color primaryBlue = Color(0xFF1E3A8A); // Deep Royal Accent
-  static const Color secondaryGold = Color(0xFFF59E0B); // Warm Amber Highlight
-  static const Color backgroundLight = Color(0xFFF8FAFC);
+  // Joyride / GoRide Light UI Kit Palette adapted for PasadaNorte Laoag City
+  static const Color primarySlate = Color(0xFF212121); // Joyride Deep Charcoal Heading
+  static const Color accentEmerald = Color(0xFF00B14F); // Joyride Vibrant Green (#00B14F)
+  static const Color accentEmeraldLight = Color(0xFFE8F8EF); // Soft Mint Pill / Surface
+  static const Color primaryBlue = Color(0xFF0A84FF); // GPS Blue Halo Accent
+  static const Color secondaryGold = Color(0xFFF59E0B); // Rating Star / Warning Highlight
+  static const Color cancelRed = Color(0xFFF75555); // Joyride Outlined Cancel Red
+  static const Color backgroundLight = Color(0xFFF8F9FA);
   static const Color cardColor = Colors.white;
 
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primarySlate,
-        primary: primarySlate,
-        secondary: accentEmerald,
-        surface: backgroundLight,
+        seedColor: accentEmerald,
+        primary: accentEmerald,
+        secondary: primarySlate,
+        surface: Colors.white,
       ),
       scaffoldBackgroundColor: backgroundLight,
-      pageTransitionsTheme: PageTransitionsTheme(
+      pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: CupertinoPageTransitionsBuilder(),
           TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
@@ -29,14 +31,15 @@ class AppTheme {
         },
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: primarySlate,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: primarySlate,
         elevation: 0,
-        centerTitle: false,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
         titleTextStyle: TextStyle(
-          fontSize: 18,
+          fontSize: 19,
           fontWeight: FontWeight.w800,
-          color: Colors.white,
+          color: primarySlate,
           letterSpacing: -0.3,
         ),
       ),
@@ -44,18 +47,18 @@ class AppTheme {
         color: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFFEEEEEE)),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primarySlate,
+          backgroundColor: accentEmerald,
           foregroundColor: Colors.white,
           elevation: 0,
           minimumSize: const Size(double.infinity, 54),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(28),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
@@ -68,9 +71,9 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: primarySlate,
           minimumSize: const Size(double.infinity, 52),
-          side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+          side: const BorderSide(color: Color(0xFFE0E0E0), width: 1.5),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(28),
           ),
           textStyle: const TextStyle(
             fontSize: 15,
@@ -80,18 +83,18 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF1F5F9),
+        fillColor: const Color(0xFFF5F5F5),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey.shade200, width: 1),
+          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: accentEmerald, width: 2),
+          borderSide: const BorderSide(color: accentEmerald, width: 1.8),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       ),

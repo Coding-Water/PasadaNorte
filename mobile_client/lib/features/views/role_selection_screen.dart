@@ -136,11 +136,11 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                             ],
                           ),
                         ),
-                        Radio<UserRole>(
-                          value: UserRole.rider,
-                          groupValue: _selectedRole,
-                          onChanged: (val) => setState(() => _selectedRole = val!),
-                          activeColor: Colors.blue.shade900,
+                        Icon(
+                          _selectedRole == UserRole.rider
+                              ? Icons.radio_button_checked_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          color: Colors.blue.shade900,
                         ),
                       ],
                     ),
@@ -190,11 +190,11 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                             ],
                           ),
                         ),
-                        Radio<UserRole>(
-                          value: UserRole.driver,
-                          groupValue: _selectedRole,
-                          onChanged: (val) => setState(() => _selectedRole = val!),
-                          activeColor: Colors.blue.shade900,
+                        Icon(
+                          _selectedRole == UserRole.driver
+                              ? Icons.radio_button_checked_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          color: Colors.blue.shade900,
                         ),
                       ],
                     ),

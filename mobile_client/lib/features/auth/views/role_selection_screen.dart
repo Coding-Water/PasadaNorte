@@ -132,7 +132,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppTheme.accentEmerald.withOpacity(0.15),
+                            color: AppTheme.accentEmerald.withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -365,7 +365,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppTheme.accentEmerald.withOpacity(0.15)
+                          ? AppTheme.accentEmerald.withValues(alpha: 0.15)
                           : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -381,13 +381,12 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 ],
               ),
             ),
-            Radio<PassengerCategory>(
-              value: category,
-              groupValue: _selectedPassengerCategory,
-              activeColor: AppTheme.accentEmerald,
-              onChanged: (v) {
-                if (v != null) setState(() => _selectedPassengerCategory = v);
-              },
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: isSelected ? AppTheme.accentEmerald : Colors.grey.shade400,
+              size: 22,
             ),
           ],
         ),
