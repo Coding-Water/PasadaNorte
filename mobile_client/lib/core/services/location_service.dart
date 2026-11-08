@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'laoag_city_dataset.dart';
+import 'supabase_service.dart';
 
 class LocationPoint {
   final double latitude;
@@ -225,49 +226,82 @@ class LocationService {
       }
     }
 
-    // 1. Score and rank verified 2,400+ Laoag City dataset entries (all 80 Barangays + POIs + Streets)
-    final List<MapEntry<int, LocationPoint>> scoredLocal = [];
-    for (final place in laoagComprehensiveGazetteer) {
-      final lowerName = place.name.toLowerCase();
-      final normalizedName =
-          lowerName.replaceAll(RegExp(r'[^\w\s]'), ' ').trim();
-
-      int score = 0;
-      if (lowerName.startsWith(lowerQuery) ||
-          normalizedName.startsWith(lowerQuery)) {
-        score += 120;
-      } else if (lowerName.contains(lowerQuery) ||
-          normalizedName.contains(lowerQuery)) {
-        score += 90;
-      }
-
-      if (queryTokens.isNotEmpty) {
-        int matchedTokens = 0;
-        for (final token in queryTokens) {
-          if (normalizedName.contains(token)) {
-            matchedTokens++;
+    // 1. Supabase Cloud Database Search (laoag_locations table with pg_trgm index)
+    if (SupabaseService.isConnected) {
+      try {
+        final sb = SupabaseService.client;
+        if (sb != null) {
+          final rows = await sb
+              .from('laoag_locations')
+              .select('name, latitude, longitude, zone_code')
+              .ilike('name', '%$trimmed%')
+              .limit(25)
+              .timeout(const Duration(seconds: 3));
+          for (final row in rows) {
+            final name = row['name'] as String?;
+            final lat = (row['latitude'] as num?)?.toDouble();
+            final lng = (row['longitude'] as num?)?.toDouble();
+            final zc = (row['zone_code'] as String?) ?? 'Z01';
+            if (name != null && lat != null && lng != null) {
+              addUnique(
+                LocationPoint(
+                  name: name,
+                  latitude: lat,
+                  longitude: lng,
+                  zoneCode: zc,
+                ),
+              );
+            }
           }
         }
-        if (matchedTokens == queryTokens.length) {
-          score += 60 + (matchedTokens * 10);
-        } else if (queryTokens.length > 1 &&
-            matchedTokens >= queryTokens.length - 1 &&
-            matchedTokens >= 2) {
-          score += 25;
+      } catch (_) {}
+    }
+
+    // 2. Local Gazetteer Offline Fallback (all 80 Barangays + POIs + Streets)
+    if (combinedResults.length < 25) {
+      final List<MapEntry<int, LocationPoint>> scoredLocal = [];
+      for (final place in laoagComprehensiveGazetteer) {
+        final lowerName = place.name.toLowerCase();
+        final normalizedName =
+            lowerName.replaceAll(RegExp(r'[^\w\s]'), ' ').trim();
+
+        int score = 0;
+        if (lowerName.startsWith(lowerQuery) ||
+            normalizedName.startsWith(lowerQuery)) {
+          score += 120;
+        } else if (lowerName.contains(lowerQuery) ||
+            normalizedName.contains(lowerQuery)) {
+          score += 90;
+        }
+
+        if (queryTokens.isNotEmpty) {
+          int matchedTokens = 0;
+          for (final token in queryTokens) {
+            if (normalizedName.contains(token)) {
+              matchedTokens++;
+            }
+          }
+          if (matchedTokens == queryTokens.length) {
+            score += 60 + (matchedTokens * 10);
+          } else if (queryTokens.length > 1 &&
+              matchedTokens >= queryTokens.length - 1 &&
+              matchedTokens >= 2) {
+            score += 25;
+          }
+        }
+
+        if (score > 0) {
+          scoredLocal.add(MapEntry(score, place));
         }
       }
 
-      if (score > 0) {
-        scoredLocal.add(MapEntry(score, place));
+      scoredLocal.sort((a, b) => b.key.compareTo(a.key));
+      for (final entry in scoredLocal.take(25)) {
+        addUnique(entry.value);
       }
     }
 
-    scoredLocal.sort((a, b) => b.key.compareTo(a.key));
-    for (final entry in scoredLocal.take(25)) {
-      addUnique(entry.value);
-    }
-
-    // 2. Google Maps Places / Geocoding API (if GOOGLE_MAPS_API_KEY is configured)
+    // 3. Google Maps Places / Geocoding API (if GOOGLE_MAPS_API_KEY is configured)
     if (googleMapsApiKey.isNotEmpty && combinedResults.length < 12) {
       final gmapsQuery = lowerQuery.contains('laoag')
           ? trimmed
