@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'laoag_city_dataset.dart';
 
 class LocationPoint {
   final double latitude;
@@ -190,10 +191,15 @@ class LocationService {
     return fallbackQuery;
   }
 
+  // Optional Google Maps Geocoding / Places API Key (--dart-define=GOOGLE_MAPS_API_KEY=...)
+  static const String googleMapsApiKey =
+      String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+
   // Multi-source Live Geocoding Search bounded strictly to Laoag City & San Nicolas Metro
-  // 1. Tokenized keyword scoring against our verified 100+ place Laoag City OSM Dataset
-  // 2. Live Photon (Komoot) OSM Geocoder biased to Laoag City Center (18.1960, 120.5938)
-  // 3. Live Nominatim Geocoder bounded strictly to Laoag City viewbox
+  // 1. Tokenized keyword scoring against our verified 2,400+ place Laoag City Dataset (All 80 Barangays + OSM + ArcGIS/Google POIs)
+  // 2. Google Maps Places / Geocoding API (when GOOGLE_MAPS_API_KEY is configured)
+  // 3. Esri ArcGIS World Geocoder Live API (commercial street & POI database aligned with Google Maps, no API key required)
+  // 4. Live Photon (Komoot) & Nominatim OpenStreetMap Geocoders bounded strictly to Laoag City
   static Future<List<LocationPoint>> searchPlacesInLaoag(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
@@ -219,7 +225,7 @@ class LocationService {
       }
     }
 
-    // 1. Score and rank verified Laoag City dataset entries
+    // 1. Score and rank verified 2,400+ Laoag City dataset entries (all 80 Barangays + POIs + Streets)
     final List<MapEntry<int, LocationPoint>> scoredLocal = [];
     for (final place in laoagComprehensiveGazetteer) {
       final lowerName = place.name.toLowerCase();
@@ -257,12 +263,125 @@ class LocationService {
     }
 
     scoredLocal.sort((a, b) => b.key.compareTo(a.key));
-    for (final entry in scoredLocal) {
+    for (final entry in scoredLocal.take(25)) {
       addUnique(entry.value);
     }
 
-    // 2. Live Photon OSM Geocoder (fast, accurate POI & street coordinates in Laoag City)
-    if (combinedResults.length < 8) {
+    // 2. Google Maps Places / Geocoding API (if GOOGLE_MAPS_API_KEY is configured)
+    if (googleMapsApiKey.isNotEmpty && combinedResults.length < 12) {
+      final gmapsQuery = lowerQuery.contains('laoag')
+          ? trimmed
+          : '$trimmed, Laoag City, Ilocos Norte';
+      final gmapsUri = Uri.parse(
+        'https://maps.googleapis.com/maps/api/geocode/json'
+        '?address=${Uri.encodeComponent(gmapsQuery)}'
+        '&bounds=18.1300,120.5000|18.2500,120.6600'
+        '&components=country:PH'
+        '&key=$googleMapsApiKey',
+      );
+      try {
+        final resp =
+            await http.get(gmapsUri).timeout(const Duration(seconds: 4));
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          final results = data['results'] as List<dynamic>? ?? [];
+          for (final item in results) {
+            final rMap = item as Map<String, dynamic>;
+            final geom = rMap['geometry'] as Map<String, dynamic>?;
+            final loc = geom?['location'] as Map<String, dynamic>?;
+            if (loc == null) continue;
+            final lat = (loc['lat'] as num?)?.toDouble();
+            final lng = (loc['lng'] as num?)?.toDouble();
+            if (lat == null || lng == null) continue;
+            if (lat < 18.1300 ||
+                lat > 18.2500 ||
+                lng < 120.5000 ||
+                lng > 120.6600) {
+              continue;
+            }
+            final formatted =
+                (rMap['formatted_address'] as String?)?.trim() ?? trimmed;
+            final cleanLabel = formatted
+                .replaceAll(', Philippines', '')
+                .replaceAll(', Ilocos Norte', '');
+            addUnique(
+              LocationPoint(
+                name: cleanLabel,
+                latitude: lat,
+                longitude: lng,
+                zoneCode: 'GMAPS',
+              ),
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Esri ArcGIS World Geocoder Live API (commercial street & POI database aligned with Google Maps)
+    if (combinedResults.length < 12) {
+      final arcgisQuery =
+          lowerQuery.contains('laoag') ? trimmed : '$trimmed, Laoag City';
+      final arcgisUri = Uri.parse(
+        'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates'
+        '?SingleLine=${Uri.encodeComponent(arcgisQuery)}'
+        '&searchExtent=120.5000,18.1300,120.6600,18.2500'
+        '&location=120.5938,18.1960'
+        '&outFields=PlaceName,Place_addr,StAddr,Nbrhd,City'
+        '&maxLocations=10'
+        '&f=json',
+      );
+      try {
+        final resp =
+            await http.get(arcgisUri).timeout(const Duration(seconds: 4));
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          final candidates = data['candidates'] as List<dynamic>? ?? [];
+          for (final raw in candidates) {
+            final cMap = raw as Map<String, dynamic>;
+            final loc = cMap['location'] as Map<String, dynamic>?;
+            if (loc == null) continue;
+            final lon = (loc['x'] as num?)?.toDouble();
+            final lat = (loc['y'] as num?)?.toDouble();
+            if (lat == null || lon == null) continue;
+            if (lat < 18.1300 ||
+                lat > 18.2500 ||
+                lon < 120.5000 ||
+                lon > 120.6600) {
+              continue;
+            }
+            final attrs = cMap['attributes'] as Map<String, dynamic>? ?? {};
+            final pName = (attrs['PlaceName']?.toString() ??
+                    cMap['address']?.toString() ??
+                    '')
+                .trim();
+            if (pName.isEmpty || pName.toLowerCase() == 'laoag city') continue;
+            final stAddr = (attrs['StAddr']?.toString() ?? '').trim();
+            final nbrhd = (attrs['Nbrhd']?.toString() ?? '').trim();
+            final parts = <String>[
+              pName,
+              if (stAddr.isNotEmpty &&
+                  !pName.toLowerCase().contains(stAddr.toLowerCase()))
+                stAddr,
+              if (nbrhd.isNotEmpty &&
+                  !pName.toLowerCase().contains(nbrhd.toLowerCase()))
+                nbrhd,
+              if (!pName.toLowerCase().contains('laoag')) 'Laoag City',
+            ];
+            addUnique(
+              LocationPoint(
+                name: parts.take(3).join(', '),
+                latitude: lat,
+                longitude: lon,
+                zoneCode: 'PIN',
+              ),
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 4. Live Photon OSM Geocoder (fast POI & street coordinates in Laoag City)
+    if (combinedResults.length < 10) {
       final photonUri = Uri.parse(
         'https://photon.komoot.io/api/'
         '?q=${Uri.encodeComponent("$trimmed Laoag")}'
@@ -322,8 +441,8 @@ class LocationService {
       } catch (_) {}
     }
 
-    // 3. Live Nominatim Geocoder bounded strictly to Laoag City (bounded=1)
-    if (combinedResults.length < 8) {
+    // 5. Live Nominatim Geocoder bounded strictly to Laoag City (bounded=1)
+    if (combinedResults.length < 10) {
       final searchQuery = lowerQuery.contains('laoag')
           ? trimmed
           : '$trimmed, Laoag City, Ilocos Norte';
@@ -383,7 +502,7 @@ class LocationService {
 
   // Reverse geocodes any tapped coordinate on the map into its real street / barangay address
   static Future<String> reverseGeocodePoint(double lat, double lng) async {
-    // First check if the point is within 45 meters of a known landmark in our verified dataset
+    // 1. Check if the point is within 40 meters of a known landmark in our 2,400+ place verified dataset
     LocationPoint? nearestKnown;
     double minKnownDistKm = double.infinity;
     for (final p in laoagComprehensiveGazetteer) {
@@ -393,7 +512,40 @@ class LocationService {
         nearestKnown = p;
       }
     }
+    if (nearestKnown != null && minKnownDistKm <= 0.04) {
+      return nearestKnown.name;
+    }
 
+    // 2. Try Esri ArcGIS Reverse Geocoder (commercial street & POI database)
+    try {
+      final arcgisRevUri = Uri.parse(
+        'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode'
+        '?location=$lng,$lat&outSR=4326&f=json',
+      );
+      final arcResp =
+          await http.get(arcgisRevUri).timeout(const Duration(seconds: 3));
+      if (arcResp.statusCode == 200) {
+        final arcData = jsonDecode(arcResp.body) as Map<String, dynamic>;
+        final addr = arcData['address'] as Map<String, dynamic>?;
+        if (addr != null) {
+          final addressLabel = (addr['Address']?.toString() ?? '').trim();
+          final nbrhd = (addr['Neighborhood']?.toString() ?? '').trim();
+          final city = (addr['City']?.toString() ?? 'Laoag City').trim();
+          final parts = <String>[
+            if (addressLabel.isNotEmpty) addressLabel,
+            if (nbrhd.isNotEmpty &&
+                !addressLabel.toLowerCase().contains(nbrhd.toLowerCase()))
+              nbrhd,
+            if (city.isNotEmpty) city,
+          ];
+          if (parts.length >= 2) {
+            return parts.take(3).join(', ');
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. Try Nominatim Reverse Geocoder
     final uri = Uri.parse(
       'https://nominatim.openstreetmap.org/reverse'
       '?lat=$lat&lon=$lng&format=jsonv2&zoom=18&addressdetails=1',
@@ -1092,6 +1244,9 @@ class LocationService {
       longitude: 120.596480,
       zoneCode: 'Z02',
     ),
+
+    // --- City-Wide Dataset (2,367 Verified Places + All 80 Official Barangays of Laoag City) ---
+    ...laoagCityCompleteDataset,
   ];
 
   // Alias for compatibility
