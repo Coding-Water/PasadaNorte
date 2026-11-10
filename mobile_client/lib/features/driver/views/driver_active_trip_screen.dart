@@ -19,6 +19,7 @@ enum DriverTripStage {
 
 class DriverActiveTripScreen extends StatefulWidget {
   final String driverName;
+  final String? driverPhotoUrl;
   final String passengerName;
   final String passengerCategory;
   final LocationPoint pickupPoint;
@@ -31,6 +32,7 @@ class DriverActiveTripScreen extends StatefulWidget {
   const DriverActiveTripScreen({
     super.key,
     required this.driverName,
+    this.driverPhotoUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?fit=crop&w=150&q=80',
     this.passengerName = 'Maria Clara Santos',
     this.passengerCategory = 'STUDENT (20% STATUTORY DISCOUNT)',
     this.pickupPoint = const LocationPoint(
@@ -58,9 +60,31 @@ class DriverActiveTripScreen extends StatefulWidget {
 class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
+  static const double _navigationZoom = 17.5;
   DriverTripStage _currentStage = DriverTripStage.enRouteToPickup;
   bool _cashReceived = true;
   bool _isTurnByTurnVoiceMuted = false;
+
+  // Dynamic route segments: Traversed route trail left behind vs active ahead route
+  List<LatLng> get _traversedPolyline {
+    if (_currentRoutePolyline.isEmpty) return [];
+    final endIndex = min(_currentPolylineIndex + 1, _currentRoutePolyline.length);
+    final points = List<LatLng>.from(_currentRoutePolyline.sublist(0, endIndex));
+    if (points.isNotEmpty && points.last != _currentDriverLocation) {
+      points.add(_currentDriverLocation);
+    }
+    return points;
+  }
+
+  List<LatLng> get _remainingPolyline {
+    if (_currentRoutePolyline.isEmpty) return [];
+    final points = <LatLng>[_currentDriverLocation];
+    final nextIndex = min(_currentPolylineIndex + 1, _currentRoutePolyline.length);
+    if (nextIndex < _currentRoutePolyline.length) {
+      points.addAll(_currentRoutePolyline.sublist(nextIndex));
+    }
+    return points;
+  }
 
   // Periodic telemetry timer
   Timer? _telemetryTimer;
@@ -286,7 +310,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
 
         // 1. AUTO-FOLLOW CAMERA: Automatically glides the camera hands-free
         if (_isAutoFollowLocked) {
-          _mapController.move(_currentDriverLocation, 16.5);
+          _mapController.move(_currentDriverLocation, _navigationZoom);
         }
 
         // 3. AUTO-ROUTE SENTINEL: Detect if vehicle strays off-route (> 38m)
@@ -388,7 +412,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       } else if (_currentStage == DriverTripStage.arrivedAtPickup) {
         _currentStage = DriverTripStage.inTransitToDropoff;
         _buildStageRoute();
-        _mapController.move(_currentDriverLocation, 16.5);
+        _mapController.move(_currentDriverLocation, _navigationZoom);
         _showTopNotification('Trip Started: GPS meter running to ${widget.dropoffPoint.name}.');
       } else if (_currentStage == DriverTripStage.inTransitToDropoff) {
         _navigationTimer?.cancel();
@@ -1108,7 +1132,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         });
 
         if (_isAutoFollowLocked) {
-          _mapController.move(_currentDriverLocation, 16.5);
+          _mapController.move(_currentDriverLocation, _navigationZoom);
         }
 
         final distToTerminal = LocationService.calculateDistanceInKm(
@@ -1193,7 +1217,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               mapController: _mapController,
               options: MapOptions(
                 initialCenter: _currentDriverLocation,
-                initialZoom: 16.5,
+                initialZoom: _navigationZoom,
                 onPositionChanged: (pos, hasGesture) {
                   if (hasGesture && _isAutoFollowLocked) {
                     setState(() {
@@ -1205,7 +1229,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                         setState(() {
                           _isAutoFollowLocked = true;
                         });
-                        _mapController.move(_currentDriverLocation, 16.5);
+                        _mapController.move(_currentDriverLocation, _navigationZoom);
                       }
                     });
                   }
@@ -1216,19 +1240,35 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                   urlTemplate: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                   userAgentPackageName: 'ph.laoag.pasadanorte',
                 ),
-                // Outer Glow for route
+                // Route Polylines: Traversed Trail Left Behind + Active Ahead Green Route
                 PolylineLayer(
                   polylines: [
-                    Polyline(
-                      points: _currentRoutePolyline,
-                      strokeWidth: 9.0,
-                      color: (_isOffRoute ? Colors.amber.shade700 : AppTheme.accentEmerald).withValues(alpha: 0.35),
-                    ),
-                    Polyline(
-                      points: _currentRoutePolyline,
-                      strokeWidth: 5.5,
-                      color: _isOffRoute ? Colors.amber.shade700 : AppTheme.accentEmerald,
-                    ),
+                    // 1. Traversed segment left behind (subtle blue-grey route trail)
+                    if (_traversedPolyline.length >= 2) ...[
+                      Polyline(
+                        points: _traversedPolyline,
+                        strokeWidth: 6.0,
+                        color: Colors.blueGrey.shade200.withValues(alpha: 0.45),
+                      ),
+                      Polyline(
+                        points: _traversedPolyline,
+                        strokeWidth: 4.0,
+                        color: Colors.blueGrey.shade400.withValues(alpha: 0.75),
+                      ),
+                    ],
+                    // 2. Active remaining road route ahead of vehicle (vibrant emerald green)
+                    if (_remainingPolyline.length >= 2) ...[
+                      Polyline(
+                        points: _remainingPolyline,
+                        strokeWidth: 9.0,
+                        color: (_isOffRoute ? Colors.amber.shade700 : AppTheme.accentEmerald).withValues(alpha: 0.35),
+                      ),
+                      Polyline(
+                        points: _remainingPolyline,
+                        strokeWidth: 5.5,
+                        color: _isOffRoute ? Colors.amber.shade700 : AppTheme.accentEmerald,
+                      ),
+                    ],
                   ],
                 ),
                 MarkerLayer(
@@ -1269,27 +1309,12 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                         ),
                       ),
                     ),
-                    // Tricycle Vehicle Driver Marker
+                    // Driver Photo Marker with Verified TODA Badge & Amber Ring
                     Marker(
                       point: _currentDriverLocation,
-                      width: 58,
-                      height: 58,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.primarySlate,
-                          border: Border.all(color: Colors.amber, width: 3),
-                          boxShadow: const [
-                            BoxShadow(color: Colors.black26, blurRadius: 8),
-                          ],
-                        ),
-                        child: const Center(
-                          child: Text(
-                            '🛺',
-                            style: TextStyle(fontSize: 26),
-                          ),
-                        ),
-                      ),
+                      width: 64,
+                      height: 64,
+                      child: _buildDriverPhotoMarker(),
                     ),
                   ],
                 ),
@@ -1458,7 +1483,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                       onTap: () {
                         _autoFollowResumeTimer?.cancel();
                         setState(() => _isAutoFollowLocked = true);
-                        _mapController.move(_currentDriverLocation, 16.5);
+                        _mapController.move(_currentDriverLocation, _navigationZoom);
                       },
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 8),
@@ -1560,7 +1585,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                             onTap: () {
                               _autoFollowResumeTimer?.cancel();
                               setState(() => _isAutoFollowLocked = true);
-                              _mapController.move(_currentDriverLocation, 16.5);
+                              _mapController.move(_currentDriverLocation, _navigationZoom);
                             },
                           ),
                         ],
@@ -1892,6 +1917,110 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       case DriverTripStage.tripCompleted:
         return 'TRIP COMPLETED';
     }
+  }
+
+  Widget _buildDriverPhotoMarker() {
+    final photoUrl = widget.driverPhotoUrl ??
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?fit=crop&w=150&q=80';
+
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          // Driver Avatar Container with Amber Border and Elevation Shadow
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              border: Border.all(color: const Color(0xFFF59E0B), width: 3.2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.28),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+                BoxShadow(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                  blurRadius: 10,
+                  spreadRadius: 1.5,
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Image.network(
+                photoUrl,
+                fit: BoxFit.cover,
+                width: 52,
+                height: 52,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF0F766E), Color(0xFF065F46)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.driverName.isNotEmpty ? widget.driverName[0].toUpperCase() : 'D',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    color: AppTheme.primarySlate,
+                    child: const Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.amber,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          // Verified TODA Driver Badge (Bottom Right)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF064E3B),
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 4),
+                ],
+              ),
+              child: const Icon(
+                Icons.verified_rounded,
+                color: AppTheme.accentEmerald,
+                size: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildFloatingCircleBtn({
