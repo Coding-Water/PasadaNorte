@@ -88,7 +88,10 @@ EXECUTE FUNCTION public.calculate_telemetry_velocity();
 -- Excludes both Mock GPS pings and Velocity Anomalies (> 80 km/h)
 -- ----------------------------------------------------------------------------
 
-CREATE OR REPLACE VIEW public.valid_driver_telemetry AS
+-- Drop view first to allow column reordering without triggering ERROR 42P16
+DROP VIEW IF EXISTS public.valid_driver_telemetry CASCADE;
+
+CREATE VIEW public.valid_driver_telemetry AS
 SELECT 
     ride_id,
     latitude,
