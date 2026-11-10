@@ -71,6 +71,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
   // Selected Mood during this trip (0..4, default 3 = Happy)
   int _selectedMoodIndex = 3;
+  final TextEditingController _lowRatingFeedbackController =
+      TextEditingController();
+  final Set<String> _selectedLowRatingReasons = <String>{};
+  bool _showLowRatingError = false;
 
   // Verified Driver & Vehicle Documentation Data (Matched from Rank #1 TODA Pila)
   final Map<String, String> _matchedDriver = {
@@ -444,6 +448,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     _dispatchTimer?.cancel();
     _trackingTimer?.cancel();
     _radarPulseController.dispose();
+    _lowRatingFeedbackController.dispose();
     super.dispose();
   }
 
@@ -516,6 +521,41 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
+  void _handleFinishTrip({required bool skipped}) {
+    if (_selectedMoodIndex <= 1 && !skipped) {
+      final bool hasReason = _selectedLowRatingReasons.isNotEmpty;
+      final bool hasText = _lowRatingFeedbackController.text.trim().isNotEmpty;
+      if (!hasReason && !hasText) {
+        setState(() {
+          _showLowRatingError = true;
+        });
+        return;
+      }
+    }
+
+    if (_selectedMoodIndex <= 1) {
+      if (!skipped) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Feedback recorded for Laoag MINC & TODA review. Thank you.',
+            ),
+            backgroundColor: AppTheme.primarySlate,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const _RideFeedbackCompletedScreen(),
+        ),
+      );
+    } else {
+      _openPostTripRateDriverFlow();
+    }
+  }
+
   // Post-Trip Rating -> Add Tip -> Ride Completed
   void _openPostTripRateDriverFlow() {
     Navigator.push(
@@ -525,6 +565,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           driverData: _matchedDriver,
           fareBreakdown: widget.fareBreakdown,
           paymentMethod: widget.paymentMethod,
+          initialStars: _selectedMoodIndex + 1,
         ),
       ),
     );
@@ -1586,161 +1627,417 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           ),
           child: SafeArea(
             top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'You have arrived!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.primarySlate,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Divider(height: 1, color: Colors.grey.shade200),
-                const SizedBox(height: 16),
-                Text(
-                  destinationTitle,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 18.5,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.primarySlate,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  destinationSubtitle,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 18),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+              ),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'You have arrived!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.primarySlate,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(height: 1, color: Colors.grey.shade200),
+                    const SizedBox(height: 16),
+                    Text(
+                      destinationTitle,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 18.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.primarySlate,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      destinationSubtitle,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
 
-                // 3-Column Metrics Card: Duration | Distance | Avg. Speed
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFEEEEEE)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildArrivalMetricColumn(
-                        icon: Icons.access_time_rounded,
-                        value: '$_totalTripDurationMinutes mins',
-                        label: 'Duration',
+                    // 3-Column Metrics Card: Duration | Distance | Avg. Speed
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 18, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFFEEEEEE)),
                       ),
-                      _buildArrivalMetricColumn(
-                        icon: Icons.location_on_outlined,
-                        value:
-                            '${_totalTripDistanceKm.toStringAsFixed(1)} km',
-                        label: 'Distance',
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildArrivalMetricColumn(
+                            icon: Icons.access_time_rounded,
+                            value: '$_totalTripDurationMinutes mins',
+                            label: 'Duration',
+                          ),
+                          _buildArrivalMetricColumn(
+                            icon: Icons.location_on_outlined,
+                            value:
+                                '${_totalTripDistanceKm.toStringAsFixed(1)} km',
+                            label: 'Distance',
+                          ),
+                          _buildArrivalMetricColumn(
+                            icon: Icons.speed_rounded,
+                            value: '22 km/h',
+                            label: 'Avg. Speed',
+                          ),
+                        ],
                       ),
-                      _buildArrivalMetricColumn(
-                        icon: Icons.speed_rounded,
-                        value: '22 km/h',
-                        label: 'Avg. Speed',
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
 
-                const SizedBox(height: 14),
+                    const SizedBox(height: 14),
 
-                // "How was your mood during this trip?" Card with 5 Mood Faces
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFEEEEEE)),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'How was your mood during this trip?',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.primarySlate,
-                        ),
+                    // "How was your mood during this trip?" Card with 5 Mood Faces
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 18, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFFEEEEEE)),
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: List.generate(5, (index) {
-                          final bool isSelected = _selectedMoodIndex == index;
-                          return GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedMoodIndex = index),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isSelected
-                                    ? AppTheme.accentEmerald
-                                    : const Color(0xFFE0E0E0),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'How was your mood during this trip?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.primarySlate,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: List.generate(5, (index) {
+                              final bool isSelected =
+                                  _selectedMoodIndex == index;
+                              return GestureDetector(
+                                key: ValueKey('mood_face_$index'),
+                                onTap: () {
+                                  setState(() {
+                                    _selectedMoodIndex = index;
+                                    if (index > 1) {
+                                      _showLowRatingError = false;
+                                    }
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: isSelected
+                                        ? (index <= 1
+                                            ? AppTheme.cancelRed
+                                            : AppTheme.accentEmerald)
+                                        : const Color(0xFFE0E0E0),
+                                  ),
+                                  child: CustomPaint(
+                                    painter: _MoodFacePainter(
+                                      moodIndex: index,
+                                      faceColor: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+
+                          if (_selectedMoodIndex <= 1) ...[
+                            const SizedBox(height: 18),
+                            Divider(height: 1, color: Colors.grey.shade200),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.cancelRed
+                                        .withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.feedback_outlined,
+                                    size: 16,
+                                    color: AppTheme.cancelRed,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Why was your rating ${_selectedMoodIndex + 1} of 5?',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppTheme.primarySlate,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Feedback is required for 1-2 star ratings (or tap Skip)',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: Colors.grey.shade600,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                'Overcharging (Ord. 2023-005)',
+                                'Reckless Driving',
+                                'Rude / Discourteous',
+                                'Tricycle Condition / Noise',
+                                'Refused 20% Discount',
+                                'Wrong Route / Detour',
+                                'Other Reason',
+                              ].map((reason) {
+                                final bool isChosen =
+                                    _selectedLowRatingReasons.contains(reason);
+                                return InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      if (isChosen) {
+                                        _selectedLowRatingReasons.remove(reason);
+                                      } else {
+                                        _selectedLowRatingReasons.add(reason);
+                                      }
+                                      _showLowRatingError = false;
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: AnimatedContainer(
+                                    duration:
+                                        const Duration(milliseconds: 150),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isChosen
+                                          ? AppTheme.cancelRed
+                                          : const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isChosen
+                                            ? AppTheme.cancelRed
+                                            : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      reason,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: isChosen
+                                            ? Colors.white
+                                            : AppTheme.primarySlate,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: _lowRatingFeedbackController,
+                              maxLines: 2,
+                              onChanged: (_) {
+                                if (_showLowRatingError) {
+                                  setState(
+                                      () => _showLowRatingError = false);
+                                }
+                              },
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: AppTheme.primarySlate,
                               ),
-                              child: CustomPaint(
-                                painter: _MoodFacePainter(
-                                  moodIndex: index,
-                                  faceColor: Colors.white,
+                              decoration: InputDecoration(
+                                hintText:
+                                    'Please share details (optional if reason selected)...',
+                                hintStyle: TextStyle(
+                                  fontSize: 11.5,
+                                  color: Colors.grey.shade500,
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFFF8FAFC),
+                                contentPadding: const EdgeInsets.all(10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(
+                                    color: _showLowRatingError
+                                        ? AppTheme.cancelRed
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(
+                                    color: _showLowRatingError
+                                        ? AppTheme.cancelRed
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(
+                                    color: AppTheme.cancelRed,
+                                    width: 1.5,
+                                  ),
                                 ),
                               ),
                             ),
-                          );
-                        }),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Green Pill "Finish" Button -> Opens Rate Driver Flow
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    onPressed: _openPostTripRateDriverFlow,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.accentEmerald,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Finish',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                            if (_showLowRatingError) ...[
+                              const SizedBox(height: 8),
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.error_outline_rounded,
+                                    color: AppTheme.cancelRed,
+                                    size: 14,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      'Feedback is required for 1-2 star ratings. Please select a reason, type details, or tap Skip.',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: AppTheme.cancelRed,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ],
                       ),
                     ),
-                  ),
+
+                    const SizedBox(height: 20),
+
+                    // Action Buttons: Skip & Submit Feedback (for 1-2 rating) or Finish (for 3-5 rating)
+                    if (_selectedMoodIndex <= 1)
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: SizedBox(
+                              height: 52,
+                              child: OutlinedButton(
+                                onPressed: () =>
+                                    _handleFinishTrip(skipped: true),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: Colors.grey.shade300,
+                                    width: 1.5,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Skip',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.primarySlate,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: SizedBox(
+                              height: 52,
+                              child: ElevatedButton(
+                                onPressed: () =>
+                                    _handleFinishTrip(skipped: false),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.cancelRed,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  'Submit Feedback',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: () => _handleFinishTrip(skipped: false),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accentEmerald,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Finish',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -2306,11 +2603,13 @@ class _RateDriverScreen extends StatefulWidget {
   final Map<String, String> driverData;
   final FareBreakdown fareBreakdown;
   final String paymentMethod;
+  final int initialStars;
 
   const _RateDriverScreen({
     required this.driverData,
     required this.fareBreakdown,
     required this.paymentMethod,
+    this.initialStars = 5,
   });
 
   @override
@@ -2318,14 +2617,53 @@ class _RateDriverScreen extends StatefulWidget {
 }
 
 class _RateDriverScreenState extends State<_RateDriverScreen> {
-  int _selectedStars = 5;
+  late int _selectedStars;
+  final TextEditingController _feedbackController = TextEditingController();
+  final Set<String> _selectedReasons = <String>{};
+  bool _showLowRatingError = false;
   bool _showDetails = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedStars = widget.initialStars.clamp(1, 5);
+  }
+
+  @override
+  void dispose() {
+    _feedbackController.dispose();
+    super.dispose();
+  }
 
   void _skipRating() {
     Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
   void _submitRating() {
+    if (_selectedStars <= 2) {
+      final bool hasReason = _selectedReasons.isNotEmpty;
+      final bool hasText = _feedbackController.text.trim().isNotEmpty;
+      if (!hasReason && !hasText) {
+        setState(() {
+          _showLowRatingError = true;
+        });
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Feedback reported to Laoag MINC & TODA. Thank you.'),
+          backgroundColor: AppTheme.primarySlate,
+        ),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const _RideFeedbackCompletedScreen(),
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2427,8 +2765,14 @@ class _RateDriverScreenState extends State<_RateDriverScreen> {
                         final int starNumber = index + 1;
                         final bool isFilled = starNumber <= _selectedStars;
                         return GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedStars = starNumber),
+                          onTap: () {
+                            setState(() {
+                              _selectedStars = starNumber;
+                              if (starNumber > 2) {
+                                _showLowRatingError = false;
+                              }
+                            });
+                          },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 6),
                             child: Icon(
@@ -2437,13 +2781,198 @@ class _RateDriverScreenState extends State<_RateDriverScreen> {
                                   : Icons.star_border_rounded,
                               size: 48,
                               color: isFilled
-                                  ? const Color(0xFFFF9800)
+                                  ? (_selectedStars <= 2
+                                      ? AppTheme.cancelRed
+                                      : const Color(0xFFFF9800))
                                   : const Color(0xFFBDBDBD),
                             ),
                           ),
                         );
                       }),
                     ),
+
+                    if (_selectedStars <= 2) ...[
+                      const SizedBox(height: 18),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1F2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _showLowRatingError
+                                ? AppTheme.cancelRed
+                                : const Color(0xFFFECDD3),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_outline_rounded,
+                                  color: AppTheme.cancelRed,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Why was your rating $_selectedStars of 5?',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.primarySlate,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Feedback is required for 1-2 star ratings (or tap Skip).',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                'Overcharging (Ord. 2023-005)',
+                                'Reckless Driving',
+                                'Rude / Discourteous',
+                                'Tricycle Condition / Noise',
+                                'Refused 20% Discount',
+                                'Wrong Route / Detour',
+                                'Other Reason',
+                              ].map((reason) {
+                                final isSelected =
+                                    _selectedReasons.contains(reason);
+                                return InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      if (isSelected) {
+                                        _selectedReasons.remove(reason);
+                                      } else {
+                                        _selectedReasons.add(reason);
+                                      }
+                                      _showLowRatingError = false;
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: AnimatedContainer(
+                                    duration:
+                                        const Duration(milliseconds: 150),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? AppTheme.cancelRed
+                                          : Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? AppTheme.cancelRed
+                                            : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      reason,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : AppTheme.primarySlate,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: _feedbackController,
+                              maxLines: 2,
+                              onChanged: (_) {
+                                if (_showLowRatingError) {
+                                  setState(
+                                      () => _showLowRatingError = false);
+                                }
+                              },
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: AppTheme.primarySlate,
+                              ),
+                              decoration: InputDecoration(
+                                hintText:
+                                    'Please describe what happened (optional if reason selected)...',
+                                hintStyle: TextStyle(
+                                  fontSize: 11.5,
+                                  color: Colors.grey.shade500,
+                                ),
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding: const EdgeInsets.all(10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(
+                                    color: _showLowRatingError
+                                        ? AppTheme.cancelRed
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(
+                                    color: _showLowRatingError
+                                        ? AppTheme.cancelRed
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(
+                                    color: AppTheme.cancelRed,
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_showLowRatingError) ...[
+                              const SizedBox(height: 8),
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.error_outline_rounded,
+                                    color: AppTheme.cancelRed,
+                                    size: 14,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      'Please select a reason or provide feedback, or tap Skip.',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: AppTheme.cancelRed,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 24),
 
@@ -2576,16 +3105,18 @@ class _RateDriverScreenState extends State<_RateDriverScreen> {
                       child: ElevatedButton(
                         onPressed: _submitRating,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.accentEmerald,
+                          backgroundColor: _selectedStars <= 2
+                              ? AppTheme.cancelRed
+                              : AppTheme.accentEmerald,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
                           elevation: 0,
                         ),
-                        child: const Text(
-                          'Give Rate',
-                          style: TextStyle(
+                        child: Text(
+                          _selectedStars <= 2 ? 'Submit Feedback' : 'Give Rate',
+                          style: const TextStyle(
                             fontSize: 15.5,
                             fontWeight: FontWeight.w800,
                           ),
