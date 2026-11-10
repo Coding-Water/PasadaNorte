@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/models/user_model.dart';
 import '../../features/fare/services/fare_calculator_service.dart';
@@ -384,5 +385,72 @@ class SupabaseService {
         'logged_at': DateTime.now().toIso8601String(),
       });
     } catch (_) {}
+  }
+
+  static RealtimeChannel? _dispatchChannel;
+  static final StreamController<Map<String, dynamic>> _rideAcceptedStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  /// Reactive stream for ride acceptance events
+  static Stream<Map<String, dynamic>> get onRideAccepted =>
+      _rideAcceptedStreamController.stream;
+
+  /// Initializes or retrieves the shared Supabase Realtime dispatch channel
+  static RealtimeChannel? getDispatchChannel() {
+    if (!_isConnected) return null;
+    if (_dispatchChannel != null) return _dispatchChannel;
+    try {
+      final sb = Supabase.instance.client;
+      _dispatchChannel = sb.channel('rides_dispatch');
+      _dispatchChannel?.onBroadcast(
+        event: 'ride_accepted',
+        callback: (payload) {
+          _rideAcceptedStreamController.add(payload);
+        },
+      ).subscribe();
+      return _dispatchChannel;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Broadcasts ride acceptance from DriverMapDutyScreen to connected passengers via Supabase Realtime
+  static Future<void> broadcastRideAccepted({
+    required String driverName,
+    required String todaName,
+    required String bodyNumber,
+    required String plateNumber,
+    required String phone,
+    required String vehicleHeadline,
+    required double driverLat,
+    required double driverLng,
+    Map<String, dynamic>? extra,
+  }) async {
+    final payload = <String, dynamic>{
+      'driver_name': driverName,
+      'toda': todaName,
+      'body_number': bodyNumber,
+      'plate_number': plateNumber,
+      'phone': phone,
+      'vehicle_headline': vehicleHeadline,
+      'driver_lat': driverLat,
+      'driver_lng': driverLng,
+      'accepted_at': DateTime.now().toIso8601String(),
+      if (extra != null) ...extra,
+    };
+
+    // 1. Local in-app stream dispatch (instantaneous UI reactivity)
+    _rideAcceptedStreamController.add(payload);
+
+    // 2. Realtime WebSocket broadcast across network
+    if (_isConnected) {
+      try {
+        final channel = getDispatchChannel();
+        await channel?.sendBroadcastMessage(
+          event: 'ride_accepted',
+          payload: payload,
+        );
+      } catch (_) {}
+    }
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 
@@ -52,6 +53,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   int _waitSecondsElapsed = 0;
   bool _showRiderAcceptedBanner = false;
   Timer? _riderAcceptedBannerTimer;
+  StreamSubscription<Map<String, dynamic>>? _rideAcceptedSubscription;
 
   // Phase 1: Street-snapped Tricycle Approach Path (from nearest TODA terminal to passenger pickup)
   List<LatLng> _tricycleApproachPath = [];
@@ -121,6 +123,27 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     ).latLng;
 
     _prepareRoutesAndStartDispatch();
+
+    try {
+      SupabaseService.getDispatchChannel();
+      _rideAcceptedSubscription =
+          SupabaseService.onRideAccepted.listen((payload) {
+        if (_ridePhase == _RidePhase.findingDriver && mounted) {
+          _dispatchTimer?.cancel();
+          if (payload['driver_name'] != null) {
+            _matchedDriver['name'] = payload['driver_name'] as String;
+          }
+          if (payload['vehicle_headline'] != null) {
+            _matchedDriver['vehicleHeadline'] =
+                payload['vehicle_headline'] as String;
+          }
+          if (payload['body_number'] != null) {
+            _matchedDriver['bodyNumber'] = payload['body_number'] as String;
+          }
+          _beginDriverApproachPhase();
+        }
+      });
+    } catch (_) {}
   }
 
   // Accurate spherical bearing in radians where 0 = North (up), pi/2 = East (right)
@@ -361,7 +384,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       _remainingDestinationKm = 0.0;
       _etaToDestinationMinutes = 0;
     });
-    _mapController.move(widget.dropoffPoint.latLng, 16.5);
+    _mapController.move(widget.dropoffPoint.latLng, 17.5);
   }
 
   void _fitDestinationRouteBounds() {
@@ -377,11 +400,11 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         CameraFit.bounds(
           bounds: bounds,
           padding: const EdgeInsets.fromLTRB(54, 150, 54, 95),
-          maxZoom: 16.2,
+          maxZoom: 17.5,
         ),
       );
     } catch (_) {
-      _mapController.move(widget.dropoffPoint.latLng, 15.6);
+      _mapController.move(widget.dropoffPoint.latLng, 17.5);
     }
   }
 
@@ -402,7 +425,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         CameraFit.bounds(
           bounds: bounds,
           padding: const EdgeInsets.fromLTRB(62, 155, 62, 100),
-          maxZoom: 16.5,
+          maxZoom: 17.5,
         ),
       );
     } catch (_) {}
@@ -421,11 +444,11 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         CameraFit.bounds(
           bounds: bounds,
           padding: const EdgeInsets.fromLTRB(54, 150, 54, 110),
-          maxZoom: 16.8,
+          maxZoom: 17.8,
         ),
       );
     } catch (_) {
-      _mapController.move(_tricycleLivePos, 16.2);
+      _mapController.move(_tricycleLivePos, 17.5);
     }
   }
 
@@ -463,6 +486,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     _dispatchTimer?.cancel();
     _trackingTimer?.cancel();
     _riderAcceptedBannerTimer?.cancel();
+    _rideAcceptedSubscription?.cancel();
     _radarPulseController.dispose();
     _lowRatingFeedbackController.dispose();
     super.dispose();
@@ -472,9 +496,9 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     if (_ridePhase == _RidePhase.headingToDestination) {
       _fitDestinationRouteBounds();
     } else if (_ridePhase == _RidePhase.arrivedAtDestination) {
-      _mapController.move(widget.dropoffPoint.latLng, 16.5);
+      _mapController.move(widget.dropoffPoint.latLng, 17.5);
     } else {
-      _mapController.move(widget.pickupPoint.latLng, 16.2);
+      _mapController.move(widget.pickupPoint.latLng, 17.5);
     }
   }
 
@@ -574,6 +598,13 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     final isDelivery = widget.fareBreakdown.tripType == TripType.pabiliPadala;
 
     // Polyline slices for Phase 1 (Approach) and Phase 2 (Heading to Destination)
+    final traveledApproachPoints = _tricycleApproachPath.isNotEmpty
+        ? _tricycleApproachPath.sublist(
+            0,
+            (_currentApproachIndex + 1).clamp(1, _tricycleApproachPath.length),
+          )
+        : <LatLng>[];
+
     final remainingApproachPoints = _tricycleApproachPath.isNotEmpty
         ? _tricycleApproachPath.sublist(
             _currentApproachIndex.clamp(0, _tricycleApproachPath.length - 1),
@@ -617,7 +648,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               mapController: _mapController,
               options: MapOptions(
                 initialCenter: widget.pickupPoint.latLng,
-                initialZoom: 16.0,
+                initialZoom: 17.5,
               ),
               children: [
                 TileLayer(
@@ -635,8 +666,17 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                           points: _destinationRoutePath,
                           strokeWidth: 3.5,
                           color:
-                              const Color(0xFF94A3B8).withValues(alpha: 0.45),
+                              const Color(0xFF94A3B8).withValues(alpha: 0.35),
                         ),
+                      // Traveled approach trail behind driver in dimmed grey
+                      if (traveledApproachPoints.length > 1)
+                        Polyline(
+                          points: traveledApproachPoints,
+                          strokeWidth: 4.0,
+                          color:
+                              const Color(0xFFCBD5E1).withValues(alpha: 0.55),
+                        ),
+                      // Active remaining approach route ahead of driver in bright green
                       if (remainingApproachPoints.length > 1)
                         Polyline(
                           points: remainingApproachPoints,
@@ -651,13 +691,13 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                     _ridePhase == _RidePhase.arrivedAtDestination)
                   PolylineLayer(
                     polylines: [
-                      // Traveled segment from pickup to vehicle (soft mint trail)
+                      // Traveled trail behind tricycle (dimmed grey / soft slate)
                       if (traveledDestinationPoints.length > 1)
                         Polyline(
                           points: traveledDestinationPoints,
-                          strokeWidth: 4.5,
+                          strokeWidth: 4.0,
                           color:
-                              AppTheme.accentEmerald.withValues(alpha: 0.38),
+                              const Color(0xFFCBD5E1).withValues(alpha: 0.55),
                         ),
                       // Active remaining road route from vehicle to destination (vibrant green #00B14F)
                       if (remainingDestinationPoints.length > 1)
@@ -895,14 +935,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                                   ),
                                 ),
                               ),
-                            SizedBox(
-                              width: 64,
-                              height: 64,
-                              child: Transform.rotate(
-                                angle: _tricycleBearingRadians,
-                                child: _buildTopDownTricycleMarker(),
-                              ),
-                            ),
+                            _buildDriverPhotoMarkerWithHeading(),
                           ],
                         ),
                       ),
@@ -1203,90 +1236,84 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // Top-down vehicle marker with unmistakable forward nose/windshield at top (North = 0 rad)
-  Widget _buildTopDownTricycleMarker() {
-    return Center(
-      child: SizedBox(
-        width: 40,
-        height: 58,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Vehicle body shadow & chassis
-            Container(
-              width: 34,
-              height: 52,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                  bottomLeft: Radius.circular(10),
-                  bottomRight: Radius.circular(10),
-                ),
-                border: Border.all(
-                  color: const Color(0xFF1E293B),
-                  width: 2.2,
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 3),
+  // Driver Photo Marker with Directional Heading:
+  // Driver profile photo surrounded by circular gold/green border with a subtle directional arrow
+  // pointing in the tricycle's bearing direction.
+  Widget _buildDriverPhotoMarkerWithHeading() {
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Directional arrow rotating with bearing direction
+          Transform.rotate(
+            angle: _tricycleBearingRadians,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Directional pointer arrow extending forward from the top edge
+                const Positioned(
+                  top: 0,
+                  child: CustomPaint(
+                    size: Size(14, 10),
+                    painter: _DirectionalHeadingArrowPainter(
+                      color: Color(0xFFF59E0B),
+                    ),
                   ),
-                ],
+                ),
+                // Subtle glowing directional aura
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Circular Driver Profile Photo surrounded by Gold & Green border
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              border: Border.all(
+                color: const Color(0xFFF59E0B), // TODA Gold outer ring
+                width: 2.8,
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Front nose / headlights + dark curved windshield at TOP (front of vehicle)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Container(
-                      width: 22,
-                      height: 11,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF0F172A),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(10),
-                          topRight: Radius.circular(10),
-                          bottomLeft: Radius.circular(3),
-                          bottomRight: Radius.circular(3),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Center emerald canopy with forward navigation arrow pointing UP (front)
-                  Container(
-                    width: 24,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentEmerald,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(
-                      Icons.navigation_rounded,
-                      size: 15,
-                      color: Colors.white,
-                    ),
-                  ),
-                  // Rear bumper / tail lights at BOTTOM
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 3),
-                    child: Container(
-                      width: 20,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF334155),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-                ],
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 8,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(2),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppTheme.accentEmerald, // Emerald green inner ring
+                  width: 1.8,
+                ),
+              ),
+              child: ClipOval(
+                child: _buildDriverAvatar(size: 40),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -2656,6 +2683,37 @@ class _PinTrianglePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PinTrianglePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+// Directional heading arrow painter for driver photo marker
+class _DirectionalHeadingArrowPainter extends CustomPainter {
+  final Color color;
+
+  const _DirectionalHeadingArrowPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final path = ui.Path()
+      ..moveTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..lineTo(size.width / 2, size.height - 2.5)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final shadowPaint = Paint()
+      ..color = Colors.black38
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawPath(path.shift(const Offset(0, 1)), shadowPaint);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DirectionalHeadingArrowPainter oldDelegate) =>
       oldDelegate.color != color;
 }
 

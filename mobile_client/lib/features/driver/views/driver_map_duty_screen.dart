@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/services/demand_forecast_service.dart';
 import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/sound_alert_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/toda_queue_service.dart';
 import '../../../core/theme/app_theme.dart';
@@ -86,6 +87,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     int remainingSeconds = TodaQueueService.autoPassSeconds; // 15 seconds
     Timer? countdownTimer;
 
+    // Trigger native audio chime and heavy haptics immediately for hands-free driver alert
+    SoundAlertService.playDispatchOfferChime();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -95,6 +99,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
             countdownTimer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
               if (remainingSeconds <= 1) {
                 timer.cancel();
+                SoundAlertService.stop();
                 if (Navigator.canPop(dialogContext)) {
                   Navigator.pop(dialogContext);
                   ScaffoldMessenger.of(this.context).showSnackBar(
@@ -177,6 +182,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 TextButton(
                   onPressed: () {
                     countdownTimer?.cancel();
+                    SoundAlertService.stop();
                     Navigator.pop(dialogContext);
                   },
                   child: Text('Pass to #2', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
@@ -184,7 +190,23 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 ElevatedButton(
                   onPressed: () async {
                     countdownTimer?.cancel();
+                    SoundAlertService.stop();
                     Navigator.pop(dialogContext);
+
+                    // Broadcast ride acceptance to Supabase Realtime WebSocket channel
+                    unawaited(
+                      SupabaseService.broadcastRideAccepted(
+                        driverName: widget.fullName,
+                        todaName: 'Laoag Central & San Jose TODA',
+                        bodyNumber: 'MTOP #0418',
+                        plateNumber: 'IN-4829',
+                        phone: '+63 917 840 2291',
+                        vehicleHeadline: 'Honda TMX 125 Tricycle, Green • Body #0418',
+                        driverLat: 18.192096,
+                        driverLng: 120.594356,
+                      ),
+                    );
+
                     final queuedInPila = await Navigator.push<bool>(
                       this.context,
                       MaterialPageRoute(
