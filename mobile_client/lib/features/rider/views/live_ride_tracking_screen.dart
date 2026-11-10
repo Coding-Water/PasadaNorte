@@ -1365,12 +1365,16 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                         color: AppTheme.accentEmerald,
                       ),
                       SizedBox(width: 5),
-                      Text(
-                        'Board Tricycle Now ➔ Start Trip to Destination',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.accentEmerald,
+                      Flexible(
+                        child: Text(
+                          'Board Tricycle Now ➔ Start Trip',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.accentEmerald,
+                          ),
                         ),
                       ),
                     ],
@@ -1481,24 +1485,31 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.assistant_navigation,
-                            size: 16,
-                            color: AppTheme.accentEmerald,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Distance left: ${_formatRemainingDestinationDistance()}',
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.primarySlate,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.assistant_navigation,
+                              size: 16,
+                              color: AppTheme.accentEmerald,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Distance left: ${_formatRemainingDestinationDistance()}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.primarySlate,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       InkWell(
                         onTap: _triggerArrivedAtDestinationPhase,
                         child: const Text(
@@ -1532,7 +1543,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             Divider(height: 1, color: Colors.grey.shade200),
             const SizedBox(height: 14),
 
-            _buildDriverProfileRow(),
+            _buildDriverProfileRow(showCallAndChat: false),
 
             if (_isSheetExpanded) ...[
               _buildExpandedTripAndFareSection(
@@ -1802,7 +1813,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  Widget _buildDriverProfileRow() {
+  Widget _buildDriverProfileRow({bool? showCallAndChat}) {
+    final bool displayActions =
+        showCallAndChat ?? (_ridePhase == _RidePhase.driverHeadingToPickup);
+
     return Row(
       children: [
         GestureDetector(
@@ -1818,6 +1832,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               children: [
                 Text(
                   _matchedDriver['name']!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 16.5,
                     fontWeight: FontWeight.w800,
@@ -1865,18 +1881,20 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        _buildGreenOutlinedIconButton(
-          icon: Icons.chat_bubble_outline_rounded,
-          tooltip: 'Chat with Driver',
-          onTap: _openDriverChatScreen,
-        ),
-        const SizedBox(width: 10),
-        _buildGreenOutlinedIconButton(
-          icon: Icons.phone_outlined,
-          tooltip: 'Call Driver',
-          onTap: _openDriverVoiceCallScreen,
-        ),
+        if (displayActions) ...[
+          const SizedBox(width: 8),
+          _buildGreenOutlinedIconButton(
+            icon: Icons.chat_bubble_outline_rounded,
+            tooltip: 'Chat with Driver',
+            onTap: _openDriverChatScreen,
+          ),
+          const SizedBox(width: 10),
+          _buildGreenOutlinedIconButton(
+            icon: Icons.phone_outlined,
+            tooltip: 'Call Driver',
+            onTap: _openDriverVoiceCallScreen,
+          ),
+        ],
       ],
     );
   }
