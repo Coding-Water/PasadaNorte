@@ -137,5 +137,26 @@ void main() {
       // Trip successfully finishes without requiring feedback
       expect(find.text('Thanks for your feedback!'), findsOneWidget);
     });
+
+    testWidgets('Tapping Finish for standard mood completes trip directly without duplicate rate screen', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 850));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(createLiveRideTrackingScreen());
+      await tester.pump(const Duration(seconds: 12));
+
+      await tester.tap(find.text('Arrive Now ➔'));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Finish'), findsOneWidget);
+      await tester.ensureVisible(find.text('Finish'));
+      await tester.tap(find.text('Finish'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      // Reaches Thanks for your feedback directly; obsolete "How was the driver?" screen is NOT shown
+      expect(find.text('Thanks for your feedback!'), findsOneWidget);
+      expect(find.text('How was the driver?'), findsNothing);
+    });
   });
 }
