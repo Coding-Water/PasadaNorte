@@ -134,6 +134,19 @@ flutter run -d chrome
 
 ---
 
+## 🛡️ Security & Backend Hardening (The 5 Pillars)
+
+The PasadaNorte ecosystem is fortified against spoofing, privilege escalation, and data privacy leaks across **Five Pillars of Security**:
+1. **Pillar 1:** Supabase Row Level Security (RLS) on all 8 tables & legally tamper-proof audit trails (City Ord. 2023-005).
+2. **Pillar 2:** Anti-GPS Spoofing & Mock Location Sentinel (`isMocked` hardware interception & FIFO Digital Pila protection).
+3. **Pillar 3:** Commuter & Driver Privacy ($k \ge 5$ Anonymization, Private Storage Buckets & 5m Signed URLs under RA 10173 & NPC Circular 2023-03).
+4. **Pillar 4:** Role-Based Access Control (RBAC 4-tier model), Anti-Privilege Escalation Triggers & OTP Rate Limiting Defense.
+5. **Pillar 5:** Backend Resilience, GPS Velocity Sanity Check ($80\text{ km/h}$ physical speed ceiling) & Exponential Backoff Retry.
+
+📖 **Full Technical Architecture & Migration Ledger:** See [`SECURITY_AND_BACKEND_HARDENING_ARCHITECTURE.md`](file:///c:/Users/MSI/Desktop/Flutter/PasadaNorte/SECURITY_AND_BACKEND_HARDENING_ARCHITECTURE.md).
+
+---
+
 ## 🧪 Static Analysis & Code Quality
 
 Both clients maintain strict compliance with Dart/Flutter linting standards:
@@ -149,7 +162,9 @@ cd web_client && flutter analyze lib/
 
 ## ⚖️ Regulatory & Academic References
 - **Laoag City Ordinance No. 2023-005:** Modernized Tricycle Fare Matrix & Student/PWD Discount Guidelines.
+- **Republic Act No. 10173:** Data Privacy Act of 2012 (Commuter $k \ge 5$ Anonymization & Biometric Staging Image Deletion).
 - **Republic Act No. 10913:** Anti-Distracted Driving Act (Hands-Free Camera Navigation).
 - **Republic Act No. 11314:** Student Fare Discount Act (20% Statutory Fare Deduction).
+- **NPC Circulars 2016-01 & 2023-03:** National Privacy Commission Guidelines on Data Minimization & Biometric Vaults.
 - **ISO/IEC 25010:2023:** Systems and Software Engineering — System and Software Quality Requirements and Evaluation (SQuaRE).
 - **ISO/IEC 19795-1:** Biometric Performance Testing and Reporting (1:1 Face Verification).
