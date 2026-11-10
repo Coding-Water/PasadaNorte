@@ -1391,7 +1391,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
           // 4a. Bottom Left: Hotspot Flame Toggle
           Positioned(
             left: 16,
-            bottom: 96,
+            bottom: 112,
             child: _buildCircleAction(
               icon: _showHotspots ? Icons.local_fire_department_rounded : Icons.local_fire_department_outlined,
               color: _showHotspots ? const Color(0xFFEF4444) : AppTheme.primarySlate,
@@ -1415,7 +1415,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
           // 4b. Bottom Right: Recenter on Driver Location
           Positioned(
             right: 16,
-            bottom: 96,
+            bottom: 112,
             child: _buildCircleAction(
               icon: Icons.my_location_rounded,
               onTap: () {
@@ -1479,8 +1479,8 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(10.0),
-          child: Icon(icon, size: 20, color: color ?? AppTheme.primarySlate),
+          padding: const EdgeInsets.all(11.0),
+          child: Icon(icon, size: 22, color: color ?? AppTheme.primarySlate),
         ),
       ),
     );
