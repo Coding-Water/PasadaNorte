@@ -158,5 +158,23 @@ void main() {
       expect(find.text('Thanks for your feedback!'), findsOneWidget);
       expect(find.text('How was the driver?'), findsNothing);
     });
+
+    testWidgets('Passenger waiting for driver displays acceptance notification when rider accepts', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 850));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(createLiveRideTrackingScreen());
+
+      // Passenger is waiting for driver to accept
+      expect(find.text('Finding you a nearby driver...'), findsOneWidget);
+      expect(find.textContaining('A rider has accepted'), findsNothing);
+
+      // Fast-forward past dispatch timer (3s) when driver accepts
+      await tester.pump(const Duration(seconds: 4));
+
+      // In the passenger screen, show that a rider has accepted
+      expect(find.textContaining('A rider has accepted'), findsWidgets);
+      expect(find.text('Driver is heading to your location...'), findsOneWidget);
+    });
   });
 }

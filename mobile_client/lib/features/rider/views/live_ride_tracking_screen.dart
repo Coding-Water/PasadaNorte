@@ -50,6 +50,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   _RidePhase _ridePhase = _RidePhase.findingDriver;
   bool _isSheetExpanded = false;
   int _waitSecondsElapsed = 0;
+  bool _showRiderAcceptedBanner = false;
+  Timer? _riderAcceptedBannerTimer;
 
   // Phase 1: Street-snapped Tricycle Approach Path (from nearest TODA terminal to passenger pickup)
   List<LatLng> _tricycleApproachPath = [];
@@ -216,8 +218,21 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
   void _beginDriverApproachPhase() {
     if (!mounted) return;
+    try {
+      HapticFeedback.mediumImpact();
+    } catch (_) {}
     setState(() {
       _ridePhase = _RidePhase.driverHeadingToPickup;
+      _showRiderAcceptedBanner = true;
+    });
+
+    _riderAcceptedBannerTimer?.cancel();
+    _riderAcceptedBannerTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) {
+        setState(() {
+          _showRiderAcceptedBanner = false;
+        });
+      }
     });
 
     final double initialDistMeters =
@@ -447,6 +462,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   void dispose() {
     _dispatchTimer?.cancel();
     _trackingTimer?.cancel();
+    _riderAcceptedBannerTimer?.cancel();
     _radarPulseController.dispose();
     _lowRatingFeedbackController.dispose();
     super.dispose();
@@ -1017,6 +1033,102 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               ),
             ),
 
+          // FLOATING "A RIDER HAS ACCEPTED" NOTIFICATION BANNER
+          if (_showRiderAcceptedBanner &&
+              _ridePhase == _RidePhase.driverHeadingToPickup)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Material(
+                    elevation: 12,
+                    borderRadius: BorderRadius.circular(18),
+                    color: Colors.transparent,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: AppTheme.accentEmerald,
+                          width: 1.8,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                AppTheme.accentEmerald.withValues(alpha: 0.35),
+                            blurRadius: 18,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: AppTheme.accentEmerald,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.check_rounded,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'A rider has accepted your ride!',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${_matchedDriver['name']} (${_matchedDriver['bodyNumber']}) • Arriving in ~$_etaToPassengerMinutes mins',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF94A3B8),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white70,
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              setState(() => _showRiderAcceptedBanner = false);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           // 3. FLOATING CIRCULAR BACK (<) AND GPS TARGET BUTTONS ABOVE BOTTOM SHEET
           if (!_isSheetExpanded &&
               _ridePhase != _RidePhase.arrivedAtDestination) ...[
@@ -1335,6 +1447,41 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               ),
             ),
             const SizedBox(height: 8),
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppTheme.accentEmeraldLight,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppTheme.accentEmerald.withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: 15,
+                    color: AppTheme.accentEmerald,
+                  ),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'A rider has accepted your ride',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.accentEmerald,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const Text(
               'Driver is heading to your location...',
               textAlign: TextAlign.center,
