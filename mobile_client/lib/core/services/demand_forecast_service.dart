@@ -52,6 +52,11 @@ class DemandZoneForecast {
   // (selected as an initial disclosure-control design parameter subject to PIA validation).
   bool get isVisibleOnHeatmap => predictedRequestsPerHour >= 5;
 
+  /// Privacy-compliant display label under Republic Act No. 10173 (Data Privacy Act of 2012).
+  /// Cells with fewer than k=5 trips/hour are masked to protect commuter travel patterns from re-identification.
+  String get kAnonymizedCountLabel =>
+      isVisibleOnHeatmap ? '$predictedRequestsPerHour trips/hr' : '<5 trips/hr (Privacy Suppressed)';
+
   String get demandLevelLabel {
     if (!isVisibleOnHeatmap) return 'Suppressed (<5 req / k=5 PIA Parameter)';
     if (predictedRequestsPerHour >= 28) return 'Critical Peak Demand';

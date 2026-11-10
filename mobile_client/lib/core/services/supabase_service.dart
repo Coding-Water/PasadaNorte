@@ -312,4 +312,57 @@ class SupabaseService {
       });
     } catch (_) {}
   }
+
+  // ---------------------------------------------------------------------------
+  // PILLAR 3: PRIVACY & SECURE STORAGE SENTINEL (RA 10173 & NPC CIRCULAR 2023-03)
+  // ---------------------------------------------------------------------------
+
+  /// Generates a time-expiring signed URL (default 300 seconds / 5 minutes)
+  /// from a private Supabase Storage bucket (e.g. 'id-documents', 'biometric-vault').
+  /// Prevents exposing government IDs and face photos via public CDN URLs.
+  static Future<String?> createPrivateDocumentSignedUrl({
+    required String bucket,
+    required String path,
+    int expiresInSeconds = 300,
+  }) async {
+    if (!_isConnected) return null;
+    try {
+      final signedUrl = await Supabase.instance.client.storage
+          .from(bucket)
+          .createSignedUrl(path, expiresInSeconds);
+      return signedUrl;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Explicitly purges raw biometric capture image from private storage
+  /// immediately upon approval or admin decision (NPC Circular No. 2023-03).
+  static Future<bool> purgeBiometricStagingImage({
+    required String bucket,
+    required String path,
+  }) async {
+    if (!_isConnected) return true;
+    try {
+      await Supabase.instance.client.storage.from(bucket).remove([path]);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Appends an access/review audit entry to biometric_access_logs
+  static Future<void> logBiometricAccess({
+    required String targetUserId,
+    required String actionType,
+  }) async {
+    if (!_isConnected) return;
+    try {
+      await Supabase.instance.client.from('biometric_access_logs').insert({
+        'target_user_id': targetUserId,
+        'action_type': actionType,
+        'logged_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
+  }
 }
