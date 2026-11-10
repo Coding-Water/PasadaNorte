@@ -66,6 +66,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   TodaTerminal? _returnTerminal;
   bool _cashReceived = true;
   bool _isTurnByTurnVoiceMuted = false;
+  bool _isSheetExpanded = true;
 
   // Dynamic route segments: Traversed route trail left behind vs active ahead route
   List<LatLng> get _traversedPolyline {
@@ -383,25 +384,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     }
   }
 
-  void _simulateDetour() {
-    // Deliberately shift driver position 45m laterally onto adjacent parallel Laoag street
-    // (e.g. detour from J.P. Rizal to A. Mabini / F.R. Castro Ave due to road repair)
-    setState(() {
-      _currentDriverLocation = LatLng(
-        _currentDriverLocation.latitude + 0.00042,
-        _currentDriverLocation.longitude - 0.00038,
-      );
-    });
-    _triggerDynamicReroute(reason: 'Road repair / traffic jam on primary street');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Simulated Detour: Driver took alternate road due to road repair. Auto-rerouting triggered!'),
-        backgroundColor: Colors.amber,
-        duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
 
   void _onSlideActionTriggered() {
     setState(() {
@@ -413,12 +395,14 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         _showTopNotification('Notified Passenger: "Your TODA driver has arrived at pickup."');
       } else if (_currentStage == DriverTripStage.arrivedAtPickup) {
         _currentStage = DriverTripStage.inTransitToDropoff;
+        _isSheetExpanded = false; // Auto-collapse to Image 2 & 3 for clear road map view during transit
         _buildStageRoute();
         _mapController.move(_currentDriverLocation, _navigationZoom);
         _showTopNotification('Trip Started: GPS meter running to ${widget.dropoffPoint.name}.');
       } else if (_currentStage == DriverTripStage.inTransitToDropoff) {
         _navigationTimer?.cancel();
         _currentStage = DriverTripStage.tripCompleted;
+        _isSheetExpanded = true;
         _showFareSettlementModal();
       }
     });
@@ -1377,7 +1361,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         children: [
           // 1. Full-Bleed Map Canvas with Street Route
           Positioned.fill(
-            bottom: 260,
+            bottom: 0,
             child: FlutterMap(
               mapController: _mapController,
               options: MapOptions(
@@ -1665,7 +1649,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
 
                   const SizedBox(height: 8),
 
-                  // Auto-Follow / Hands-Free Safety HUD & Detour Recalculating Banner
+                  // Temporary Detour / Recalculating Notice (Only when actively rerouting)
                   if (_rerouteBannerMessage.isNotEmpty)
                     Container(
                       margin: const EdgeInsets.only(bottom: 8),
@@ -1688,58 +1672,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                           ),
                         ],
                       ),
-                    )
-                  else if (!_isAutoFollowLocked)
-                    GestureDetector(
-                      onTap: () {
-                        _autoFollowResumeTimer?.cancel();
-                        setState(() => _isAutoFollowLocked = true);
-                        _mapController.move(_currentDriverLocation, _navigationZoom);
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.shade800,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.touch_app_rounded, color: Colors.white, size: 14),
-                            SizedBox(width: 6),
-                            Text(
-                              'MAP MOVED • TAP TO RESUME AUTO-FOLLOW (AUTO IN 4s)',
-                              style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)],
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.navigation_rounded, color: AppTheme.accentEmerald, size: 13),
-                          SizedBox(width: 6),
-                          Text(
-                            'AUTO-FOLLOW: ACTIVE • HANDS-FREE SAFETY',
-                            style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                      ),
                     ),
 
-                  // Floating Quick Controls
+                  // Floating Quick Controls (Top Bar)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -1762,13 +1697,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                       ),
                       Row(
                         children: [
-                          // Simulate Road Detour / Traffic Reroute
-                          _buildFloatingCircleBtn(
-                            icon: Icons.alt_route_rounded,
-                            color: Colors.amber.shade800,
-                            onTap: _simulateDetour,
-                          ),
-                          const SizedBox(width: 8),
                           // External Navigation (Google Maps Turn-by-Turn)
                           _buildFloatingCircleBtn(
                             icon: Icons.navigation_rounded,
@@ -1788,17 +1716,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                               });
                             },
                           ),
-                          const SizedBox(width: 8),
-                          // Re-center Compass Button
-                          _buildFloatingCircleBtn(
-                            icon: Icons.my_location_rounded,
-                            color: _isAutoFollowLocked ? AppTheme.accentEmerald : Colors.amber.shade800,
-                            onTap: () {
-                              _autoFollowResumeTimer?.cancel();
-                              setState(() => _isAutoFollowLocked = true);
-                              _mapController.move(_currentDriverLocation, _navigationZoom);
-                            },
-                          ),
                         ],
                       ),
                     ],
@@ -1808,362 +1725,22 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
             ),
           ),
 
-          // 3. Bottom Driver Active Trip Sheet (Passenger Clean White Theme)
+          // 3. Bottom Driver Active Trip Sheet & Floating Bottom-Right GPS FAB (Image 6)
           Align(
             alignment: Alignment.bottomCenter,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10),
-                    blurRadius: 20,
-                    offset: const Offset(0, -6),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Drag Handle
-                  Container(
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Floating Bottom-Right GPS Recenter Button (Image 6)
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0, bottom: 12.0),
+                  child: _buildGpsRecenterFab(),
+                ),
 
-                  // Trip Status & Stage Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _getStageTitle(),
-                              style: const TextStyle(
-                                color: AppTheme.primarySlate,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _getStageSubtitle(),
-                              style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF3C7),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFFDE68A)),
-                        ),
-                        child: const Text(
-                          'PILA RANK #1',
-                          style: TextStyle(
-                            color: Color(0xFFB45309),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  Divider(color: Colors.grey.shade200, height: 20),
-
-                  if (_currentStage == DriverTripStage.returningToPila) ...[
-                    // Dedicated Return to Pila Navigation HUD Card
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0FDF4),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.35)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: AppTheme.accentEmerald,
-                                ),
-                                child: const Icon(Icons.turn_right_rounded, color: Colors.white, size: 22),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _returnTerminal?.name ?? 'Laoag Central TODA Terminal',
-                                      style: const TextStyle(
-                                        color: AppTheme.primarySlate,
-                                        fontSize: 14.5,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Auto-queues at Rank #1 upon entering 25m geofence',
-                                      style: TextStyle(
-                                        color: Colors.green.shade800,
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Builder(
-                            builder: (_) {
-                              final term = _returnTerminal ?? _getReturnTerminal();
-                              final distMeters = LocationService.calculateDistanceInKm(
-                                _currentDriverLocation.latitude,
-                                _currentDriverLocation.longitude,
-                                term.centerPoint.latitude,
-                                term.centerPoint.longitude,
-                              ) * 1000.0;
-                              return Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.near_me_rounded, color: AppTheme.accentEmerald, size: 16),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        '${distMeters.toStringAsFixed(0)}m to Geofence',
-                                        style: const TextStyle(
-                                          color: AppTheme.primarySlate,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.3)),
-                                    ),
-                                    child: const Text(
-                                      'FIFO PILA: RANK #1',
-                                      style: TextStyle(
-                                        color: AppTheme.accentEmerald,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          _onArrivedAtPila(_returnTerminal ?? _getReturnTerminal(), 0.0);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.accentEmerald,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                          elevation: 0,
-                        ),
-                        icon: const Icon(Icons.flash_on_rounded, size: 18),
-                        label: const Text(
-                          'ENTER PILA NOW (FAST-FORWARD)',
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
-                        ),
-                      ),
-                    ),
-                  ] else ...[
-                    // Passenger Profile Row
-                    Row(
-                      children: [
-                        // Avatar
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFFE0E7FF),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'MC',
-                              style: TextStyle(
-                                color: Color(0xFF4338CA),
-                                fontWeight: FontWeight.w800,
-                                fontSize: 17,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.passengerName,
-                                style: const TextStyle(
-                                  color: AppTheme.primarySlate,
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  const Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 16),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    '4.9 • 38 rides in Laoag',
-                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11.5),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.accentEmeraldLight,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  widget.passengerCategory,
-                                  style: const TextStyle(
-                                    color: AppTheme.accentEmerald,
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Outlined Chat Button
-                        _buildOutlinedCircleBtn(
-                          icon: Icons.chat_bubble_outline_rounded,
-                          onTap: _openPassengerChatModal,
-                        ),
-                        const SizedBox(width: 10),
-                        // Outlined Call Button
-                        _buildOutlinedCircleBtn(
-                          icon: Icons.phone_outlined,
-                          onTap: _openPassengerCallModal,
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // Upfront Fare & Payment Card (Passenger Light Card Style)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Calculated Upfront Fare (${widget.distanceKm.toStringAsFixed(2)} km)',
-                                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-                              ),
-                              Text(
-                                '₱${widget.discountedFare.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  color: AppTheme.primarySlate,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Statutory Student Discount (20%)',
-                                style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
-                              ),
-                              Text(
-                                '- ₱${(widget.regularFare - widget.discountedFare).toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  color: AppTheme.accentEmerald,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Divider(color: Colors.grey.shade200, height: 14),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Payment Method',
-                                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-                              ),
-                              Text(
-                                widget.paymentMethod,
-                                style: const TextStyle(
-                                  color: AppTheme.primarySlate,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // 4. SIGNATURE JOYRIDE SLIDE-TO-CONFIRM BAR
-                    _SlideToConfirmWidget(
-                      text: _getSliderLabel(),
-                      onConfirmed: _onSlideActionTriggered,
-                    ),
-                  ],
-                ],
-              ),
+                // Bottom Driver Active Trip Sheet (Swipeable: Image 1 <-> Image 2 & 3)
+                _buildBottomActiveTripSheet(),
+              ],
             ),
           ),
 
@@ -2359,6 +1936,538 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildGpsRecenterFab() {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 5,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          _autoFollowResumeTimer?.cancel();
+          setState(() => _isAutoFollowLocked = true);
+          _mapController.move(_currentDriverLocation, _navigationZoom);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Centered on your location • Auto-follow resumed.'),
+              duration: Duration(seconds: 1),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        },
+        child: const Padding(
+          padding: EdgeInsets.all(12.0),
+          child: Icon(
+            Icons.my_location_rounded,
+            color: AppTheme.accentEmerald,
+            size: 24,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomActiveTripSheet() {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragUpdate: (details) {
+        if (details.primaryDelta != null) {
+          if (details.primaryDelta! > 7 && _isSheetExpanded) {
+            setState(() => _isSheetExpanded = false);
+          } else if (details.primaryDelta! < -7 && !_isSheetExpanded) {
+            setState(() => _isSheetExpanded = true);
+          }
+        }
+      },
+      onVerticalDragEnd: (details) {
+        if (details.primaryVelocity != null) {
+          if (details.primaryVelocity! > 80 && _isSheetExpanded) {
+            setState(() => _isSheetExpanded = false);
+          } else if (details.primaryVelocity! < -80 && !_isSheetExpanded) {
+            setState(() => _isSheetExpanded = true);
+          }
+        }
+      },
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeInOutCubic,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 20,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag Handle with tap toggle
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  setState(() => _isSheetExpanded = !_isSheetExpanded);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Center(
+                    child: Container(
+                      width: 40,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              if (_currentStage == DriverTripStage.returningToPila) ...[
+                if (_isSheetExpanded) ...[
+                  const SizedBox(height: 10),
+                  _buildStageHeaderRow(),
+                  Divider(color: Colors.grey.shade200, height: 20),
+                  _buildReturnToPilaCard(),
+                ] else ...[
+                  const SizedBox(height: 8),
+                  _buildCompactReturnToPila(),
+                ],
+              ] else ...[
+                // When expanded: Shows Image 1 (Full card with header, divider, passenger profile, upfront fare, slider)
+                if (_isSheetExpanded) ...[
+                  const SizedBox(height: 10),
+                  _buildStageHeaderRow(),
+                  Divider(color: Colors.grey.shade200, height: 20),
+                ],
+
+                // Image 2: Passenger Profile Row (Avatar, Name, Rating/Tag, and Chat/Call if not yet picked up)
+                const SizedBox(height: 8),
+                _buildPassengerProfileRow(),
+
+                // When expanded: Shows upfront fare & discount card
+                if (_isSheetExpanded) ...[
+                  const SizedBox(height: 14),
+                  _buildUpfrontFareCard(),
+                ],
+
+                // Image 3: Slide to Confirm Widget
+                const SizedBox(height: 14),
+                _SlideToConfirmWidget(
+                  text: _getSliderLabel(),
+                  onConfirmed: _onSlideActionTriggered,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStageHeaderRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _getStageTitle(),
+                style: const TextStyle(
+                  color: AppTheme.primarySlate,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _getStageSubtitle(),
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF3C7),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+          ),
+          child: const Text(
+            'PILA RANK #1',
+            style: TextStyle(
+              color: Color(0xFFB45309),
+              fontWeight: FontWeight.w900,
+              fontSize: 11,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPassengerProfileRow() {
+    final bool showCallAndChat = _currentStage == DriverTripStage.enRouteToPickup ||
+        _currentStage == DriverTripStage.arrivedAtPickup;
+
+    return Row(
+      children: [
+        // Avatar
+        Container(
+          width: 48,
+          height: 48,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFFE0E7FF),
+          ),
+          child: const Center(
+            child: Text(
+              'MC',
+              style: TextStyle(
+                color: Color(0xFF4338CA),
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.passengerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.primarySlate,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  const Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 16),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      '4.9 • 38 rides in Laoag',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 11.5),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentEmeraldLight,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  widget.passengerCategory,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppTheme.accentEmerald,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showCallAndChat) ...[
+          // Outlined Chat Button
+          _buildOutlinedCircleBtn(
+            icon: Icons.chat_bubble_outline_rounded,
+            onTap: _openPassengerChatModal,
+          ),
+          const SizedBox(width: 10),
+          // Outlined Call Button
+          _buildOutlinedCircleBtn(
+            icon: Icons.phone_outlined,
+            onTap: _openPassengerCallModal,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildUpfrontFareCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Calculated Upfront Fare (${widget.distanceKm.toStringAsFixed(2)} km)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '₱${widget.discountedFare.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: AppTheme.primarySlate,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Statutory Student Discount (20%)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '- ₱${(widget.regularFare - widget.discountedFare).toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: AppTheme.accentEmerald,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          Divider(color: Colors.grey.shade200, height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Payment Method',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.paymentMethod,
+                style: const TextStyle(
+                  color: AppTheme.primarySlate,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12.5,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReturnToPilaCard() {
+    final term = _returnTerminal ?? _getReturnTerminal();
+    final distMeters = LocationService.calculateDistanceInKm(
+      _currentDriverLocation.latitude,
+      _currentDriverLocation.longitude,
+      term.centerPoint.latitude,
+      term.centerPoint.longitude,
+    ) * 1000.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppTheme.accentEmerald,
+                    ),
+                    child: const Icon(Icons.turn_right_rounded, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          term.name,
+                          style: const TextStyle(
+                            color: AppTheme.primarySlate,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Auto-queues at Rank #1 upon entering 25m geofence',
+                          style: TextStyle(
+                            color: Colors.green.shade800,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.near_me_rounded, color: AppTheme.accentEmerald, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${distMeters.toStringAsFixed(0)}m to Geofence',
+                        style: const TextStyle(
+                          color: AppTheme.primarySlate,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.3)),
+                    ),
+                    child: const Text(
+                      'FIFO PILA: RANK #1',
+                      style: TextStyle(
+                        color: AppTheme.accentEmerald,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              _onArrivedAtPila(term, 0.0);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.accentEmerald,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              elevation: 0,
+            ),
+            icon: const Icon(Icons.flash_on_rounded, size: 18),
+            label: const Text(
+              'ENTER PILA NOW (FAST-FORWARD)',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactReturnToPila() {
+    final term = _returnTerminal ?? _getReturnTerminal();
+    return Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.accentEmerald,
+              ),
+              child: const Icon(Icons.turn_right_rounded, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Returning to ${term.name}',
+                style: const TextStyle(
+                  color: AppTheme.primarySlate,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          height: 44,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              _onArrivedAtPila(term, 0.0);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.accentEmerald,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+              elevation: 0,
+            ),
+            icon: const Icon(Icons.flash_on_rounded, size: 16),
+            label: const Text(
+              'ENTER PILA NOW (FAST-FORWARD)',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
