@@ -49,11 +49,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+# Documents & Manuscripts
+*.docx
+*.doc
 ~$*.docx
 *.pdf
-Trikr_Updated.docx
-Pasada Norte.docx
-Pasada_Norte_Revised_1.docx
-Pasada_Norte_Revised_3.docx
-Pasada_Norte_Revised_4.docx
 Joyride Native App UI (Copy) (Community).pdf
