@@ -124,7 +124,7 @@ class LocationService {
     final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
     final double distance = earthRadiusKm * c;
 
-    return max(0.10, double.parse(distance.toStringAsFixed(2)));
+    return double.parse(distance.toStringAsFixed(4));
   }
 
   static double _degreesToRadians(double degrees) {

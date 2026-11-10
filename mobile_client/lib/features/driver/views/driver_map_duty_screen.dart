@@ -185,7 +185,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   onPressed: () async {
                     countdownTimer?.cancel();
                     Navigator.pop(dialogContext);
-                    await Navigator.push(
+                    final queuedInPila = await Navigator.push<bool>(
                       this.context,
                       MaterialPageRoute(
                         builder: (_) => DriverActiveTripScreen(
@@ -210,6 +210,39 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       ),
                     );
                     if (mounted) {
+                      if (queuedInPila == true) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(
+                            content: const Row(
+                              children: [
+                                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    '✓ Queued at Rank #1 in Laoag Central TODA Terminal!',
+                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: AppTheme.accentEmerald,
+                            behavior: SnackBarBehavior.floating,
+                            duration: const Duration(seconds: 4),
+                            action: SnackBarAction(
+                              label: 'VIEW QUEUE',
+                              textColor: Colors.white,
+                              onPressed: () {
+                                Navigator.push(
+                                  this.context,
+                                  MaterialPageRoute(
+                                    builder: (_) => TodaQueueScreen(driverName: widget.fullName),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        );
+                      }
                       setState(() {});
                     }
                   },

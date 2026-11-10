@@ -15,6 +15,7 @@ enum DriverTripStage {
   arrivedAtPickup,
   inTransitToDropoff,
   tripCompleted,
+  returningToPila,
 }
 
 class DriverActiveTripScreen extends StatefulWidget {
@@ -62,6 +63,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   final MapController _mapController = MapController();
   static const double _navigationZoom = 17.5;
   DriverTripStage _currentStage = DriverTripStage.enRouteToPickup;
+  TodaTerminal? _returnTerminal;
   bool _cashReceived = true;
   bool _isTurnByTurnVoiceMuted = false;
 
@@ -927,7 +929,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'NEAREST TODA PILA AFTER DROPOFF',
+                                'RETURN TODA PILA STATION',
                                 style: TextStyle(
                                   color: Color(0xFF92400E),
                                   fontSize: 10,
@@ -935,13 +937,24 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                '${TodaQueueService.findNearestTerminal(widget.dropoffPoint.latitude, widget.dropoffPoint.longitude).terminal.name} (${(TodaQueueService.findNearestTerminal(widget.dropoffPoint.latitude, widget.dropoffPoint.longitude).distanceMeters / 1000).toStringAsFixed(2)} km)',
-                                style: const TextStyle(
-                                  color: Color(0xFF78350F),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              Builder(
+                                builder: (_) {
+                                  final term = _getReturnTerminal();
+                                  final distKm = LocationService.calculateDistanceInKm(
+                                    widget.dropoffPoint.latitude,
+                                    widget.dropoffPoint.longitude,
+                                    term.centerPoint.latitude,
+                                    term.centerPoint.longitude,
+                                  );
+                                  return Text(
+                                    '${term.name} (${distKm.toStringAsFixed(2)} km)',
+                                    style: const TextStyle(
+                                      color: Color(0xFF78350F),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
@@ -988,12 +1001,11 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton.icon(
-                      onPressed: () async {
-                        await _recordCompletedTrip();
-                        if (context.mounted) {
-                          Navigator.pop(ctx);
-                          _startReturnToPilaRoute();
-                        }
+                      onPressed: () {
+                        // Immediately close sheet so UI transitions with zero latency
+                        Navigator.pop(ctx);
+                        _recordCompletedTrip();
+                        _startReturnToPilaRoute();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.accentEmerald,
@@ -1062,47 +1074,100 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   }
 
   Future<void> _recordCompletedTrip() async {
-    await DriverStatsService.recordTrip(
-      fare: widget.discountedFare,
-      passengerName: widget.passengerName,
-      route: '${widget.pickupPoint.name} ➔ ${widget.dropoffPoint.name}',
-      isCash: _cashReceived,
-    );
+    try {
+      await DriverStatsService.recordTrip(
+        fare: widget.discountedFare,
+        passengerName: widget.passengerName,
+        route: '${widget.pickupPoint.name} ➔ ${widget.dropoffPoint.name}',
+        isCash: _cashReceived,
+      );
+    } catch (_) {}
 
-    await SupabaseService.recordCompletedTrip(
-      driverName: widget.driverName,
-      fare: widget.discountedFare,
-      distanceKm: widget.distanceKm,
-      passengerName: widget.passengerName,
-      paymentMethod: widget.paymentMethod,
-      destination: widget.dropoffPoint.name,
-    );
+    try {
+      await SupabaseService.recordCompletedTrip(
+        driverName: widget.driverName,
+        fare: widget.discountedFare,
+        distanceKm: widget.distanceKm,
+        passengerName: widget.passengerName,
+        paymentMethod: widget.paymentMethod,
+        destination: widget.dropoffPoint.name,
+      );
+    } catch (_) {}
   }
 
-  void _startReturnToPilaRoute() async {
+  TodaTerminal _getReturnTerminal() {
+    if (_returnTerminal != null) return _returnTerminal!;
+
+    // Find nearest terminal from dropoff
     final nearest = TodaQueueService.findNearestTerminal(
       widget.dropoffPoint.latitude,
       widget.dropoffPoint.longitude,
     );
 
-    _showTopNotification('🗺️ Routing to ${nearest.terminal.name} Pila • Auto-queuing inside 25m geofence...');
+    // If nearest is more than 150m away, route to it
+    if (nearest.distanceMeters > 150.0) {
+      _returnTerminal = nearest.terminal;
+      return nearest.terminal;
+    }
+
+    // Otherwise, dropoff is at/near that terminal (e.g., MMSU Campus).
+    // In Laoag paratransit, the tricycle returns to its mother station (Central Terminal / Pickup Origin):
+    final homeTerminal = TodaQueueService.laoagTerminals.firstWhere(
+      (t) => t.id == 'term_01',
+      orElse: () => TodaQueueService.laoagTerminals.first,
+    );
+    _returnTerminal = homeTerminal;
+    return homeTerminal;
+  }
+
+  void _startReturnToPilaRoute() async {
+    _navigationTimer?.cancel();
+    final targetTerminal = _getReturnTerminal();
+
+    final distInitialKm = LocationService.calculateDistanceInKm(
+      _currentDriverLocation.latitude,
+      _currentDriverLocation.longitude,
+      targetTerminal.centerPoint.latitude,
+      targetTerminal.centerPoint.longitude,
+    );
+
+    _showTopNotification('🗺️ Routing to ${targetTerminal.name} • Queuing inside 25m geofence...');
 
     setState(() {
-      _currentStage = DriverTripStage.tripCompleted;
-      _rerouteBannerMessage = '📍 Returning to ${nearest.terminal.name} Pila (${(nearest.distanceMeters / 1000).toStringAsFixed(2)} km)';
+      _currentStage = DriverTripStage.returningToPila;
+      _returnTerminal = targetTerminal;
+      _rerouteBannerMessage = '📍 Returning to ${targetTerminal.name} (${distInitialKm.toStringAsFixed(2)} km)';
+      _isAutoFollowLocked = true;
     });
 
     final origin = LocationPoint(
       latitude: _currentDriverLocation.latitude,
       longitude: _currentDriverLocation.longitude,
-      name: 'Current Dropoff Location',
+      name: 'Dropoff Location',
     );
     final destination = LocationPoint(
-      latitude: nearest.terminal.centerPoint.latitude,
-      longitude: nearest.terminal.centerPoint.longitude,
-      name: nearest.terminal.name,
+      latitude: targetTerminal.centerPoint.latitude,
+      longitude: targetTerminal.centerPoint.longitude,
+      name: targetTerminal.name,
     );
 
+    // 1. Immediately provide guaranteed street-grid points so polyline is never empty or static
+    final midLng = (origin.longitude + destination.longitude) / 2;
+    final fallbackPoints = [
+      origin.latLng,
+      LatLng(origin.latitude, midLng),
+      LatLng(destination.latitude, midLng),
+      destination.latLng,
+    ];
+
+    setState(() {
+      _currentRoutePolyline = fallbackPoints;
+      _currentPolylineIndex = 0;
+    });
+
+    _mapController.move(_currentDriverLocation, _navigationZoom);
+
+    // 2. Asynchronously fetch full turn-by-turn road geometry from routing service
     try {
       final routeRes = await LocationService.fetchRoadRoute(origin, destination);
       if (mounted && routeRes.polylinePoints.length >= 2) {
@@ -1113,10 +1178,11 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       }
     } catch (_) {}
 
+    // 3. Start smooth drive simulation across ~22 steps to the TODA terminal
     _navigationTimer?.cancel();
-    final int stepIncrement = max(1, (_currentRoutePolyline.length / 18).ceil());
+    final int stepIncrement = max(1, (_currentRoutePolyline.length / 22).ceil());
 
-    _navigationTimer = Timer.periodic(const Duration(milliseconds: 600), (timer) {
+    _navigationTimer = Timer.periodic(const Duration(milliseconds: 650), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -1138,29 +1204,128 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         final distToTerminal = LocationService.calculateDistanceInKm(
           _currentDriverLocation.latitude,
           _currentDriverLocation.longitude,
-          nearest.terminal.centerPoint.latitude,
-          nearest.terminal.centerPoint.longitude,
+          targetTerminal.centerPoint.latitude,
+          targetTerminal.centerPoint.longitude,
         ) * 1000.0;
 
-        if (distToTerminal <= nearest.terminal.radiusMeters) {
+        // Geofence check: When vehicle is within terminal radius (<= 25m)
+        if (distToTerminal <= targetTerminal.radiusMeters) {
           timer.cancel();
-          _showTopNotification('✓ ENTERED PILA GEOFENCE (${distToTerminal.toStringAsFixed(0)}m <= 25m): Queued at Rank #1 in ${nearest.terminal.name}!');
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) {
-              Navigator.pop(context, true);
-            }
-          });
+          _onArrivedAtPila(targetTerminal, distToTerminal);
         }
       } else {
         timer.cancel();
-        _showTopNotification('✓ Reached ${nearest.terminal.name}: Queued at Rank #1 in Digital Pila!');
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            Navigator.pop(context, true);
-          }
-        });
+        _onArrivedAtPila(targetTerminal, 0.0);
       }
     });
+  }
+
+  void _onArrivedAtPila(TodaTerminal terminal, double distMeters) {
+    _navigationTimer?.cancel();
+    setState(() {
+      _currentDriverLocation = terminal.centerPoint.latLng;
+      _currentPolylineIndex = max(0, _currentRoutePolyline.length - 1);
+    });
+
+    _showTopNotification('✓ ENTERED PILA GEOFENCE (${distMeters <= 0 ? "0" : distMeters.toStringAsFixed(0)}m <= 25m): Queued at Rank #1 in ${terminal.name}!');
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, -6)),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFF0FDF4),
+                border: Border.all(color: AppTheme.accentEmerald, width: 2.5),
+              ),
+              child: const Icon(Icons.verified_rounded, color: AppTheme.accentEmerald, size: 36),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Queued at Rank #1 in Pila!',
+              style: TextStyle(
+                color: AppTheme.primarySlate,
+                fontSize: 18.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'You successfully entered the 25m geofence of ${terminal.name}. You are first in line for the next commuter dispatch.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pop(context, true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.accentEmerald,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.format_list_numbered_rounded, size: 20),
+                label: const Text(
+                  'VIEW TODA PILA QUEUE',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pop(context, true);
+                },
+                child: Text(
+                  'RETURN TO DUTY MAP (STANDBY FOR DISPATCH)',
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _confirmEmergencyExit() {
@@ -1240,6 +1405,20 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                   urlTemplate: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                   userAgentPackageName: 'ph.laoag.pasadanorte',
                 ),
+                // 25m Pila Geofence Circle
+                if (_currentStage == DriverTripStage.returningToPila && _returnTerminal != null)
+                  CircleLayer(
+                    circles: [
+                      CircleMarker(
+                        point: _returnTerminal!.centerPoint.latLng,
+                        radius: _returnTerminal!.radiusMeters,
+                        useRadiusInMeter: true,
+                        color: AppTheme.accentEmerald.withValues(alpha: 0.22),
+                        borderColor: AppTheme.accentEmerald,
+                        borderStrokeWidth: 2.5,
+                      ),
+                    ],
+                  ),
                 // Route Polylines: Traversed Trail Left Behind + Active Ahead Green Route
                 PolylineLayer(
                   polylines: [
@@ -1273,42 +1452,64 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                 ),
                 MarkerLayer(
                   markers: [
-                    // Pickup Marker
-                    Marker(
-                      point: widget.pickupPoint.latLng,
-                      width: 52,
-                      height: 52,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF064E3B),
-                          border: Border.all(color: AppTheme.accentEmerald, width: 3),
-                        ),
-                        child: const Icon(
-                          Icons.person_pin_circle_rounded,
-                          color: Colors.white,
-                          size: 30,
-                        ),
-                      ),
-                    ),
-                    // Dropoff Marker
-                    Marker(
-                      point: widget.dropoffPoint.latLng,
-                      width: 52,
-                      height: 52,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.red.shade900,
-                          border: Border.all(color: Colors.redAccent, width: 3),
-                        ),
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          color: Colors.white,
-                          size: 30,
+                    if (_currentStage != DriverTripStage.returningToPila) ...[
+                      // Pickup Marker
+                      Marker(
+                        point: widget.pickupPoint.latLng,
+                        width: 52,
+                        height: 52,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF064E3B),
+                            border: Border.all(color: AppTheme.accentEmerald, width: 3),
+                          ),
+                          child: const Icon(
+                            Icons.person_pin_circle_rounded,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                         ),
                       ),
-                    ),
+                      // Dropoff Marker
+                      Marker(
+                        point: widget.dropoffPoint.latLng,
+                        width: 52,
+                        height: 52,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.red.shade900,
+                            border: Border.all(color: Colors.redAccent, width: 3),
+                          ),
+                          child: const Icon(
+                            Icons.location_on_rounded,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                      ),
+                    ] else if (_returnTerminal != null) ...[
+                      // Return TODA Terminal Marker
+                      Marker(
+                        point: _returnTerminal!.centerPoint.latLng,
+                        width: 58,
+                        height: 58,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF064E3B),
+                            border: Border.all(color: Colors.amber, width: 3),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3)),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
+                          ),
+                        ),
+                      ),
+                    ],
                     // Driver Photo Marker with Verified TODA Badge & Amber Ring
                     Marker(
                       point: _currentDriverLocation,
@@ -1346,7 +1547,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Pickup Location Row
+                        // Point A Row (Pickup or Current Dropoff)
                         Row(
                           children: [
                             Container(
@@ -1363,7 +1564,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    widget.pickupPoint.name,
+                                    _currentStage == DriverTripStage.returningToPila
+                                        ? widget.dropoffPoint.name
+                                        : widget.pickupPoint.name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -1373,7 +1576,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                                     ),
                                   ),
                                   Text(
-                                    'Zone 1 • J. P. Rizal St • Public Market TODA Station',
+                                    _currentStage == DriverTripStage.returningToPila
+                                        ? 'Trip Completed • Originating Return'
+                                        : 'Zone 1 • J. P. Rizal St • Public Market TODA Station',
                                     style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                                   ),
                                 ],
@@ -1393,15 +1598,17 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                             ),
                           ),
                         ),
-                        // Dropoff Location Row
+                        // Point B Row (Dropoff or Return TODA Terminal)
                         Row(
                           children: [
                             Container(
                               width: 14,
                               height: 14,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Color(0xFFEF4444),
+                                color: _currentStage == DriverTripStage.returningToPila
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFFEF4444),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1410,7 +1617,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    widget.dropoffPoint.name,
+                                    _currentStage == DriverTripStage.returningToPila
+                                        ? (_returnTerminal?.name ?? 'Laoag Central TODA Terminal')
+                                        : widget.dropoffPoint.name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -1420,7 +1629,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                                     ),
                                   ),
                                   Text(
-                                    'Zone 2 • P. Gomez St • CTE/CIT • ${widget.distanceKm.toStringAsFixed(2)} km',
+                                    _currentStage == DriverTripStage.returningToPila
+                                        ? 'Official TODA Terminal • Auto-queuing Geofence (25m)'
+                                        : 'Zone 2 • P. Gomez St • CTE/CIT • ${widget.distanceKm.toStringAsFixed(2)} km',
                                     style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                                   ),
                                 ],
@@ -1674,161 +1885,283 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
 
                   Divider(color: Colors.grey.shade200, height: 20),
 
-                  // Passenger Profile Row
-                  Row(
-                    children: [
-                      // Avatar
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Color(0xFFE0E7FF),
+                  if (_currentStage == DriverTripStage.returningToPila) ...[
+                    // Dedicated Return to Pila Navigation HUD Card
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.35)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppTheme.accentEmerald,
+                                ),
+                                child: const Icon(Icons.turn_right_rounded, color: Colors.white, size: 22),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _returnTerminal?.name ?? 'Laoag Central TODA Terminal',
+                                      style: const TextStyle(
+                                        color: AppTheme.primarySlate,
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Auto-queues at Rank #1 upon entering 25m geofence',
+                                      style: TextStyle(
+                                        color: Colors.green.shade800,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Builder(
+                            builder: (_) {
+                              final term = _returnTerminal ?? _getReturnTerminal();
+                              final distMeters = LocationService.calculateDistanceInKm(
+                                _currentDriverLocation.latitude,
+                                _currentDriverLocation.longitude,
+                                term.centerPoint.latitude,
+                                term.centerPoint.longitude,
+                              ) * 1000.0;
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.near_me_rounded, color: AppTheme.accentEmerald, size: 16),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${distMeters.toStringAsFixed(0)}m to Geofence',
+                                        style: const TextStyle(
+                                          color: AppTheme.primarySlate,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.3)),
+                                    ),
+                                    child: const Text(
+                                      'FIFO PILA: RANK #1',
+                                      style: TextStyle(
+                                        color: AppTheme.accentEmerald,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          _onArrivedAtPila(_returnTerminal ?? _getReturnTerminal(), 0.0);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentEmerald,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                          elevation: 0,
                         ),
-                        child: const Center(
-                          child: Text(
-                            'MC',
-                            style: TextStyle(
-                              color: Color(0xFF4338CA),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 17,
+                        icon: const Icon(Icons.flash_on_rounded, size: 18),
+                        label: const Text(
+                          'ENTER PILA NOW (FAST-FORWARD)',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    // Passenger Profile Row
+                    Row(
+                      children: [
+                        // Avatar
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFFE0E7FF),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'MC',
+                              style: TextStyle(
+                                color: Color(0xFF4338CA),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 17,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.passengerName,
-                              style: const TextStyle(
-                                color: AppTheme.primarySlate,
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                const Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 16),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '4.9 • 38 rides in Laoag',
-                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11.5),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppTheme.accentEmeraldLight,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                widget.passengerCategory,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.passengerName,
                                 style: const TextStyle(
-                                  color: AppTheme.accentEmerald,
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.primarySlate,
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Outlined Chat Button
-                      _buildOutlinedCircleBtn(
-                        icon: Icons.chat_bubble_outline_rounded,
-                        onTap: _openPassengerChatModal,
-                      ),
-                      const SizedBox(width: 10),
-                      // Outlined Call Button
-                      _buildOutlinedCircleBtn(
-                        icon: Icons.phone_outlined,
-                        onTap: _openPassengerCallModal,
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // Upfront Fare & Payment Card (Passenger Light Card Style)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Calculated Upfront Fare (${widget.distanceKm.toStringAsFixed(2)} km)',
-                              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-                            ),
-                            Text(
-                              '₱${widget.discountedFare.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                color: AppTheme.primarySlate,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  const Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 16),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '4.9 • 38 rides in Laoag',
+                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11.5),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Statutory Student Discount (20%)',
-                              style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
-                            ),
-                            Text(
-                              '- ₱${(widget.regularFare - widget.discountedFare).toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                color: AppTheme.accentEmerald,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.accentEmeraldLight,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  widget.passengerCategory,
+                                  style: const TextStyle(
+                                    color: AppTheme.accentEmerald,
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                        Divider(color: Colors.grey.shade200, height: 14),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Payment Method',
-                              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-                            ),
-                            Text(
-                              widget.paymentMethod,
-                              style: const TextStyle(
-                                color: AppTheme.primarySlate,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12.5,
-                              ),
-                            ),
-                          ],
+                        // Outlined Chat Button
+                        _buildOutlinedCircleBtn(
+                          icon: Icons.chat_bubble_outline_rounded,
+                          onTap: _openPassengerChatModal,
+                        ),
+                        const SizedBox(width: 10),
+                        // Outlined Call Button
+                        _buildOutlinedCircleBtn(
+                          icon: Icons.phone_outlined,
+                          onTap: _openPassengerCallModal,
                         ),
                       ],
                     ),
-                  ),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 14),
 
-                  // 4. SIGNATURE JOYRIDE SLIDE-TO-CONFIRM BAR
-                  _SlideToConfirmWidget(
-                    text: _getSliderLabel(),
-                    onConfirmed: _onSlideActionTriggered,
-                  ),
+                    // Upfront Fare & Payment Card (Passenger Light Card Style)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Calculated Upfront Fare (${widget.distanceKm.toStringAsFixed(2)} km)',
+                                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                              ),
+                              Text(
+                                '₱${widget.discountedFare.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: AppTheme.primarySlate,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Statutory Student Discount (20%)',
+                                style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                              ),
+                              Text(
+                                '- ₱${(widget.regularFare - widget.discountedFare).toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: AppTheme.accentEmerald,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Divider(color: Colors.grey.shade200, height: 14),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Payment Method',
+                                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                              ),
+                              Text(
+                                widget.paymentMethod,
+                                style: const TextStyle(
+                                  color: AppTheme.primarySlate,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // 4. SIGNATURE JOYRIDE SLIDE-TO-CONFIRM BAR
+                    _SlideToConfirmWidget(
+                      text: _getSliderLabel(),
+                      onConfirmed: _onSlideActionTriggered,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1890,6 +2223,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         return 'En Route to Destination';
       case DriverTripStage.tripCompleted:
         return 'Arrived at Destination';
+      case DriverTripStage.returningToPila:
+        return 'Returning to TODA Pila';
     }
   }
 
@@ -1903,6 +2238,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         return 'Heading to MMSU Laoag Campus • ${widget.distanceKm.toStringAsFixed(2)} km';
       case DriverTripStage.tripCompleted:
         return 'Prepare to collect cash payment';
+      case DriverTripStage.returningToPila:
+        return 'Navigating to ${_returnTerminal?.name ?? "Central TODA"} • Auto-queuing in 25m';
     }
   }
 
@@ -1916,6 +2253,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         return 'SLIDE TO COMPLETE TRIP';
       case DriverTripStage.tripCompleted:
         return 'TRIP COMPLETED';
+      case DriverTripStage.returningToPila:
+        return 'EN ROUTE TO TODA PILA';
     }
   }
 
