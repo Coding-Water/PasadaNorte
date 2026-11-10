@@ -81,11 +81,13 @@ flowchart TD
 
 ---
 
-### Phase 2: Real Philippine SMS OTP Integration
-Currently, the mobile client uses an in-app verification screen. For production:
+### Phase 2: Real Philippine SMS OTP Integration *(Deferred: Post-MVP / Pre-Launch)*
+> **Status:** ⏸️ **On Hold / Deferred to Pre-Launch Phase.**  
+> During development and testing, the application utilizes the built-in test OTP simulator mode with 60-second cooldowns and 3-attempt lockout defense. Dedicated SMS provider onboarding will be executed right before public pilot release.
+
 - [ ] **Select a Philippine Telco SMS Gateway:**
-  - **Option A (Recommended Local):** [Semaphore.co](https://semaphore.co) (Fast delivery to Globe, SMART, DITO, TNT, TM).
-  - **Option B (Enterprise):** [Twilio](https://twilio.com) or [PhilSMS](https://philsms.com).
+  - **Option A (Recommended Local):** [Semaphore.co](https://semaphore.co) (Fast delivery to Globe, SMART, DITO, TNT, TM via simple HTTP API).
+  - **Option B (Enterprise):** [PhilSMS](https://philsms.com) or [Twilio](https://twilio.com).
 - [ ] **Configure Supabase Auth Custom SMS Hook:**
   Add the SMS API key in `Supabase Dashboard` $\rightarrow$ `Authentication` $\rightarrow$ `Providers` $\rightarrow$ `Phone`.
 - [ ] **Set Rate Limiting:**
@@ -95,20 +97,28 @@ Currently, the mobile client uses an in-app verification screen. For production:
 
 ---
 
-### Phase 3: Backend API & AI Inference Deployment
+### Phase 3: Backend API & AI Inference Deployment *(Selected Architecture: Option 1 — Deferred to Pre-Launch)*
+> **Status:** ⏸️ **Decided & Deferred to Pre-Launch.**  
+> **Chosen Architecture (Option 1):** Hybrid architecture keeping **Supabase Cloud (PostgreSQL + PostGIS + Storage + Realtime)** as primary engine, and deploying the lightweight **Python FastAPI (`backend/main.py`) microservice** to a **$0.00/month free-tier cloud container**.
+> During development, FastAPI runs locally at `http://127.0.0.1:8000` while database/auth/storage runs live on Supabase Cloud (`https://zrkkbknndavvprejskjy.supabase.co`).
+
+- [ ] **Select Free-Tier Cloud Container Host for FastAPI:**
+  - **Choice A (Recommended for AI/ML):** [Hugging Face Spaces](https://huggingface.co/spaces) — **$0.00/mo**, 16 GB RAM, 2 vCPUs, native Docker support, no credit card required, permanent HTTPS endpoint.
+  - **Choice B (Serverless Scale-to-Zero):** [Google Cloud Run](https://cloud.google.com/run) — **$0.00/mo** under Always Free Tier (2M requests/month free, up to 2GB RAM instances, scales to 0 when idle).
+  - **Choice C:** [Render](https://render.com) or [Koyeb](https://koyeb.com) (Free 512MB RAM tier).
 - [ ] **Deploy FastAPI Service (`backend/main.py`):**
-  Host the Python backend on a cloud container with SSL:
-  - **Cloud Host:** [Render.com](https://render.com), [Railway.app](https://railway.app), or [DigitalOcean App Platform](https://digitalocean.com).
-  - **Docker / Python Environment:** Python 3.11 with `fastapi`, `uvicorn`, `scikit-learn`, `supabase`, `pydantic`.
-- [ ] **Configure Environment Secrets:**
+  - **Docker / Python Environment:** Python 3.10+ with `fastapi`, `uvicorn`, `scikit-learn`, `supabase`, `pydantic`, `deepface`/`opencv`.
+  - **Containerize:** Provide `Dockerfile` in `backend/` exposing port 8000.
+- [ ] **Configure Production Environment Secrets:**
   ```env
   SUPABASE_URL=https://zrkkbknndavvprejskjy.supabase.co
   SUPABASE_SERVICE_ROLE_KEY=eyJh...
   API_SECRET_KEY=pasadanorte_prod_key_2026
   FAR_THRESHOLD=0.85
   ```
-- [ ] **Enable HTTPS & SSL:** Ensure the endpoint runs on `https://api.pasadanorte.laoagcity.gov.ph` or the cloud HTTPS URL.
-- [ ] **Restrict CORS:** Set `allow_origins` to your production Web Admin domain only.
+- [ ] **Update Client Endpoints in Flutter:**
+  Point `mobile_client` and `web_client` AI service URL from `http://127.0.0.1:8000` to the deployed HTTPS container URL (e.g., `https://your-user-pasadanorte-api.hf.space`).
+- [ ] **Restrict CORS:** Set `allow_origins` to your production Web Admin domain and mobile app origins.
 
 ---
 
