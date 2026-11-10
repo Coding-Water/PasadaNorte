@@ -29,6 +29,7 @@ class DriverActiveTripScreen extends StatefulWidget {
   final double regularFare;
   final double discountedFare;
   final String paymentMethod;
+  final bool initialSheetExpanded;
 
   const DriverActiveTripScreen({
     super.key,
@@ -52,6 +53,7 @@ class DriverActiveTripScreen extends StatefulWidget {
     this.regularFare = 20.00,
     this.discountedFare = 16.00,
     this.paymentMethod = 'CASH TO COLLECT',
+    this.initialSheetExpanded = false,
   });
 
   @override
@@ -66,7 +68,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   TodaTerminal? _returnTerminal;
   bool _cashReceived = true;
   bool _isTurnByTurnVoiceMuted = false;
-  bool _isSheetExpanded = true;
+  late bool _isSheetExpanded;
 
   // Dynamic route segments: Traversed route trail left behind vs active ahead route
   List<LatLng> get _traversedPolyline {
@@ -133,6 +135,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   @override
   void initState() {
     super.initState();
+    _isSheetExpanded = widget.initialSheetExpanded;
     // Driver starts on downtown street grid ~300 meters away from market
     _currentDriverLocation = LatLng(
       widget.pickupPoint.latitude + 0.0024,
@@ -390,6 +393,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       if (_currentStage == DriverTripStage.enRouteToPickup) {
         _navigationTimer?.cancel();
         _currentStage = DriverTripStage.arrivedAtPickup;
+        _isSheetExpanded = true; // Slides up when arrived at pickup waiting for passenger
         _currentDriverLocation = widget.pickupPoint.latLng;
         _buildStageRoute();
         _showTopNotification('Notified Passenger: "Your TODA driver has arrived at pickup."');
