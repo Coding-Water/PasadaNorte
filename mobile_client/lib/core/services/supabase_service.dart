@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/models/user_model.dart';
 import '../../features/fare/services/fare_calculator_service.dart';
 import 'face_verification_service.dart';
+import 'location_service.dart';
 import 'toda_queue_service.dart';
 
 class SupabaseService {
@@ -239,8 +240,8 @@ class SupabaseService {
     } catch (_) {}
   }
 
-  // 1. Broadcasts live Driver GPS telemetry to Supabase active_rides table
-  static Future<void> broadcastDriverTelemetry({
+  // 1. Broadcasts live Driver GPS telemetry to Supabase active_rides table with velocity sanity checks
+  static Future<bool> broadcastDriverTelemetry({
     required String rideId,
     required double latitude,
     required double longitude,
@@ -248,23 +249,42 @@ class SupabaseService {
     required String stage,
     bool? isMocked,
   }) async {
-    if (!_isConnected) return;
-    try {
-      final payload = <String, dynamic>{
-        'ride_id': rideId,
-        'latitude': latitude,
-        'longitude': longitude,
-        'heading': heading,
-        'stage': stage,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-      if (isMocked != null) {
-        payload['is_mocked'] = isMocked;
+    // Velocity Sanity Check (Pillar 5): Reject impossible speed jumps / teleportation (> 80 km/h)
+    final isPhysicallyPlausible = LocationService.validateGpsVelocitySanity(
+      newLat: latitude,
+      newLng: longitude,
+    );
+    if (!isPhysicallyPlausible) {
+      return false; // Suppress erratic GPS sensor glitch
+    }
+
+    if (!_isConnected) return false;
+
+    // Resilience: Retry with exponential backoff on intermittent network drops
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        final payload = <String, dynamic>{
+          'ride_id': rideId,
+          'latitude': latitude,
+          'longitude': longitude,
+          'heading': heading,
+          'stage': stage,
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+        if (isMocked != null) {
+          payload['is_mocked'] = isMocked;
+        }
+        await Supabase.instance.client
+            .from('driver_telemetry')
+            .upsert(payload, onConflict: 'ride_id');
+        return true;
+      } catch (_) {
+        if (attempt < 3) {
+          await Future.delayed(Duration(milliseconds: 250 * attempt));
+        }
       }
-      await Supabase.instance.client
-          .from('driver_telemetry')
-          .upsert(payload, onConflict: 'ride_id');
-    } catch (_) {}
+    }
+    return false;
   }
 
   // 2. Broadcasts Red Alert / Emergency SOS to Laoag PNP & TODA Admin Portal

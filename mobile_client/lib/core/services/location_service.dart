@@ -131,6 +131,50 @@ class LocationService {
     return degrees * pi / 180;
   }
 
+  // ---------------------------------------------------------------------------
+  // PILLAR 5: VELOCITY SANITY & TELEPORTATION GLITCH DEFENSE
+  // ---------------------------------------------------------------------------
+  static const double maxTricycleSpeedKmh = 80.0; // Physical speed ceiling for Laoag tricycles
+  static DateTime? _lastPingTime;
+  static double? _lastPingLat;
+  static double? _lastPingLng;
+
+  /// Validates whether a new GPS telemetry ping is physically plausible.
+  /// Rejects teleportation jumps and corrupt GPS sensor spikes (> 80 km/h).
+  static bool validateGpsVelocitySanity({
+    required double newLat,
+    required double newLng,
+    DateTime? pingTime,
+  }) {
+    final now = pingTime ?? DateTime.now();
+
+    if (_lastPingTime == null || _lastPingLat == null || _lastPingLng == null) {
+      _lastPingTime = now;
+      _lastPingLat = newLat;
+      _lastPingLng = newLng;
+      return true; // First fix accepted
+    }
+
+    final elapsedSeconds = now.difference(_lastPingTime!).inMilliseconds / 1000.0;
+    if (elapsedSeconds <= 0.1) {
+      return true; // Too fast between pings, ignore delta
+    }
+
+    final distanceKm = calculateDistanceInKm(_lastPingLat!, _lastPingLng!, newLat, newLng);
+    final velocityKmh = (distanceKm / elapsedSeconds) * 3600.0;
+
+    // If speed exceeds 80 km/h (e.g. erratic satellite drift or mock GPS jump), flag anomaly
+    if (velocityKmh > maxTricycleSpeedKmh) {
+      return false; // Anomalous jump detected!
+    }
+
+    // Ping is physically valid: update last known good fix
+    _lastPingTime = now;
+    _lastPingLat = newLat;
+    _lastPingLng = newLng;
+    return true;
+  }
+
   // Formats an address object from Nominatim or Photon into a clean, accurate Laoag street/place string
   static String _formatDetailedAddress(
     Map<String, dynamic> item,
