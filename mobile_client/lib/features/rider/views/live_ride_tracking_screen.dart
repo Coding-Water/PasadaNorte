@@ -248,6 +248,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           _etaToPassengerMinutes =
               (initialEtaMins * remainingRatio).ceil().clamp(1, initialEtaMins);
         });
+        _followDriverApproach();
       } else {
         timer.cancel();
         // Driver has picked up the passenger — immediately transition to Phase 2 (Heading to Destination!)
@@ -385,6 +386,56 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           maxZoom: 16.5,
         ),
       );
+    } catch (_) {}
+  }
+
+  // Smoothly updates map camera so passenger watches the approaching tricycle close in
+  // without needing to swipe or pan the screen
+  void _followDriverApproach() {
+    try {
+      final points = <LatLng>[
+        _tricycleLivePos,
+        widget.pickupPoint.latLng,
+      ];
+      final bounds = LatLngBounds.fromPoints(points);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.fromLTRB(54, 150, 54, 110),
+          maxZoom: 16.8,
+        ),
+      );
+    } catch (_) {
+      _mapController.move(_tricycleLivePos, 16.2);
+    }
+  }
+
+  // Dynamic reroute listener when driver deviates due to traffic/road repairs
+  void simulateDriverDetour() async {
+    if (_ridePhase != _RidePhase.headingToDestination) return;
+    final detourOrigin = LocationPoint(
+      latitude: _tricycleLivePos.latitude + 0.00045,
+      longitude: _tricycleLivePos.longitude - 0.00040,
+      name: 'Driver Detour Point',
+    );
+    try {
+      final detourResult = await LocationService.fetchRoadRoute(detourOrigin, widget.dropoffPoint);
+      if (mounted && detourResult.polylinePoints.length >= 2) {
+        setState(() {
+          _destinationRoutePath = detourResult.polylinePoints;
+          _currentDestinationIndex = 0;
+          _tricycleLivePos = detourResult.polylinePoints.first;
+          _remainingDestinationKm = detourResult.distanceKm;
+        });
+        _fitDestinationRouteBounds();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Driver Detour: Rerouted via alternate road due to local traffic/construction (+${detourResult.distanceKm} km).'),
+            backgroundColor: Colors.amber.shade900,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (_) {}
   }
 
@@ -2252,6 +2303,10 @@ class _RateDriverScreenState extends State<_RateDriverScreen> {
   int _selectedStars = 5;
   bool _showDetails = true;
 
+  void _skipRating() {
+    Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
   void _submitRating() {
     Navigator.push(
       context,
@@ -2277,9 +2332,23 @@ class _RateDriverScreenState extends State<_RateDriverScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+          onPressed: _skipRating,
           icon: const Icon(Icons.close_rounded, color: AppTheme.primarySlate),
         ),
+        actions: [
+          TextButton(
+            onPressed: _skipRating,
+            child: const Text(
+              'Skip',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.primarySlate,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -2450,34 +2519,63 @@ class _RateDriverScreenState extends State<_RateDriverScreen> {
               ),
             ),
 
-            // Bottom "Give Rate" Button
+            // Bottom "Skip" & "Give Rate" Buttons
             Container(
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border(top: BorderSide(color: Colors.grey.shade100)),
               ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: _submitRating,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentEmerald,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: _skipRating,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentEmeraldLight,
+                          foregroundColor: AppTheme.accentEmerald,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        child: const Text(
+                          'Skip',
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
                     ),
-                    elevation: 0,
                   ),
-                  child: const Text(
-                    'Give Rate',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: _submitRating,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentEmerald,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Give Rate',
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ],

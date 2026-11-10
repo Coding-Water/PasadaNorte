@@ -179,19 +179,25 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.access_time_filled_rounded,
-                              color: _ntpClockSynced ? Colors.green.shade700 : Colors.orange,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'NTP Server Clock Sync: ${_ntpClockSynced ? "ACTIVE (+$_ntpDriftMs ms drift)" : "RESYNCING"}',
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
-                            ),
-                          ],
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.access_time_filled_rounded,
+                                color: _ntpClockSynced ? Colors.green.shade700 : Colors.orange,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'NTP Sync: ${_ntpClockSynced ? "ACTIVE (+$_ntpDriftMs ms)" : "RESYNCING"}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         TextButton.icon(
                           onPressed: () {
@@ -208,7 +214,7 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
                             );
                           },
                           icon: const Icon(Icons.sync, size: 15),
-                          label: const Text('Sync NTP', style: TextStyle(fontSize: 11.5)),
+                          label: const Text('Sync', style: TextStyle(fontSize: 11.5)),
                         ),
                       ],
                     ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../admin/views/web_admin_portal_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../models/user_model.dart';
 import 'id_upload_screen.dart';
@@ -293,19 +292,6 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     backgroundColor: AppTheme.accentEmerald,
                   ),
                   child: const Text('Proceed to ID & Face Verification'),
-                ),
-                const SizedBox(height: 8),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const WebAdminPortalScreen()),
-                      );
-                    },
-                    icon: const Icon(Icons.admin_panel_settings, size: 18),
-                    label: const Text('Open TODA / MINC Web Admin Portal'),
-                  ),
                 ),
               ],
             ),

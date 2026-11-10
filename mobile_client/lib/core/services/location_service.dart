@@ -848,6 +848,67 @@ class LocationService {
     return [start, corner, end];
   }
 
+  /// Computes perpendicular distance in meters from a coordinate [point]
+  /// to the nearest road segment in [polyline].
+  static double distanceToPolylineMeters(LatLng point, List<LatLng> polyline) {
+    if (polyline.isEmpty) return double.infinity;
+    if (polyline.length == 1) {
+      return calculateDistanceInKm(
+        point.latitude,
+        point.longitude,
+        polyline.first.latitude,
+        polyline.first.longitude,
+      ) * 1000.0;
+    }
+
+    const double metersPerLatDegree = 111132.0;
+    final double metersPerLngDegree = 111132.0 * cos(point.latitude * pi / 180.0);
+
+    double minDistanceMeters = double.infinity;
+
+    for (int i = 0; i < polyline.length - 1; i++) {
+      final a = polyline[i];
+      final b = polyline[i + 1];
+
+      final double ax = (a.longitude - point.longitude) * metersPerLngDegree;
+      final double ay = (a.latitude - point.latitude) * metersPerLatDegree;
+      final double bx = (b.longitude - point.longitude) * metersPerLngDegree;
+      final double by = (b.latitude - point.latitude) * metersPerLatDegree;
+
+      final double segDx = bx - ax;
+      final double segDy = by - ay;
+      final double segLenSq = segDx * segDx + segDy * segDy;
+
+      double t = 0.0;
+      if (segLenSq > 1e-6) {
+        t = ((-ax) * segDx + (-ay) * segDy) / segLenSq;
+        t = t.clamp(0.0, 1.0);
+      }
+
+      final double nearestX = ax + t * segDx;
+      final double nearestY = ay + t * segDy;
+      final double distMeters = sqrt(nearestX * nearestX + nearestY * nearestY);
+
+      if (distMeters < minDistanceMeters) {
+        minDistanceMeters = distMeters;
+      }
+    }
+
+    return minDistanceMeters;
+  }
+
+  /// Checks if the vehicle has deviated from the assigned road polyline
+  /// (e.g. for traffic, road construction, flooding along river bridge).
+  static bool isOffRoute(
+    LatLng currentPos,
+    List<LatLng> polyline, {
+    double thresholdMeters = 38.0,
+  }) {
+    if (polyline.isEmpty) return false;
+    final dist = distanceToPolylineMeters(currentPos, polyline);
+    return dist > thresholdMeters;
+  }
+
   // ===========================================================================
   // 10 Laoag City Primary Zones (Z01 to Z10) — Verified Exact OSM Coordinates
   // (10 zones × 56 days × 12 operating hours = 6,720 zone-hour intervals;

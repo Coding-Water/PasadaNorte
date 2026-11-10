@@ -4,7 +4,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../admin/views/web_admin_portal_screen.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import 'bill_summary_checkout_screen.dart';
@@ -129,17 +128,6 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
     } catch (_) {
       _mapController.move(dropoff.latLng, 15.5);
     }
-  }
-
-  void _recalculateFareFromCurrentDistance() {
-    if (_fareBreakdown == null) return;
-    setState(() {
-      _fareBreakdown = FareCalculatorService.calculateFare(
-        distanceKm: _fareBreakdown!.distanceKm,
-        category: _lockedCategory,
-        tripType: _selectedTripType,
-      );
-    });
   }
 
   Future<void> _onMapTapped(TapPosition tapPosition, LatLng point) async {
@@ -383,18 +371,6 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
                         icon: _isHybridSatellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
                         tooltip: 'Toggle Google Roadmap / Satellite',
                         onTap: () => setState(() => _isHybridSatellite = !_isHybridSatellite),
-                      ),
-                      const SizedBox(width: 8),
-                      _buildFloatingCircleButton(
-                        icon: Icons.admin_panel_settings_rounded,
-                        tooltip: 'TODA/MINC Admin Portal',
-                        onTap: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const WebAdminPortalScreen()),
-                          );
-                          _recalculateFareFromCurrentDistance();
-                        },
                       ),
                     ],
                   ),

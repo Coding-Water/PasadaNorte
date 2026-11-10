@@ -1,9 +1,22 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+        {
+            "name": "Web Client (Chrome)",
+            "cwd": "web_client",
+            "request": "launch",
+            "type": "dart",
+            "program": "web_client/lib/main.dart",
+            "deviceId": "chrome"
+        },
+        {
+            "name": "Web Client (Edge)",
+            "cwd": "web_client",
+            "request": "launch",
+            "type": "dart",
+            "program": "web_client/lib/main.dart",
+            "deviceId": "edge"
+        },
         {
             "name": "mobile_client",
             "cwd": "mobile_client",
@@ -18,31 +31,10 @@
             "flutterMode": "profile"
         },
         {
-            "name": "mobile_client (release mode)",
-            "cwd": "mobile_client",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release"
-        },
-        {
             "name": "web_client",
             "cwd": "web_client",
             "request": "launch",
             "type": "dart"
-        },
-        {
-            "name": "web_client (profile mode)",
-            "cwd": "web_client",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "profile"
-        },
-        {
-            "name": "web_client (release mode)",
-            "cwd": "web_client",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release"
         }
     ]
 }

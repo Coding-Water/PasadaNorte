@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/services/demand_forecast_service.dart';
+import '../../../core/services/driver_stats_service.dart';
+import '../../../core/services/location_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/services/toda_queue_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
-import '../../admin/views/web_admin_portal_screen.dart';
+import 'driver_active_trip_screen.dart';
 import 'toda_queue_screen.dart';
 
 class DriverMapDutyScreen extends StatefulWidget {
@@ -25,9 +28,10 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   bool _isOnline = true;
   bool _simulateNetworkDropFailSafe = false; // ISO/IEC 25010:2023 operational fail-safe during mobile data loss
   final int _queuePosition = 1;
-  int _selectedHour = 12;
-  bool _isWeekday = true;
+  bool _showHotspots = false; // Default OFF so driver map is clean and does not cause dizziness
   bool _isHybridSatellite = false; // Google Roadmap vs Google Hybrid Satellite
+  final LatLng _driverLocation = const LatLng(18.1960, 120.5935); // Laoag Central Terminal / Aurora Park
+  final MapController _mapController = MapController();
   List<DemandZoneForecast> _zoneForecasts = [];
 
   void _returnToPasadaNorteHome() {
@@ -45,9 +49,14 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   }
 
   Future<void> _loadForecast() async {
+    // 1 & 3: Demand forecasting is automatic based on current wall-clock hour & weekday
+    final now = DateTime.now();
+    final currentHour = now.hour;
+    final isWeekday = now.weekday <= 5; // Monday=1 to Friday=5 is weekday
+
     final forecasts = await DemandForecastService.getHourlyForecast(
-      hourOfDay: _selectedHour,
-      isWeekday: _isWeekday,
+      hourOfDay: currentHour,
+      isWeekday: isWeekday,
     );
     if (!mounted) return;
     setState(() {
@@ -103,56 +112,64 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
             });
 
             return AlertDialog(
-              backgroundColor: AppTheme.primarySlate,
+              backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
               title: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppTheme.accentEmerald,
+                      color: AppTheme.accentEmeraldLight,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.volume_up_rounded, color: Colors.white, size: 22),
+                    child: const Icon(Icons.volume_up_rounded, color: AppTheme.accentEmerald, size: 22),
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
                       'NEW PILA DISPATCH',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                      style: TextStyle(color: AppTheme.primarySlate, fontSize: 16, fontWeight: FontWeight.w800),
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.amber,
+                      color: const Color(0xFFFEF3C7),
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
                     ),
                     child: Text(
                       '${remainingSeconds}s',
-                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 13),
+                      style: const TextStyle(color: Color(0xFFB45309), fontWeight: FontWeight.w900, fontSize: 13),
                     ),
                   ),
                 ],
               ),
-              content: const Column(
+              content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '🔊 "Adda sakay dita Laoag Central Market!"',
-                    style: TextStyle(color: Color(0xFF4ADE80), fontWeight: FontWeight.w700, fontSize: 13),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentEmeraldLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      '🔊 "Adda sakay dita Laoag Central Market!"',
+                      style: TextStyle(color: AppTheme.accentEmerald, fontWeight: FontWeight.w700, fontSize: 12.5),
+                    ),
                   ),
-                  SizedBox(height: 14),
-                  Text('Pickup: Laoag Central Terminal & Market', style: TextStyle(color: Colors.white, fontSize: 13)),
-                  SizedBox(height: 4),
-                  Text('Dropoff: MMSU Laoag Campus', style: TextStyle(color: Colors.white, fontSize: 13)),
-                  SizedBox(height: 4),
-                  Text('Distance: 1.50 km • Regular Fare', style: TextStyle(color: Colors.white70, fontSize: 12.5)),
-                  SizedBox(height: 12),
-                  Text(
-                    '₱21.00 (Cash)',
-                    style: TextStyle(color: Colors.amber, fontSize: 22, fontWeight: FontWeight.w900),
+                  const SizedBox(height: 14),
+                  const Text('Pickup: Laoag Central Terminal & Public Market', style: TextStyle(color: AppTheme.primarySlate, fontWeight: FontWeight.w600, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  const Text('Dropoff: MMSU Laoag Campus (CTE / CIT Gate)', style: TextStyle(color: AppTheme.primarySlate, fontWeight: FontWeight.w600, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  Text('Distance: 1.25 km • Student 20% Discount', style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '₱16.00 (Cash)',
+                    style: TextStyle(color: AppTheme.primarySlate, fontSize: 24, fontWeight: FontWeight.w900),
                   ),
                 ],
               ),
@@ -162,18 +179,39 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                     countdownTimer?.cancel();
                     Navigator.pop(dialogContext);
                   },
-                  child: const Text('Pass to #2', style: TextStyle(color: Colors.white70)),
+                  child: Text('Pass to #2', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
                 ),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     countdownTimer?.cancel();
                     Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Ride Accepted! Navigating to pickup.'),
-                        backgroundColor: AppTheme.accentEmerald,
+                    await Navigator.push(
+                      this.context,
+                      MaterialPageRoute(
+                        builder: (_) => DriverActiveTripScreen(
+                          driverName: widget.fullName,
+                          pickupPoint: const LocationPoint(
+                            latitude: 18.194096,
+                            longitude: 120.595856,
+                            name: 'Laoag Central Terminal & Public Market',
+                            zoneCode: 'Z01',
+                          ),
+                          dropoffPoint: const LocationPoint(
+                            latitude: 18.203595,
+                            longitude: 120.593643,
+                            name: 'MMSU Laoag Campus (CTE / CIT Gate)',
+                            zoneCode: 'Z02',
+                          ),
+                          distanceKm: 1.25,
+                          regularFare: 20.00,
+                          discountedFare: 16.00,
+                          passengerCategory: 'STUDENT (20% STATUTORY DISCOUNT)',
+                        ),
                       ),
                     );
+                    if (mounted) {
+                      setState(() {});
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.accentEmerald,
@@ -190,6 +228,538 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     ).then((_) => countdownTimer?.cancel());
   }
 
+  void _showShiftEarningsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Today's Shift Earnings",
+                        style: TextStyle(
+                          color: AppTheme.primarySlate,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'Laoag City Paratransit • City Ord. 2023-005',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentEmeraldLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'ACTIVE SHIFT',
+                      style: TextStyle(
+                        color: AppTheme.accentEmerald,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              // Main Earnings Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF059669), Color(0xFF047857)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF059669).withValues(alpha: 0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'TOTAL GROSS FARE TODAY',
+                      style: TextStyle(
+                        color: Color(0xFFA7F3D0),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '₱${DriverStatsService.todayTotalEarnings.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('💵 Cash Collected', style: TextStyle(color: Colors.white, fontSize: 11)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '₱${DriverStatsService.cashEarnings.toStringAsFixed(2)}',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('📱 GCash QR', style: TextStyle(color: Colors.white, fontSize: 11)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '₱${DriverStatsService.gcashEarnings.toStringAsFixed(2)}',
+                                  style: const TextStyle(color: Color(0xFF93C5FD), fontWeight: FontWeight.w800, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              // Trips & Hours stats
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Completed Trips', style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${DriverStatsService.todayCompletedTrips} dispatches',
+                            style: const TextStyle(color: AppTheme.primarySlate, fontSize: 15, fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Online Duty Time', style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${DriverStatsService.todayHoursOnline} hours',
+                            style: const TextStyle(color: AppTheme.primarySlate, fontSize: 15, fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'RECENT COMPLETED TRIPS',
+                style: TextStyle(
+                  color: AppTheme.primarySlate,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // List of recent trips
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 210),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: DriverStatsService.recentTrips.length,
+                  separatorBuilder: (_, __) => Divider(color: Colors.grey.shade200, height: 12),
+                  itemBuilder: (context, idx) {
+                    final t = DriverStatsService.recentTrips[idx];
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                t.route,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppTheme.primarySlate,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${t.passengerName} • ${_formatTimeAgo(t.timestamp)}',
+                                style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '₱${t.fare.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: AppTheme.primarySlate,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: t.isCash ? AppTheme.accentEmeraldLight : const Color(0xFFDBEAFE),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                t.isCash ? 'CASH' : 'GCASH',
+                                style: TextStyle(
+                                  color: t.isCash ? AppTheme.accentEmerald : const Color(0xFF1D4ED8),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.accentEmerald,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  ),
+                  child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFranchiseProfileSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppTheme.accentEmeraldLight,
+                      border: Border.all(color: AppTheme.accentEmerald, width: 2),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        '🛺',
+                        style: TextStyle(fontSize: 26),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          DriverStatsService.driverFullName,
+                          style: TextStyle(
+                            color: AppTheme.primarySlate,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          DriverStatsService.todaAssociation,
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Verified Banner
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentEmeraldLight,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.verified_rounded, color: AppTheme.accentEmerald, size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'LAOAG CITY MINC FRANCHISE ACTIVE & VERIFIED',
+                        style: TextStyle(
+                          color: AppTheme.accentEmerald,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Franchise Details Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    _buildProfileRow('Tricycle Body #', '#${DriverStatsService.bodyNumber}'),
+                    Divider(color: Colors.grey.shade200, height: 16),
+                    _buildProfileRow('LTO Plate Number', DriverStatsService.plateNumber),
+                    Divider(color: Colors.grey.shade200, height: 16),
+                    _buildProfileRow('MINC Franchise ID', DriverStatsService.mincFranchiseNumber),
+                    Divider(color: Colors.grey.shade200, height: 16),
+                    _buildProfileRow('Franchise Validity', DriverStatsService.franchiseExpiry),
+                    Divider(color: Colors.grey.shade200, height: 16),
+                    _buildProfileRow('LTO Registration Expiry', DriverStatsService.ltoRegistrationExpiry),
+                    Divider(color: Colors.grey.shade200, height: 16),
+                    _buildProfileRow('Annual Inspection', DriverStatsService.lastInspectionStatus),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.accentEmerald,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  ),
+                  child: const Text('CLOSE PROFILE', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              color: AppTheme.primarySlate,
+              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showSosEmergencyDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Row(
+          children: [
+            Icon(Icons.emergency_rounded, color: Colors.redAccent, size: 28),
+            SizedBox(width: 10),
+            Text(
+              'EMERGENCY SOS',
+              style: TextStyle(color: AppTheme.primarySlate, fontSize: 17, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+        content: Text(
+          'Broadcast high-priority distress beacon immediately to Laoag PNP Headquarters & TODA Central Dispatch with your live GPS coordinates?',
+          style: TextStyle(color: Colors.grey.shade700, fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await SupabaseService.broadcastSosAlert(
+                driverName: widget.fullName,
+                latitude: 18.1960,
+                longitude: 120.5935,
+                reason: 'DUTY_MAP_SOS_ALERT',
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('🚨 SOS ALERT SENT: Laoag PNP & TODA Dispatch alerted with your GPS location!'),
+                    backgroundColor: Colors.redAccent,
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 5),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('BROADCAST SOS', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes}m ago';
+    } else {
+      return '${diff.inHours}h ${diff.inMinutes % 60}m ago';
+    }
+  }
+
   String _formatHour(int h) {
     if (h == 0) return '12:00 AM';
     if (h < 12) return '$h:00 AM';
@@ -200,7 +770,6 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   @override
   Widget build(BuildContext context) {
     final visibleZones = _zoneForecasts.where((z) => z.isVisibleOnHeatmap).toList();
-    final suppressedCount = _zoneForecasts.length - visibleZones.length;
 
     return PopScope(
       canPop: false,
@@ -212,13 +781,14 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
       child: Scaffold(
         body: Stack(
           children: [
-            // 1. Full-Bleed Google Map with Thermal Demand Radar & TODA Geofence Rings
+            // 1. Full-Bleed Google Map with Driver Location, TODA Station, and Optional Hotspots
             Positioned.fill(
-              bottom: 215,
+              bottom: 88,
               child: FlutterMap(
-                options: const MapOptions(
-                  initialCenter: LatLng(18.1960, 120.5935),
-                  initialZoom: 14.5,
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: _driverLocation,
+                  initialZoom: 15.5,
                 ),
                 children: [
                   TileLayer(
@@ -227,44 +797,151 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                         : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                     userAgentPackageName: 'ph.laoag.pasadanorte',
                   ),
-                CircleLayer(
-                  circles: visibleZones.map((zone) {
-                    return CircleMarker(
-                      point: zone.center,
-                      radius: zone.radiusMeters * 1.25,
-                      useRadiusInMeter: true,
-                      color: zone.heatColor.withValues(alpha: 0.18),
-                      borderStrokeWidth: 0,
-                    );
-                  }).toList(),
-                ),
-                CircleLayer(
-                  circles: visibleZones.map((zone) {
-                    return CircleMarker(
-                      point: zone.center,
-                      radius: zone.radiusMeters * 0.75,
-                      useRadiusInMeter: true,
-                      color: zone.heatColor.withValues(alpha: 0.38),
-                      borderColor: zone.heatColor.withValues(alpha: 0.75),
-                      borderStrokeWidth: 1.5,
-                    );
-                  }).toList(),
-                ),
-                CircleLayer(
-                  circles: TodaQueueService.laoagTerminals.map((term) {
-                    return CircleMarker(
-                      point: term.centerPoint.latLng,
-                      radius: term.radiusMeters,
-                      useRadiusInMeter: true,
-                      color: AppTheme.primarySlate.withValues(alpha: 0.22),
-                      borderColor: AppTheme.primarySlate,
-                      borderStrokeWidth: 2,
-                    );
-                  }).toList(),
-                ),
-              ],
+                  // Hotspot Demand Circles - ONLY rendered when _showHotspots is true (Default: OFF)
+                  if (_showHotspots) ...[
+                    CircleLayer(
+                      circles: visibleZones.map((zone) {
+                        return CircleMarker(
+                          point: zone.center,
+                          radius: zone.radiusMeters * 1.25,
+                          useRadiusInMeter: true,
+                          color: zone.heatColor.withValues(alpha: 0.18),
+                          borderStrokeWidth: 0,
+                        );
+                      }).toList(),
+                    ),
+                    CircleLayer(
+                      circles: visibleZones.map((zone) {
+                        return CircleMarker(
+                          point: zone.center,
+                          radius: zone.radiusMeters * 0.75,
+                          useRadiusInMeter: true,
+                          color: zone.heatColor.withValues(alpha: 0.38),
+                          borderColor: zone.heatColor.withValues(alpha: 0.75),
+                          borderStrokeWidth: 1.5,
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                  // TODA Terminal Station Geofence (Subtle and clean)
+                  CircleLayer(
+                    circles: TodaQueueService.laoagTerminals.map((term) {
+                      return CircleMarker(
+                        point: term.centerPoint.latLng,
+                        radius: term.radiusMeters,
+                        useRadiusInMeter: true,
+                        color: AppTheme.accentEmerald.withValues(alpha: 0.12),
+                        borderColor: AppTheme.accentEmerald.withValues(alpha: 0.70),
+                        borderStrokeWidth: 1.5,
+                      );
+                    }).toList(),
+                  ),
+                  // Marker Layer: Driver Location (YOU) & Terminal Station Pins
+                  MarkerLayer(
+                    markers: [
+                      // Driver Location Marker (High Visibility)
+                      Marker(
+                        point: _driverLocation,
+                        width: 76,
+                        height: 76,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 66,
+                              height: 66,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppTheme.accentEmerald.withValues(alpha: 0.20),
+                                border: Border.all(
+                                  color: AppTheme.accentEmerald.withValues(alpha: 0.50),
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primarySlate,
+                                    borderRadius: BorderRadius.circular(6),
+                                    boxShadow: const [
+                                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
+                                    ],
+                                  ),
+                                  child: const Text(
+                                    'YOU (#042)',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppTheme.accentEmerald,
+                                    border: Border.all(color: Colors.white, width: 2.5),
+                                    boxShadow: const [
+                                      BoxShadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2)),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.two_wheeler_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      // TODA Station Landmark Marker
+                      Marker(
+                        point: const LatLng(18.1972, 120.5925),
+                        width: 100,
+                        height: 32,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppTheme.primarySlate, width: 1.2),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black12, blurRadius: 4),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.local_taxi_rounded, size: 12, color: AppTheme.accentEmerald),
+                              SizedBox(width: 3),
+                              Text(
+                                'TODA PILA',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.primarySlate,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
 
           // 2. Floating Top Bar (Uber Driver Style Online/Offline Pill + Pila Rank Card)
           SafeArea(
@@ -277,6 +954,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           _buildCircleAction(
                             icon: Icons.home_rounded,
@@ -313,50 +991,47 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(width: 8),
                       // Center Uber-Driver-Style Duty Pill
-                      GestureDetector(
-                        onTap: _toggleDutyStatus,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: _isOnline ? AppTheme.accentEmerald : AppTheme.primarySlate,
-                            borderRadius: BorderRadius.circular(30),
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _isOnline ? Icons.bolt_rounded : Icons.power_settings_new_rounded,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _isOnline ? 'ONLINE • DUTY ACTIVE' : 'OFFLINE • TAP TO GO',
-                                style: const TextStyle(
+                      Flexible(
+                        child: GestureDetector(
+                          onTap: _toggleDutyStatus,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _isOnline ? AppTheme.accentEmerald : AppTheme.primarySlate,
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 3)),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isOnline ? Icons.bolt_rounded : Icons.power_settings_new_rounded,
                                   color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12.5,
-                                  letterSpacing: 0.3,
+                                  size: 18,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    _isOnline ? 'ONLINE • DUTY ACTIVE' : 'OFFLINE • TAP TO GO',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      _buildCircleAction(
-                        icon: Icons.admin_panel_settings_rounded,
-                        onTap: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const WebAdminPortalScreen()),
-                          );
-                          setState(() {});
-                        },
                       ),
                     ],
                   ),
@@ -400,68 +1075,200 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: AppTheme.primarySlate.withValues(alpha: 0.94),
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(18),
-                          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+                          border: Border.all(color: Colors.grey.shade200),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
                         child: Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.amber,
+                                color: const Color(0xFFFEF3C7),
                                 borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
                               ),
                               child: Text(
                                 'PILA #$_queuePosition',
                                 style: const TextStyle(
-                                  color: Colors.black,
+                                  color: Color(0xFFB45309),
                                   fontWeight: FontWeight.w900,
                                   fontSize: 12,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 10),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Laoag Central Terminal TODA',
                                     style: TextStyle(
-                                      color: Colors.white,
+                                      color: AppTheme.primarySlate,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 12.5,
                                     ),
                                   ),
                                   Text(
                                     'Tap to open Digital Pila GPS Calibration',
-                                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                                   ),
                                 ],
                               ),
                             ),
-                            const Icon(Icons.tune_rounded, color: Colors.amber, size: 20),
+                            const Icon(Icons.tune_rounded, color: Color(0xFFD97706), size: 20),
                           ],
                         ),
                       ),
                     ),
+                  const SizedBox(height: 8),
+                  // Joyride Driver Metrics Quick Action Bar (Passenger Clean White Architecture)
+                  Row(
+                    children: [
+                      // Earnings Action Card
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: _showShiftEarningsSheet,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF3C7),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFFFDE68A)),
+                                  ),
+                                  child: const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFFD97706), size: 16),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('EARNINGS', style: TextStyle(color: Colors.grey.shade600, fontSize: 9, fontWeight: FontWeight.w700)),
+                                      Text(
+                                        '₱${DriverStatsService.todayTotalEarnings.toStringAsFixed(0)}',
+                                        style: const TextStyle(color: AppTheme.primarySlate, fontSize: 13, fontWeight: FontWeight.w800),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Tricycle & Franchise Profile Card
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: _showFranchiseProfileSheet,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: const BoxDecoration(
+                                    color: AppTheme.accentEmeraldLight,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.verified_rounded, color: AppTheme.accentEmerald, size: 16),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('TODA UNIT', style: TextStyle(color: Colors.grey.shade600, fontSize: 9, fontWeight: FontWeight.w700)),
+                                      const Text(
+                                        '#${DriverStatsService.bodyNumber} • ${DriverStatsService.plateNumber}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(color: AppTheme.primarySlate, fontSize: 12, fontWeight: FontWeight.w800),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Emergency SOS Panic Button
+                      GestureDetector(
+                        onTap: _showSosEmergencyDialog,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.emergency_rounded, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
 
-          // 3. Bottom Driver Radar & Dispatch Sheet
+          // 3. Bottom Driver Dispatch Sheet (Simplified, Compact)
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
                 boxShadow: [
-                  BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, -4)),
+                  BoxShadow(color: Colors.black12, blurRadius: 16, offset: Offset(0, -4)),
                 ],
               ),
               child: Column(
@@ -476,56 +1283,6 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ML Demand Radar (${_formatHour(_selectedHour)})',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                              color: AppTheme.primarySlate,
-                            ),
-                          ),
-                          Text(
-                            '${visibleZones.length}/${_zoneForecasts.length} Laoag zones shaded (>=5 req) • $suppressedCount hidden (k=5 PIA rule)',
-                            style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
-                          ),
-                        ],
-                      ),
-                      ChoiceChip(
-                        label: Text(
-                          _isWeekday ? 'Weekday' : 'Weekend',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: _isWeekday ? Colors.white : AppTheme.primarySlate,
-                          ),
-                        ),
-                        selected: _isWeekday,
-                        selectedColor: AppTheme.primarySlate,
-                        onSelected: (v) {
-                          _isWeekday = !_isWeekday;
-                          _loadForecast();
-                        },
-                      ),
-                    ],
-                  ),
-                  Slider(
-                    value: _selectedHour.toDouble(),
-                    min: 5,
-                    max: 22,
-                    divisions: 17,
-                    activeColor: AppTheme.accentEmerald,
-                    label: _formatHour(_selectedHour),
-                    onChanged: (val) {
-                      setState(() => _selectedHour = val.round());
-                      _loadForecast();
-                    },
-                  ),
                   Row(
                     children: [
                       Expanded(
@@ -560,11 +1317,56 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
               ),
             ),
           ),
-          // 4. Edge Swipe Detector (Swipe Left or Right at Screen Edges -> PasadaNorte Home)
+
+          // 4. Floating Action Buttons (Above Bottom Sheet)
+          // 4a. Bottom Left: Hotspot Flame Toggle
+          Positioned(
+            left: 16,
+            bottom: 96,
+            child: _buildCircleAction(
+              icon: _showHotspots ? Icons.local_fire_department_rounded : Icons.local_fire_department_outlined,
+              color: _showHotspots ? const Color(0xFFEF4444) : AppTheme.primarySlate,
+              onTap: () {
+                setState(() => _showHotspots = !_showHotspots);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      _showHotspots
+                          ? 'Demand hotspots visible for ${_formatHour(DateTime.now().hour)} (${DateTime.now().weekday <= 5 ? "Weekday" : "Weekend"}).'
+                          : 'Demand hotspots hidden. Map clean & focused on your location.',
+                    ),
+                    duration: const Duration(seconds: 1),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // 4b. Bottom Right: Recenter on Driver Location
+          Positioned(
+            right: 16,
+            bottom: 96,
+            child: _buildCircleAction(
+              icon: Icons.my_location_rounded,
+              onTap: () {
+                _mapController.move(_driverLocation, 16.0);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Centered on your location (Laoag Public Market TODA).'),
+                    duration: Duration(seconds: 1),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // 5. Edge Swipe Detector (Swipe Left or Right at Screen Edges -> PasadaNorte Home)
           Positioned(
             left: 0,
             top: 80,
-            bottom: 225,
+            bottom: 115,
             width: 26,
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -578,7 +1380,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
           Positioned(
             right: 0,
             top: 80,
-            bottom: 225,
+            bottom: 115,
             width: 26,
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -598,6 +1400,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   Widget _buildCircleAction({
     required IconData icon,
     required VoidCallback onTap,
+    Color? color,
   }) {
     return Material(
       color: Colors.white,
@@ -608,7 +1411,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(10.0),
-          child: Icon(icon, size: 20, color: AppTheme.primarySlate),
+          child: Icon(icon, size: 20, color: color ?? AppTheme.primarySlate),
         ),
       ),
     );

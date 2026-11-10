@@ -8,6 +8,9 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const PasadaNorteMobileApp());
   unawaited(SupabaseService.initialize());
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    debugPrint('First frame rendered successfully — UI is active and ready.');
+  });
 }
 
 class PasadaNorteMobileApp extends StatelessWidget {

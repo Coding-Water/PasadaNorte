@@ -62,8 +62,9 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndPromptAndroidPermissions();
+    // Permissions are checked asynchronously without blocking the UI rendering
+    AndroidPermissionsService.getSavedState().then((state) {
+      if (mounted) setState(() => _permState = state);
     });
   }
 
@@ -78,7 +79,9 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
     });
   }
 
-  void _goToAuth({required bool startInRegisterMode}) {
+  Future<void> _goToAuth({required bool startInRegisterMode}) async {
+    await _checkAndPromptAndroidPermissions();
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(

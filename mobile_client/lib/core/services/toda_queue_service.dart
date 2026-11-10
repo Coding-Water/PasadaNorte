@@ -125,6 +125,31 @@ class TodaQueueService {
   static const double speedCheckoutThresholdKmh = 10.0;
   static const int autoPassSeconds = 15;
 
+  // Finds nearest TODA terminal to a given GPS coordinate
+  static ({TodaTerminal terminal, double distanceMeters}) findNearestTerminal(
+    double lat,
+    double lng,
+  ) {
+    TodaTerminal nearest = laoagTerminals.first;
+    double minDistance = double.infinity;
+
+    for (final term in laoagTerminals) {
+      final distKm = LocationService.calculateDistanceInKm(
+        lat,
+        lng,
+        term.centerPoint.latitude,
+        term.centerPoint.longitude,
+      );
+      final distMeters = distKm * 1000;
+      if (distMeters < minDistance) {
+        minDistance = distMeters;
+        nearest = term;
+      }
+    }
+
+    return (terminal: nearest, distanceMeters: minDistance);
+  }
+
   static QueueStatus evaluateQueueStatus({
     required double currentLat,
     required double currentLng,

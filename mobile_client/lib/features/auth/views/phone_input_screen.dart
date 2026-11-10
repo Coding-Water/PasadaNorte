@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../admin/views/web_admin_portal_screen.dart';
 import '../../driver/views/driver_map_duty_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../../rider/views/passenger_service_hub_screen.dart';
@@ -54,6 +53,18 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
         final fullName = (existingUser['full_name'] as String?) ?? 'Laoag User';
         final roleStr = (existingUser['role'] as String?) ?? 'rider';
 
+        if (roleStr == 'toda_admin' || roleStr == 'minc_admin') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('TODA & MINC Admin accounts must sign in via the PasadaNorte Web Portal (browser).'),
+              backgroundColor: AppTheme.primarySlate,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 4),
+            ),
+          );
+          return;
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Welcome back, $fullName!'),
@@ -62,12 +73,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           ),
         );
 
-        if (roleStr == 'toda_admin' || roleStr == 'minc_admin') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const WebAdminPortalScreen()),
-          );
-        } else if (roleStr == 'driver') {
+        if (roleStr == 'driver') {
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -158,26 +164,6 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
             }
           },
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: TextButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WebAdminPortalScreen()),
-                );
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFF1F5F9),
-                foregroundColor: AppTheme.primarySlate,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              ),
-              icon: const Icon(Icons.admin_panel_settings_rounded, size: 16),
-              label: const Text('Admin Portal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-            ),
-          ),
-        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

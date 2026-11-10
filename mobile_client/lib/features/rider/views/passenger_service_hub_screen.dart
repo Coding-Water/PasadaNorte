@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../admin/views/web_admin_portal_screen.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import 'rider_map_booking_screen.dart';
@@ -43,18 +42,6 @@ class PassengerServiceHubScreen extends StatelessWidget {
             icon: const Icon(Icons.home_rounded),
           ),
           title: const Text('PasadaNorte'),
-          actions: [
-            IconButton(
-              tooltip: 'TODA/MINC Admin Portal',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WebAdminPortalScreen()),
-                );
-              },
-              icon: const Icon(Icons.admin_panel_settings_rounded, color: Colors.amber),
-            ),
-          ],
         ),
         body: SafeArea(
           child: SingleChildScrollView(
