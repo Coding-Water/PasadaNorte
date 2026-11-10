@@ -821,7 +821,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 mapController: _mapController,
                 options: MapOptions(
                   initialCenter: _driverLocation,
-                  initialZoom: 15.5,
+                  initialZoom: 17.5,
                 ),
                 children: [
                   TileLayer(
@@ -1419,7 +1419,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
             child: _buildCircleAction(
               icon: Icons.my_location_rounded,
               onTap: () {
-                _mapController.move(_driverLocation, 16.0);
+                _mapController.move(_driverLocation, 17.5);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Centered on your location (Laoag Public Market TODA).'),
