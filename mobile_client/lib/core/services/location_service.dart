@@ -45,6 +45,25 @@ class LocationService {
     zoneCode: 'GPS',
   );
 
+  // Anti-GPS Spoofing & Mock Location Sentinel (Pillar 2 - Security Hardening)
+  static bool isMockLocationDetected = false;
+  static bool simulatedMockGpsForTesting = false;
+
+  /// Returns true if either the underlying hardware location provider flagged mock coordinates
+  /// or testing simulation is currently enabled.
+  static bool get hasMockLocationViolation =>
+      isMockLocationDetected || simulatedMockGpsForTesting;
+
+  /// Actively samples current hardware GPS to verify location authenticity against fake GPS apps.
+  static Future<bool> verifyLocationAuthenticity() async {
+    try {
+      final pos = await Geolocator.getCurrentPosition()
+          .timeout(const Duration(seconds: 4));
+      isMockLocationDetected = pos.isMocked;
+    } catch (_) {}
+    return !hasMockLocationViolation;
+  }
+
   // Strict bounding box for Laoag City & San Nicolas metro area (left, top, right, bottom)
   // viewbox=lon_min,lat_max,lon_max,lat_min
   static const String _laoagViewbox = '120.5000,18.2500,120.6600,18.1300';
@@ -60,6 +79,7 @@ class LocationService {
           perm == LocationPermission.whileInUse) {
         final pos = await Geolocator.getCurrentPosition()
             .timeout(const Duration(seconds: 4));
+        isMockLocationDetected = pos.isMocked;
         // Check if device/emulator is within or near Ilocos Norte (lat 17.7..18.7, lon 120.3..120.95);
         // Android emulators default to Mountain View CA (37.42, -122.08) unless overridden.
         final bool isInIlocosNorte = pos.latitude >= 17.7 &&

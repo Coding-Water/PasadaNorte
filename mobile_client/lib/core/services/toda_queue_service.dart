@@ -9,6 +9,7 @@ enum QueueStatus {
   stuckInTraffic,
   wrongToda,
   autoPassed,
+  mockGpsBlocked,
 }
 
 class TodaTerminal {
@@ -158,7 +159,13 @@ class TodaQueueService {
     String? driverTodaCode,
     bool hasPassenger = false,
     int dwellSeconds = 0,
+    bool isMockGps = false,
   }) {
+    // Hardware-level Mock GPS Detection Sentinel (City Ord. 2023-005 / ISO/IEC 25010)
+    if (isMockGps || LocationService.hasMockLocationViolation) {
+      return QueueStatus.mockGpsBlocked;
+    }
+
     if (hasPassenger) {
       return QueueStatus.outsideTerminal;
     }

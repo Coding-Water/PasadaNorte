@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/location_service.dart';
 import '../../../core/services/toda_queue_service.dart';
 
 class TodaQueueScreen extends StatefulWidget {
@@ -38,6 +39,7 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
       terminal: _selectedTerminal,
       driverTodaCode: _driverTodaCode,
       dwellSeconds: _simulatedDwellSeconds,
+      isMockGps: LocationService.hasMockLocationViolation,
     );
   }
 
@@ -67,6 +69,8 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
         return 'OUTSIDE TERMINAL GEOFENCE (> ${_selectedTerminal.radiusMeters.toStringAsFixed(0)}m)';
       case QueueStatus.autoPassed:
         return 'AUTO-PASSED (15s Timeout Exceeded)';
+      case QueueStatus.mockGpsBlocked:
+        return 'BLOCKED: Mock GPS / Fake Location Detected (Spoofing Sentinel)';
     }
   }
 
@@ -80,6 +84,7 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
       case QueueStatus.stuckInTraffic:
         return Colors.amber.shade900;
       case QueueStatus.wrongToda:
+      case QueueStatus.mockGpsBlocked:
         return Colors.red.shade800;
       default:
         return Colors.grey.shade700;
@@ -259,6 +264,50 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
 
               const SizedBox(height: 14),
 
+              // Mock Location / Anti-GPS Spoofing Sentinel Banner (Pillar 2 Hardening)
+              if (LocationService.hasMockLocationViolation)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.red.shade400, width: 1.5),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.gpp_bad_rounded, color: Colors.red.shade800, size: 28),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'MOCK GPS / FAKE LOCATION DETECTED',
+                              style: TextStyle(
+                                color: Colors.red.shade900,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Hardware mock provider active (isMocked = true). Digital Pila queue entry blocked to prevent fraudulent terminal jumping and enforce FIFO compliance under Laoag City Ordinance No. 2023-005.',
+                              style: TextStyle(
+                                color: Colors.red.shade800,
+                                fontSize: 11.5,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Live Evaluated Status Card
               Container(
                 width: double.infinity,
@@ -358,8 +407,41 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
                 runSpacing: 8,
                 children: [
                   ActionChip(
+                    avatar: Icon(
+                      LocationService.hasMockLocationViolation
+                          ? Icons.security_update_warning_rounded
+                          : Icons.security_rounded,
+                      size: 16,
+                      color: LocationService.hasMockLocationViolation
+                          ? Colors.red.shade700
+                          : Colors.teal.shade700,
+                    ),
+                    backgroundColor: LocationService.hasMockLocationViolation
+                        ? Colors.red.shade50
+                        : Colors.teal.shade50,
+                    label: Text(
+                      LocationService.hasMockLocationViolation
+                          ? 'Mock GPS Active (Tap to Disable Spoof)'
+                          : 'Simulate Mock GPS Spoofing Alert',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                        color: LocationService.hasMockLocationViolation
+                            ? Colors.red.shade900
+                            : Colors.teal.shade900,
+                      ),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        LocationService.simulatedMockGpsForTesting =
+                            !LocationService.simulatedMockGpsForTesting;
+                      });
+                    },
+                  ),
+                  ActionChip(
                     label: const Text('Valid Queue Join (Stop >= 30s)', style: TextStyle(fontSize: 11.5)),
                     onPressed: () => setState(() {
+                      LocationService.simulatedMockGpsForTesting = false;
                       _simulatedDistanceMeters = 8.0;
                       _simulatedSpeedKmh = 0.0;
                       _simulatedDwellSeconds = 35;
@@ -368,6 +450,7 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
                   ActionChip(
                     label: const Text('Passing By (12 km/h inside radius)', style: TextStyle(fontSize: 11.5)),
                     onPressed: () => setState(() {
+                      LocationService.simulatedMockGpsForTesting = false;
                       _simulatedDistanceMeters = 10.0;
                       _simulatedSpeedKmh = 12.0;
                       _simulatedDwellSeconds = 5;
@@ -376,6 +459,7 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
                   ActionChip(
                     label: const Text('Traffic Light Stop (12s < 30s)', style: TextStyle(fontSize: 11.5)),
                     onPressed: () => setState(() {
+                      LocationService.simulatedMockGpsForTesting = false;
                       _simulatedDistanceMeters = 9.0;
                       _simulatedSpeedKmh = 0.0;
                       _simulatedDwellSeconds = 12;
@@ -384,6 +468,7 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
                   ActionChip(
                     label: const Text('Departure Checkout (16 km/h outside)', style: TextStyle(fontSize: 11.5)),
                     onPressed: () => setState(() {
+                      LocationService.simulatedMockGpsForTesting = false;
                       _simulatedDistanceMeters = 32.0;
                       _simulatedSpeedKmh = 16.0;
                       _simulatedDwellSeconds = 0;

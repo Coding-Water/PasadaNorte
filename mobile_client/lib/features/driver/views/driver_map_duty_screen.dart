@@ -1070,17 +1070,24 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                           MaterialPageRoute(
                             builder: (_) => TodaQueueScreen(driverName: widget.fullName),
                           ),
-                        );
+                        ).then((_) => setState(() {}));
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: Colors.grey.shade200),
+                          border: Border.all(
+                            color: LocationService.hasMockLocationViolation
+                                ? Colors.red.shade400
+                                : Colors.grey.shade200,
+                            width: LocationService.hasMockLocationViolation ? 1.5 : 1.0,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.08),
+                              color: LocationService.hasMockLocationViolation
+                                  ? Colors.red.withValues(alpha: 0.15)
+                                  : Colors.black.withValues(alpha: 0.08),
                               blurRadius: 10,
                               offset: const Offset(0, 3),
                             ),
@@ -1091,14 +1098,24 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFEF3C7),
+                                color: LocationService.hasMockLocationViolation
+                                    ? const Color(0xFFFEE2E2)
+                                    : const Color(0xFFFEF3C7),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFFDE68A)),
+                                border: Border.all(
+                                  color: LocationService.hasMockLocationViolation
+                                      ? const Color(0xFFFCA5A5)
+                                      : const Color(0xFFFDE68A),
+                                ),
                               ),
                               child: Text(
-                                'PILA #$_queuePosition',
-                                style: const TextStyle(
-                                  color: Color(0xFFB45309),
+                                LocationService.hasMockLocationViolation
+                                    ? 'SPOOF BLOCKED'
+                                    : 'PILA #$_queuePosition',
+                                style: TextStyle(
+                                  color: LocationService.hasMockLocationViolation
+                                      ? const Color(0xFF991B1B)
+                                      : const Color(0xFFB45309),
                                   fontWeight: FontWeight.w900,
                                   fontSize: 12,
                                 ),
@@ -1109,22 +1126,41 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Laoag Central Terminal TODA',
+                                  Text(
+                                    LocationService.hasMockLocationViolation
+                                        ? 'Mock GPS Violation Detected'
+                                        : 'Laoag Central Terminal TODA',
                                     style: TextStyle(
-                                      color: AppTheme.primarySlate,
+                                      color: LocationService.hasMockLocationViolation
+                                          ? Colors.red.shade900
+                                          : AppTheme.primarySlate,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 12.5,
                                     ),
                                   ),
                                   Text(
-                                    'Tap to open Digital Pila GPS Calibration',
-                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                                    LocationService.hasMockLocationViolation
+                                        ? 'Queue paused under Ord. 2023-005. Tap to inspect.'
+                                        : 'Tap to open Digital Pila GPS Calibration',
+                                    style: TextStyle(
+                                      color: LocationService.hasMockLocationViolation
+                                          ? Colors.red.shade700
+                                          : Colors.grey.shade600,
+                                      fontSize: 11,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                            const Icon(Icons.tune_rounded, color: Color(0xFFD97706), size: 20),
+                            Icon(
+                              LocationService.hasMockLocationViolation
+                                  ? Icons.gpp_bad_rounded
+                                  : Icons.tune_rounded,
+                              color: LocationService.hasMockLocationViolation
+                                  ? Colors.red.shade700
+                                  : const Color(0xFFD97706),
+                              size: 20,
+                            ),
                           ],
                         ),
                       ),
@@ -1293,7 +1329,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                               MaterialPageRoute(
                                 builder: (_) => TodaQueueScreen(driverName: widget.fullName),
                               ),
-                            );
+                            ).then((_) => setState(() {}));
                           },
                           icon: const Icon(Icons.sensors_rounded, size: 18),
                           label: const Text('Digital Pila', style: TextStyle(fontSize: 13)),

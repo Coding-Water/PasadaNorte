@@ -246,17 +246,24 @@ class SupabaseService {
     required double longitude,
     required double heading,
     required String stage,
+    bool? isMocked,
   }) async {
     if (!_isConnected) return;
     try {
-      await Supabase.instance.client.from('driver_telemetry').upsert({
+      final payload = <String, dynamic>{
         'ride_id': rideId,
         'latitude': latitude,
         'longitude': longitude,
         'heading': heading,
         'stage': stage,
         'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'ride_id');
+      };
+      if (isMocked != null) {
+        payload['is_mocked'] = isMocked;
+      }
+      await Supabase.instance.client
+          .from('driver_telemetry')
+          .upsert(payload, onConflict: 'ride_id');
     } catch (_) {}
   }
 
