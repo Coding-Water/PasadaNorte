@@ -1188,6 +1188,11 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
 
   void _onArrivedAtPila(TodaTerminal terminal, double distMeters) {
     _navigationTimer?.cancel();
+    final int assignedRank = TodaQueueService.enqueueDriverAtTail(
+      terminal.id,
+      widget.driverName,
+      '#042',
+    );
     setState(() {
       _currentDriverLocation = terminal.centerPoint.latLng;
       _currentPolylineIndex = max(0, _currentRoutePolyline.length - 1);
@@ -1241,7 +1246,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
             ),
             const SizedBox(height: 6),
             Text(
-              'You successfully entered the 25m geofence of ${terminal.name}. You have joined the FIFO dispatch queue.',
+              'You successfully entered the 25m geofence of ${terminal.name}. You have joined at Rank #$assignedRank in the FIFO queue.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600, fontSize: 13, height: 1.4),
             ),
@@ -1252,7 +1257,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               child: ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  _showTodaPilaQueueModal(terminal);
+                  _showTodaPilaQueueModal(terminal, assignedRank);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.accentEmerald,
@@ -1292,7 +1297,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     );
   }
 
-  void _showTodaPilaQueueModal(TodaTerminal terminal) {
+  void _showTodaPilaQueueModal(TodaTerminal terminal, int myRank) {
+    final queue = TodaQueueService.getTerminalQueue(terminal.id, driverName: widget.driverName);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1350,9 +1356,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFFDE68A)),
                     ),
-                    child: const Text(
-                      'YOU: RANK #4',
-                      style: TextStyle(
+                    child: Text(
+                      'YOU: RANK #$myRank',
+                      style: const TextStyle(
                         color: Color(0xFFB45309),
                         fontWeight: FontWeight.w900,
                         fontSize: 12,
@@ -1365,13 +1371,15 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               Flexible(
                 child: ListView(
                   shrinkWrap: true,
-                  children: [
-                    _buildPilaQueueItem(rank: 1, body: '#014', name: 'Juan Santos', status: 'Dispatch Ready (First in line)', isMe: false),
-                    _buildPilaQueueItem(rank: 2, body: '#027', name: 'Rodrigo Marcos', status: 'Waiting in terminal bay', isMe: false),
-                    _buildPilaQueueItem(rank: 3, body: '#035', name: 'Mario Agbayani', status: 'Waiting in terminal bay', isMe: false),
-                    _buildPilaQueueItem(rank: 4, body: '#042', name: '${widget.driverName} (YOU)', status: 'Just Queued • Position #4', isMe: true),
-                    _buildPilaQueueItem(rank: 5, body: '#058', name: 'Danilo Pascua', status: 'Standing by', isMe: false),
-                  ],
+                  children: queue.map((unit) {
+                    return _buildPilaQueueItem(
+                      rank: unit.rank,
+                      body: unit.bodyNumber,
+                      name: unit.isCurrentDriver ? '${widget.driverName} (YOU)' : unit.driverName,
+                      status: unit.status,
+                      isMe: unit.isCurrentDriver,
+                    );
+                  }).toList(),
                 ),
               ),
               const SizedBox(height: 14),

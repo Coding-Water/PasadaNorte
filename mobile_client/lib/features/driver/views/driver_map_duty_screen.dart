@@ -11,6 +11,7 @@ import '../../../core/services/toda_queue_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import 'driver_active_trip_screen.dart';
+import 'toda_queue_screen.dart';
 
 class DriverMapDutyScreen extends StatefulWidget {
   final String fullName;
@@ -211,6 +212,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       ),
                     );
 
+                    // Dequeue driver from terminal queue when accepting passenger trip
+                    TodaQueueService.dequeueDriverForTrip('term_01', widget.fullName);
+
                     final queuedInPila = await Navigator.push<bool>(
                       this.context,
                       MaterialPageRoute(
@@ -237,8 +241,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                     );
                     if (mounted) {
                       if (queuedInPila == true) {
+                        final currentRank = TodaQueueService.getCurrentDriverRank('term_01', driverName: widget.fullName);
                         setState(() {
-                          _queuePosition = 4; // Re-enters queue at end of FIFO line after completing trip
+                          _queuePosition = currentRank > 0 ? currentRank : 5;
                         });
                         ScaffoldMessenger.of(this.context).showSnackBar(
                           SnackBar(
@@ -585,6 +590,10 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   }
 
   void _showDigitalPilaStatusSheet() {
+    final queue = TodaQueueService.getTerminalQueue('term_01', driverName: widget.fullName);
+    final dynamicRank = TodaQueueService.getCurrentDriverRank('term_01', driverName: widget.fullName);
+    final isQueued = dynamicRank > 0;
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -613,14 +622,14 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
+                      color: isQueued ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFDE68A)),
+                      border: Border.all(color: isQueued ? const Color(0xFFFDE68A) : const Color(0xFFCBD5E1)),
                     ),
                     child: Text(
-                      'PILA #$_queuePosition OF 8',
-                      style: const TextStyle(
-                        color: Color(0xFFB45309),
+                      isQueued ? 'PILA #$dynamicRank OF ${queue.length}' : 'NOT QUEUED • EN ROUTE',
+                      style: TextStyle(
+                        color: isQueued ? const Color(0xFFB45309) : const Color(0xFF475569),
                         fontWeight: FontWeight.w900,
                         fontSize: 12.5,
                       ),
@@ -664,15 +673,17 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                     _buildPilaInfoRow(
                       icon: Icons.verified_user_outlined,
                       title: 'Geofence Compliance',
-                      value: 'In-Bounds (Within 25m Radius)',
-                      valueColor: const Color(0xFF059669),
+                      value: isQueued ? 'In-Bounds (Within 25m Radius)' : 'Outside Terminal Geofence',
+                      valueColor: isQueued ? const Color(0xFF059669) : const Color(0xFFD97706),
                     ),
                     const Divider(height: 18),
                     _buildPilaInfoRow(
                       icon: Icons.alt_route_rounded,
                       title: 'Dispatch Order',
-                      value: 'FIFO Priority (Rank #$_queuePosition in Line)',
-                      valueColor: const Color(0xFF059669),
+                      value: isQueued
+                          ? 'FIFO Priority (Rank #$dynamicRank in Line)'
+                          : 'Standby / En Route (Enter bay to queue)',
+                      valueColor: isQueued ? const Color(0xFF059669) : const Color(0xFFD97706),
                     ),
                   ],
                 ),
@@ -683,15 +694,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.primarySlate),
               ),
               const SizedBox(height: 8),
-              ...[
-                {'rank': 1, 'body': '#014', 'name': 'Juan Santos', 'status': 'Dispatch Ready', 'isMe': _queuePosition == 1},
-                {'rank': 2, 'body': '#027', 'name': 'Rodrigo Marcos', 'status': 'In Bay', 'isMe': _queuePosition == 2},
-                {'rank': 3, 'body': '#035', 'name': 'Mario Agbayani', 'status': 'In Bay', 'isMe': _queuePosition == 3},
-                {'rank': 4, 'body': '#042', 'name': '${widget.fullName} (YOU)', 'status': 'Queued #$_queuePosition', 'isMe': _queuePosition == 4},
-                {'rank': 5, 'body': '#058', 'name': 'Danilo Pascua', 'status': 'Standing by', 'isMe': _queuePosition == 5},
-              ].map((unit) {
-                final bool isMe = unit['isMe'] as bool;
-                final int rank = unit['rank'] as int;
+              ...TodaQueueService.getTerminalQueue('term_01', driverName: widget.fullName).map((unit) {
+                final bool isMe = unit.isCurrentDriver;
+                final int rank = unit.rank;
                 return Container(
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -723,7 +728,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          unit['name'] as String,
+                          isMe ? '${widget.fullName} (YOU)' : unit.driverName,
                           style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: isMe ? FontWeight.w800 : FontWeight.w600,
@@ -732,7 +737,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                         ),
                       ),
                       Text(
-                        unit['body'] as String,
+                        unit.bodyNumber,
                         style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -753,17 +758,44 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentEmerald,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TodaQueueScreen(
+                              driverName: widget.fullName,
+                              initialTerminalId: 'term_01',
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.fullscreen_rounded, size: 18),
+                      label: const Text('FULL BOARD', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
                   ),
-                  child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800)),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentEmerald,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1319,98 +1351,107 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   if (_isOnline)
                     GestureDetector(
                       onTap: _showDigitalPilaStatusSheet,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: LocationService.hasMockLocationViolation
-                                ? Colors.red.shade400
-                                : Colors.grey.shade200,
-                            width: LocationService.hasMockLocationViolation ? 1.5 : 1.0,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: LocationService.hasMockLocationViolation
-                                  ? Colors.red.withValues(alpha: 0.15)
-                                  : Colors.black.withValues(alpha: 0.08),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
+                      child: Builder(
+                        builder: (context) {
+                          final currentDynamicRank = TodaQueueService.getCurrentDriverRank('term_01', driverName: widget.fullName);
+                          final isDriverInQueue = currentDynamicRank > 0;
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
                                 color: LocationService.hasMockLocationViolation
-                                    ? const Color(0xFFFEE2E2)
-                                    : const Color(0xFFFEF3C7),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: LocationService.hasMockLocationViolation
-                                      ? const Color(0xFFFCA5A5)
-                                      : const Color(0xFFFDE68A),
-                                ),
+                                    ? Colors.red.shade400
+                                    : Colors.grey.shade200,
+                                width: LocationService.hasMockLocationViolation ? 1.5 : 1.0,
                               ),
-                              child: Text(
-                                LocationService.hasMockLocationViolation
-                                    ? 'SPOOF BLOCKED'
-                                    : 'PILA #$_queuePosition',
-                                style: TextStyle(
+                              boxShadow: [
+                                BoxShadow(
                                   color: LocationService.hasMockLocationViolation
-                                      ? const Color(0xFF991B1B)
-                                      : const Color(0xFFB45309),
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 12,
+                                      ? Colors.red.withValues(alpha: 0.15)
+                                      : Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
                                 ),
-                              ),
+                              ],
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    LocationService.hasMockLocationViolation
-                                        ? 'Mock GPS Violation Detected'
-                                        : 'Laoag Central Terminal TODA',
-                                    style: TextStyle(
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: LocationService.hasMockLocationViolation
+                                        ? const Color(0xFFFEE2E2)
+                                        : (isDriverInQueue ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9)),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
                                       color: LocationService.hasMockLocationViolation
-                                          ? Colors.red.shade900
-                                          : AppTheme.primarySlate,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 12.5,
+                                          ? const Color(0xFFFCA5A5)
+                                          : (isDriverInQueue ? const Color(0xFFFDE68A) : const Color(0xFFCBD5E1)),
                                     ),
                                   ),
-                                  Text(
+                                  child: Text(
                                     LocationService.hasMockLocationViolation
-                                        ? 'Queue paused under Ord. 2023-005. Tap to inspect.'
-                                        : 'Rank #$_queuePosition in Digital Pila • Standing by for dispatch',
+                                        ? 'SPOOF BLOCKED'
+                                        : (isDriverInQueue ? 'PILA #$currentDynamicRank' : 'EN ROUTE'),
                                     style: TextStyle(
                                       color: LocationService.hasMockLocationViolation
-                                          ? Colors.red.shade700
-                                          : const Color(0xFF059669),
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
+                                          ? const Color(0xFF991B1B)
+                                          : (isDriverInQueue ? const Color(0xFFB45309) : const Color(0xFF475569)),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 12,
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        LocationService.hasMockLocationViolation
+                                            ? 'Mock GPS Violation Detected'
+                                            : 'Laoag Central Terminal TODA',
+                                        style: TextStyle(
+                                          color: LocationService.hasMockLocationViolation
+                                              ? Colors.red.shade900
+                                              : AppTheme.primarySlate,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 12.5,
+                                        ),
+                                      ),
+                                      Text(
+                                        LocationService.hasMockLocationViolation
+                                            ? 'Queue paused under Ord. 2023-005. Tap to inspect.'
+                                            : (isDriverInQueue
+                                                ? 'Rank #$currentDynamicRank in Digital Pila • Standing by for dispatch'
+                                                : 'Outside terminal bay • Enter geofence to queue at tail'),
+                                        style: TextStyle(
+                                          color: LocationService.hasMockLocationViolation
+                                              ? Colors.red.shade700
+                                              : (isDriverInQueue ? const Color(0xFF059669) : const Color(0xFFD97706)),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  LocationService.hasMockLocationViolation
+                                      ? Icons.gpp_bad_rounded
+                                      : (isDriverInQueue ? Icons.check_circle_rounded : Icons.alt_route_rounded),
+                                  color: LocationService.hasMockLocationViolation
+                                      ? Colors.red.shade700
+                                      : (isDriverInQueue ? const Color(0xFF059669) : const Color(0xFFD97706)),
+                                  size: 20,
+                                ),
+                              ],
                             ),
-                            Icon(
-                              LocationService.hasMockLocationViolation
-                                  ? Icons.gpp_bad_rounded
-                                  : Icons.info_outline_rounded,
-                              color: LocationService.hasMockLocationViolation
-                                  ? Colors.red.shade700
-                                  : const Color(0xFF059669),
-                              size: 20,
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
                   const SizedBox(height: 8),

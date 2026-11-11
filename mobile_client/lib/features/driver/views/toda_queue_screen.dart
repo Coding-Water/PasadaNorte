@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
-import '../../../core/services/location_service.dart';
 import '../../../core/services/toda_queue_service.dart';
+import '../../../core/theme/app_theme.dart';
 
+/// Full-Screen TODA Digital Pila Queue Board for Drivers
+/// Displays the live FIFO terminal queue, driver's queue position,
+/// terminal bay status, and Laoag City Ordinance No. 2023-005 compliance notice.
 class TodaQueueScreen extends StatefulWidget {
   final String driverName;
+  final String? initialTerminalId;
 
   const TodaQueueScreen({
     super.key,
     required this.driverName,
+    this.initialTerminalId,
   });
 
   @override
@@ -15,470 +20,626 @@ class TodaQueueScreen extends StatefulWidget {
 }
 
 class _TodaQueueScreenState extends State<TodaQueueScreen> {
-  TodaTerminal _selectedTerminal = TodaQueueService.laoagTerminals[0];
-  final String _driverTodaCode = 'CENTRAL-TODA';
+  late TodaTerminal _selectedTerminal;
 
-  double _simulatedDistanceMeters = 8.0;
-  double _simulatedSpeedKmh = 0.0;
-  int _simulatedDwellSeconds = 35;
-  final int _queuePosition = 1;
-
-  // NTP Clock Synchronization & Ground-Truth Field Validation Counters (Objective 4)
-  bool _ntpClockSynced = true;
-  int _ntpDriftMs = 3;
-  final int _truePositiveLogged = 95; // out of 100 true terminal joins/departures (Recall = 95.0% >= 90%)
-  final int _falsePositiveLogged = 6; // out of 100 pass-by / traffic-stop events (FPR = 6.0% <= 10%)
-
-  QueueStatus get _evaluatedStatus {
-    final targetLat = _selectedTerminal.centerPoint.latitude +
-        (_simulatedDistanceMeters / 111320.0);
-    return TodaQueueService.evaluateQueueStatus(
-      currentLat: targetLat,
-      currentLng: _selectedTerminal.centerPoint.longitude,
-      currentSpeedKmh: _simulatedSpeedKmh,
-      terminal: _selectedTerminal,
-      driverTodaCode: _driverTodaCode,
-      dwellSeconds: _simulatedDwellSeconds,
-      isMockGps: LocationService.hasMockLocationViolation,
+  @override
+  void initState() {
+    super.initState();
+    final defaultId = widget.initialTerminalId ?? 'term_01';
+    _selectedTerminal = TodaQueueService.laoagTerminals.firstWhere(
+      (t) => t.id == defaultId,
+      orElse: () => TodaQueueService.laoagTerminals.first,
     );
   }
 
-  double get _recallPercent => (_truePositiveLogged / 100.0) * 100.0;
-  double get _fprPercent => (_falsePositiveLogged / 100.0) * 100.0;
-  double get _f1ScorePercent {
-    final double tp = _truePositiveLogged.toDouble();
-    final double fp = _falsePositiveLogged.toDouble();
-    final double fn = (100 - _truePositiveLogged).toDouble();
-    final double f1 = (2 * tp) / ((2 * tp) + fp + fn);
-    return f1 * 100.0;
-  }
-
-  String _statusTitle(QueueStatus status) {
-    switch (status) {
-      case QueueStatus.queued:
-        return 'QUEUED IN DIGITAL PILA (Position #$_queuePosition)';
-      case QueueStatus.passingThrough:
-        return 'EXCLUDED: Passing Through (> ${_selectedTerminal.speedLimitKmh} km/h)';
-      case QueueStatus.stuckInTraffic:
-        return 'EXCLUDED: Brief Traffic Stop (< ${_selectedTerminal.dwellTimeSeconds}s dwell)';
-      case QueueStatus.departingWithPassenger:
-        return 'AUTO-CHECKOUT: Departed (> ${TodaQueueService.speedCheckoutThresholdKmh} km/h)';
-      case QueueStatus.wrongToda:
-        return 'BLOCKED: Registered to $_driverTodaCode (Not ${_selectedTerminal.todaCode})';
-      case QueueStatus.outsideTerminal:
-        return 'OUTSIDE TERMINAL GEOFENCE (> ${_selectedTerminal.radiusMeters.toStringAsFixed(0)}m)';
-      case QueueStatus.autoPassed:
-        return 'AUTO-PASSED (15s Timeout Exceeded)';
-      case QueueStatus.mockGpsBlocked:
-        return 'BLOCKED: Mock GPS / Fake Location Detected (Spoofing Sentinel)';
-    }
-  }
-
-  Color _statusColor(QueueStatus status) {
-    switch (status) {
-      case QueueStatus.queued:
-        return Colors.green.shade700;
-      case QueueStatus.departingWithPassenger:
-        return Colors.blue.shade800;
-      case QueueStatus.passingThrough:
-      case QueueStatus.stuckInTraffic:
-        return Colors.amber.shade900;
-      case QueueStatus.wrongToda:
-      case QueueStatus.mockGpsBlocked:
-        return Colors.red.shade800;
-      default:
-        return Colors.grey.shade700;
-    }
+  void _refreshQueue() {
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('✓ Refreshed live terminal queue from PasadaNorte server.'),
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final status = _evaluatedStatus;
-    final statusColor = _statusColor(status);
+    final queue = TodaQueueService.getTerminalQueue(
+      _selectedTerminal.id,
+      driverName: widget.driverName,
+    );
+    final currentRank = TodaQueueService.getCurrentDriverRank(
+      _selectedTerminal.id,
+      driverName: widget.driverName,
+    );
+    final isQueued = currentRank > 0;
 
     return Scaffold(
+      backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        title: const Text('Digital Pila Calibration & NTP Validation'),
+        title: const Text('TODA Digital Pila Queue Board'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh Queue',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _refreshQueue,
+          ),
+        ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(18.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            _refreshQueue();
+          },
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
             children: [
-              // Terminal Selector Card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade900,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Select TODA Terminal Bay (3-Day Calibration: 60 Events | 5-Day Validation: 100 True + 100 Pass-By/Traffic Events)',
-                      style: TextStyle(color: Colors.amber, fontSize: 11.5, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<TodaTerminal>(
-                      initialValue: _selectedTerminal,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      items: TodaQueueService.laoagTerminals.map((t) {
-                        return DropdownMenuItem(
-                          value: t,
-                          child: Text(
-                            '${t.name} (${t.radiusMeters.toStringAsFixed(0)}m)',
-                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() => _selectedTerminal = val);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Your TODA: $_driverTodaCode',
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                        Text(
-                          'Geofence Radius: ${_selectedTerminal.radiusMeters.toStringAsFixed(0)}m',
-                          style: const TextStyle(
-                            color: Colors.amber,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
+              // 1. Terminal Selector Card
+              _buildTerminalSelectorCard(),
               const SizedBox(height: 14),
 
-              // NTP Clock Synchronization & Recall / FPR / F1-Score Benchmark Card (Objective 4)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.access_time_filled_rounded,
-                                color: _ntpClockSynced ? Colors.green.shade700 : Colors.orange,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  'NTP Sync: ${_ntpClockSynced ? "ACTIVE (+$_ntpDriftMs ms)" : "RESYNCING"}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _ntpClockSynced = true;
-                              _ntpDriftMs = 2;
-                            });
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Field observation clock synchronized to PostGIS backend NTP server (+2 ms offset).',
-                                ),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.sync, size: 15),
-                          label: const Text('Sync', style: TextStyle(fontSize: 11.5)),
-                        ),
-                      ],
-                    ),
-                    const Text(
-                      'Eliminates clock-drift between field researcher ground-truth logs and PostGIS GPS telemetry timestamps.',
-                      style: TextStyle(fontSize: 11.5, color: Colors.black54),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        Chip(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor: Colors.green.shade50,
-                          label: Text(
-                            'Recall (TPR): ${_recallPercent.toStringAsFixed(1)}% (Target >= 90%)',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade900),
-                          ),
-                        ),
-                        Chip(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor: Colors.blue.shade50,
-                          label: Text(
-                            'False Positive Rate: ${_fprPercent.toStringAsFixed(1)}% (Target <= 10%)',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
-                          ),
-                        ),
-                        Chip(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor: Colors.amber.shade50,
-                          label: Text(
-                            'F1-Score: ${_f1ScorePercent.toStringAsFixed(1)}%',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade900),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              // 2. Driver Current Queue Status Banner
+              _buildDriverStatusBanner(isQueued, currentRank, queue.length),
+              const SizedBox(height: 16),
 
-              const SizedBox(height: 14),
+              // 3. Live Dispatch Queue Header & List
+              _buildQueueListSection(queue),
+              const SizedBox(height: 16),
 
-              // Mock Location / Anti-GPS Spoofing Sentinel Banner (Pillar 2 Hardening)
-              if (LocationService.hasMockLocationViolation)
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.red.shade400, width: 1.5),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.gpp_bad_rounded, color: Colors.red.shade800, size: 28),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'MOCK GPS / FAKE LOCATION DETECTED',
-                              style: TextStyle(
-                                color: Colors.red.shade900,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Hardware mock provider active (isMocked = true). Digital Pila queue entry blocked to prevent fraudulent terminal jumping and enforce FIFO compliance under Laoag City Ordinance No. 2023-005.',
-                              style: TextStyle(
-                                color: Colors.red.shade800,
-                                fontSize: 11.5,
-                                height: 1.35,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              // 4. Terminal Bay Operations & Geofence Specs
+              _buildTerminalMetricsCard(queue.length),
+              const SizedBox(height: 16),
 
-              // Live Evaluated Status Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: statusColor, width: 2),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _statusTitle(status),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: statusColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Evaluated by TodaQueueService: Distance = ${_simulatedDistanceMeters.toStringAsFixed(0)}m '
-                      '(Radius <= ${_selectedTerminal.radiusMeters.toStringAsFixed(0)}m), '
-                      'Speed = ${_simulatedSpeedKmh.toStringAsFixed(1)} km/h, '
-                      'Stopped Dwell = ${_simulatedDwellSeconds}s.',
-                      style: const TextStyle(fontSize: 12, color: Colors.black87),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              const Text(
-                'Interactive Pilot Telemetry Sliders (Test Queue Conditions)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-
-              // Distance Slider
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '1. Distance from Terminal Pin: ${_simulatedDistanceMeters.toStringAsFixed(0)} m '
-                        '(Geofence Limit: ${_selectedTerminal.radiusMeters.toStringAsFixed(0)} m)',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
-                      ),
-                      Slider(
-                        value: _simulatedDistanceMeters,
-                        min: 0,
-                        max: 40,
-                        divisions: 40,
-                        label: '${_simulatedDistanceMeters.toStringAsFixed(0)} m',
-                        onChanged: (v) => setState(() => _simulatedDistanceMeters = v),
-                      ),
-                      Text(
-                        '2. Tricycle GPS Speed: ${_simulatedSpeedKmh.toStringAsFixed(1)} km/h '
-                        '(Join <= ${_selectedTerminal.speedLimitKmh} km/h | Departure > 10 km/h)',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
-                      ),
-                      Slider(
-                        value: _simulatedSpeedKmh,
-                        min: 0,
-                        max: 25,
-                        divisions: 50,
-                        label: '${_simulatedSpeedKmh.toStringAsFixed(1)} km/h',
-                        onChanged: (v) => setState(() => _simulatedSpeedKmh = v),
-                      ),
-                      Text(
-                        '3. Stationary Dwell Time: $_simulatedDwellSeconds seconds '
-                        '(Minimum Stop: ${_selectedTerminal.dwellTimeSeconds}s)',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
-                      ),
-                      Slider(
-                        value: _simulatedDwellSeconds.toDouble(),
-                        min: 0,
-                        max: 60,
-                        divisions: 60,
-                        label: '${_simulatedDwellSeconds}s',
-                        onChanged: (v) => setState(() => _simulatedDwellSeconds = v.round()),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Quick Scenario Preset Buttons
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ActionChip(
-                    avatar: Icon(
-                      LocationService.hasMockLocationViolation
-                          ? Icons.security_update_warning_rounded
-                          : Icons.security_rounded,
-                      size: 16,
-                      color: LocationService.hasMockLocationViolation
-                          ? Colors.red.shade700
-                          : Colors.teal.shade700,
-                    ),
-                    backgroundColor: LocationService.hasMockLocationViolation
-                        ? Colors.red.shade50
-                        : Colors.teal.shade50,
-                    label: Text(
-                      LocationService.hasMockLocationViolation
-                          ? 'Mock GPS Active (Tap to Disable Spoof)'
-                          : 'Simulate Mock GPS Spoofing Alert',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.bold,
-                        color: LocationService.hasMockLocationViolation
-                            ? Colors.red.shade900
-                            : Colors.teal.shade900,
-                      ),
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        LocationService.simulatedMockGpsForTesting =
-                            !LocationService.simulatedMockGpsForTesting;
-                      });
-                    },
-                  ),
-                  ActionChip(
-                    label: const Text('Valid Queue Join (Stop >= 30s)', style: TextStyle(fontSize: 11.5)),
-                    onPressed: () => setState(() {
-                      LocationService.simulatedMockGpsForTesting = false;
-                      _simulatedDistanceMeters = 8.0;
-                      _simulatedSpeedKmh = 0.0;
-                      _simulatedDwellSeconds = 35;
-                    }),
-                  ),
-                  ActionChip(
-                    label: const Text('Passing By (12 km/h inside radius)', style: TextStyle(fontSize: 11.5)),
-                    onPressed: () => setState(() {
-                      LocationService.simulatedMockGpsForTesting = false;
-                      _simulatedDistanceMeters = 10.0;
-                      _simulatedSpeedKmh = 12.0;
-                      _simulatedDwellSeconds = 5;
-                    }),
-                  ),
-                  ActionChip(
-                    label: const Text('Traffic Light Stop (12s < 30s)', style: TextStyle(fontSize: 11.5)),
-                    onPressed: () => setState(() {
-                      LocationService.simulatedMockGpsForTesting = false;
-                      _simulatedDistanceMeters = 9.0;
-                      _simulatedSpeedKmh = 0.0;
-                      _simulatedDwellSeconds = 12;
-                    }),
-                  ),
-                  ActionChip(
-                    label: const Text('Departure Checkout (16 km/h outside)', style: TextStyle(fontSize: 11.5)),
-                    onPressed: () => setState(() {
-                      LocationService.simulatedMockGpsForTesting = false;
-                      _simulatedDistanceMeters = 32.0;
-                      _simulatedSpeedKmh = 16.0;
-                      _simulatedDwellSeconds = 0;
-                    }),
-                  ),
-                ],
-              ),
+              // 5. Municipal Ordinance Notice Card
+              _buildOrdinanceNoticeCard(),
+              const SizedBox(height: 24),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTerminalSelectorCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.hub_rounded, color: Colors.amber, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'SELECT TODA TERMINAL BAY'.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.amber,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<TodaTerminal>(
+            initialValue: _selectedTerminal,
+            isExpanded: true,
+            dropdownColor: Colors.white,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            items: TodaQueueService.laoagTerminals.map((t) {
+              return DropdownMenuItem(
+                value: t,
+                child: Text(
+                  '${t.name} (${t.radiusMeters.toStringAsFixed(0)}m)',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primarySlate,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+            onChanged: (val) {
+              if (val != null) {
+                setState(() => _selectedTerminal = val);
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'TODA Station: ${_selectedTerminal.todaCode}',
+                style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade900.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade400, width: 0.8),
+                ),
+                child: Text(
+                  'Radius: ${_selectedTerminal.radiusMeters.toStringAsFixed(0)}m',
+                  style: const TextStyle(
+                    color: Colors.amber,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDriverStatusBanner(bool isQueued, int currentRank, int totalInQueue) {
+    if (isQueued) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.accentEmerald, width: 1.5),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: const BoxDecoration(
+                color: AppTheme.accentEmerald,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle_rounded, color: Colors.white, size: 26),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        currentRank == 1 ? 'DISPATCH PRIORITY #1' : 'PILA RANK #$currentRank',
+                        style: TextStyle(
+                          color: currentRank == 1 ? const Color(0xFFB45309) : AppTheme.accentEmeraldDark,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Position $currentRank of $totalInQueue',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.accentEmeraldDark,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    currentRank == 1
+                        ? 'You are first in line for the next commuter booking dispatch. Keep app open on Standby.'
+                        : 'Queued in FIFO line. Estimated turn-around: ~${(currentRank - 1) * 3} - ${currentRank * 4} mins.',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Color(0xFF1E293B),
+                      height: 1.35,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.gps_fixed_rounded, size: 14, color: AppTheme.accentEmerald),
+                      const SizedBox(width: 4),
+                      Text(
+                        'In-bounds within ${_selectedTerminal.radiusMeters.toStringAsFixed(0)}m terminal geofence',
+                        style: const TextStyle(fontSize: 11, color: AppTheme.accentEmeraldDark, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF59E0B),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.schedule_rounded, color: Colors.white, size: 26),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'NOT QUEUED • EN ROUTE / OUTSIDE BAY',
+                  style: TextStyle(
+                    color: Color(0xFFB45309),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'You are not currently in the ${_selectedTerminal.name} queue. When arriving at the terminal, enter within ${_selectedTerminal.radiusMeters.toStringAsFixed(0)}m to automatically join the FIFO queue at the tail.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF78350F),
+                    height: 1.35,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQueueListSection(List<PilaDriverUnit> queue) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 1)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Live FIFO Terminal Line',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.primarySlate,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${queue.length} tricycles currently stationed in bay',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Text(
+                  '${queue.length} IN LINE',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1D4ED8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          if (queue.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24.0),
+              child: Center(
+                child: Text(
+                  'No tricycles currently queued in this station.',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                ),
+              ),
+            )
+          else
+            ...queue.map((unit) {
+              final isMe = unit.isCurrentDriver;
+              final isFirst = unit.rank == 1;
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isMe ? const Color(0xFFF0FDF4) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isMe
+                        ? AppTheme.accentEmerald
+                        : (isFirst ? const Color(0xFFFCD34D) : const Color(0xFFE2E8F0)),
+                    width: isMe ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Rank Badge
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isFirst
+                            ? const Color(0xFFF59E0B)
+                            : (isMe ? AppTheme.accentEmerald : const Color(0xFFF1F5F9)),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '#${unit.rank}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: (isFirst || isMe) ? Colors.white : const Color(0xFF475569),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Driver Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  isMe ? '${widget.driverName} (YOU)' : unit.driverName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isMe ? FontWeight.w900 : FontWeight.w700,
+                                    color: isMe ? AppTheme.accentEmeraldDark : AppTheme.primarySlate,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (isMe) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.accentEmerald,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'YOU',
+                                    style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            unit.status,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isFirst ? const Color(0xFFB45309) : Colors.grey.shade600,
+                              fontWeight: isFirst ? FontWeight.w700 : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Body Number Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: Text(
+                        unit.bodyNumber,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTerminalMetricsCard(int queuedCount) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Terminal Bay Metrics',
+            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: AppTheme.primarySlate),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricTile(
+                  title: 'Active Bays',
+                  value: '$queuedCount / 12',
+                  subtitle: '${((queuedCount / 12) * 100).toStringAsFixed(0)}% Occupancy',
+                  icon: Icons.local_taxi_rounded,
+                  color: AppTheme.accentEmerald,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildMetricTile(
+                  title: 'Geofence Radius',
+                  value: '${_selectedTerminal.radiusMeters.toStringAsFixed(0)}m',
+                  subtitle: 'Virtual boundary',
+                  icon: Icons.radar_rounded,
+                  color: const Color(0xFF0A84FF),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildMetricTile(
+                  title: 'Dwell Timeout',
+                  value: '15s',
+                  subtitle: 'Auto-pass timer',
+                  icon: Icons.timer_outlined,
+                  color: const Color(0xFFF59E0B),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricTile({
+    required String title,
+    required String value,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              color: AppTheme.primarySlate,
+            ),
+          ),
+          Text(
+            title,
+            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+          ),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 9.5, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrdinanceNoticeCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.gavel_rounded, size: 20, color: Colors.grey.shade700),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Laoag City Ordinance No. 2023-005 Compliance',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primarySlate,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Terminal queuing operates on strict automated FIFO ordering. Enqueueing requires physical presence within the geofence bay. GPS spoofing or manual queue manipulation is strictly prohibited and audited in real-time by the Web Command Center.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
