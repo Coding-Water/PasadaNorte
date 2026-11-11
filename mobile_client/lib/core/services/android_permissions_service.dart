@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'location_service.dart';
+import 'system_notification_service.dart';
 
 class AndroidPermissionsState {
   final bool locationGranted;
@@ -88,6 +89,9 @@ class AndroidPermissionsService {
     if (forceShowAll || !notifGranted) {
       notifGranted = await showNotificationPermissionDialog(context);
       await prefs.setBool(_kNotifGranted, notifGranted);
+      if (notifGranted) {
+        await SystemNotificationService.requestPermission();
+      }
     }
 
     if (!context.mounted) return getSavedState();

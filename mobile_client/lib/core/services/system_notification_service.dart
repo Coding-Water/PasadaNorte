@@ -48,6 +48,7 @@ class SystemNotificationService {
               AndroidFlutterLocalNotificationsPlugin>();
 
       if (androidImplementation != null) {
+        await androidImplementation.requestNotificationsPermission();
         await androidImplementation.createNotificationChannel(
           const AndroidNotificationChannel(
             channelId,
@@ -67,6 +68,24 @@ class SystemNotificationService {
     }
   }
 
+  /// Explicitly requests notification permission on Android 13+ and iOS
+  static Future<bool> requestPermission() async {
+    try {
+      final androidImplementation = _notificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidImplementation != null) {
+        final bool? granted =
+            await androidImplementation.requestNotificationsPermission();
+        return granted ?? false;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error requesting notification permission: $e');
+      return false;
+    }
+  }
+
   static NotificationDetails _getNotificationDetails() {
     return const NotificationDetails(
       android: AndroidNotificationDetails(
@@ -77,7 +96,8 @@ class SystemNotificationService {
         priority: Priority.high,
         playSound: true,
         enableVibration: true,
-        icon: '@mipmap/ic_launcher',
+        channelShowBadge: true,
+        visibility: NotificationVisibility.public,
         category: AndroidNotificationCategory.status,
       ),
       iOS: DarwinNotificationDetails(
