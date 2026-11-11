@@ -1232,7 +1232,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
             ),
             const SizedBox(height: 14),
             const Text(
-              'Queued at Rank #1 in Pila!',
+              'Queued in Digital Pila!',
               style: TextStyle(
                 color: AppTheme.primarySlate,
                 fontSize: 18.5,
@@ -1241,7 +1241,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
             ),
             const SizedBox(height: 6),
             Text(
-              'You successfully entered the 25m geofence of ${terminal.name}. You are first in line for the next commuter dispatch.',
+              'You successfully entered the 25m geofence of ${terminal.name}. You have joined the FIFO dispatch queue.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600, fontSize: 13, height: 1.4),
             ),
@@ -2253,7 +2253,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Auto-queues at Rank #1 upon entering 25m geofence',
+                          'Auto-queues into FIFO line upon entering 25m geofence',
                           style: TextStyle(
                             color: Colors.green.shade800,
                             fontSize: 11.5,
@@ -2286,15 +2286,15 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: const Color(0xFFFEF3C7),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.3)),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
                     ),
                     child: const Text(
-                      'FIFO PILA: RANK #1',
+                      'NOT QUEUED • EN ROUTE',
                       style: TextStyle(
-                        color: AppTheme.accentEmerald,
-                        fontSize: 11,
+                        color: Color(0xFFB45309),
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w900,
                       ),
                     ),

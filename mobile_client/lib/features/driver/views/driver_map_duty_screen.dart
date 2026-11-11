@@ -27,7 +27,7 @@ class DriverMapDutyScreen extends StatefulWidget {
 class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   bool _isOnline = true;
   bool _simulateNetworkDropFailSafe = false; // ISO/IEC 25010:2023 operational fail-safe during mobile data loss
-  final int _queuePosition = 1;
+  int _queuePosition = 1;
   bool _showHotspots = false; // Default OFF so driver map is clean and does not cause dizziness
   bool _isHybridSatellite = false; // Google Roadmap vs Google Hybrid Satellite
   final LatLng _driverLocation = const LatLng(18.1960, 120.5935); // Laoag Central Terminal / Aurora Park
@@ -237,16 +237,19 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                     );
                     if (mounted) {
                       if (queuedInPila == true) {
+                        setState(() {
+                          _queuePosition = 4; // Re-enters queue at end of FIFO line after completing trip
+                        });
                         ScaffoldMessenger.of(this.context).showSnackBar(
                           SnackBar(
-                            content: const Row(
+                            content: Row(
                               children: [
-                                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                                SizedBox(width: 10),
+                                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    '✓ Queued at Rank #1 in Laoag Central TODA Terminal!',
-                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                    '✓ Returned to Terminal & Queued (Rank #$_queuePosition in Line)!',
+                                    style: const TextStyle(fontWeight: FontWeight.w700),
                                   ),
                                 ),
                               ],
