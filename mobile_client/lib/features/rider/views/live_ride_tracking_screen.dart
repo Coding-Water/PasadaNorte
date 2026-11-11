@@ -1077,192 +1077,6 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               ),
             ),
 
-          // CENTER PROMPT: "A RIDER HAS ACCEPTED YOUR RIDE!"
-          if (_showRiderAcceptedPrompt &&
-              _ridePhase == _RidePhase.driverHeadingToPickup)
-            Positioned.fill(
-              child: Semantics(
-                container: true,
-                liveRegion: true,
-                label: 'A driver has accepted your ride. ${_matchedDriver['name']} is on their way to pick you up.',
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _dismissRiderAcceptedPrompt,
-                  child: Container(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: GestureDetector(
-                      onTap: () {}, // Prevent tap from bubbling to backdrop
-                    child: Material(
-                      elevation: 20,
-                      borderRadius: BorderRadius.circular(26),
-                      color: Colors.white,
-                      child: Container(
-                        width: double.infinity,
-                        constraints: const BoxConstraints(maxWidth: 380),
-                        padding: const EdgeInsets.fromLTRB(22, 20, 22, 24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(26),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 28,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Header with Close ('X') button at top right
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const SizedBox(width: 36),
-                                Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.accentEmeraldLight,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: AppTheme.accentEmerald,
-                                      width: 2.5,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppTheme.accentEmerald
-                                            .withValues(alpha: 0.25),
-                                        blurRadius: 14,
-                                        spreadRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.check_circle_rounded,
-                                      color: AppTheme.accentEmerald,
-                                      size: 36,
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip: 'Close',
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    color: Color(0xFF64748B),
-                                    size: 24,
-                                  ),
-                                  onPressed: _dismissRiderAcceptedPrompt,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'A rider has accepted your ride!',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: AppTheme.primarySlate,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${_matchedDriver['name']} is on their way to pick you up.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 13.5,
-                                height: 1.35,
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            // Driver Card Inside the Dialog
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(16),
-                                border:
-                                    Border.all(color: const Color(0xFFE2E8F0)),
-                              ),
-                              child: Row(
-                                children: [
-                                  _buildDriverAvatar(size: 46),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          _matchedDriver['name']!,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 14.5,
-                                            fontWeight: FontWeight.w800,
-                                            color: AppTheme.primarySlate,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          '${_matchedDriver['bodyNumber']} • Arriving in ~$_etaToPassengerMinutes mins',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppTheme.accentEmerald,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            // Action Button: Dismiss immediately or Track
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton(
-                                onPressed: _dismissRiderAcceptedPrompt,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppTheme.accentEmerald,
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Track Driver',
-                                  style: TextStyle(
-                                    fontSize: 15.5,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
           // 3. FLOATING CIRCULAR BACK (<) AND GPS TARGET BUTTONS ABOVE BOTTOM SHEET
           if (!_isSheetExpanded &&
               _ridePhase != _RidePhase.arrivedAtDestination) ...[
@@ -1334,7 +1148,208 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                     ),
                   ),
           ),
+
+          // 6. TOPMOST MODAL OVERLAY: "A RIDER HAS ACCEPTED YOUR RIDE!"
+          _buildRiderAcceptedCenterPrompt(),
         ],
+      ),
+    );
+  }
+
+  // Centered modal popup when driver accepts the ride offer
+  Widget _buildRiderAcceptedCenterPrompt() {
+    if (!_showRiderAcceptedPrompt ||
+        _ridePhase != _RidePhase.driverHeadingToPickup) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned.fill(
+      child: Semantics(
+        container: true,
+        liveRegion: true,
+        label:
+            'A driver has accepted your ride. ${_matchedDriver['name']} is on their way to pick you up.',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _dismissRiderAcceptedPrompt,
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.55),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: GestureDetector(
+              onTap: () {}, // Prevent tap from bubbling to backdrop
+              child: Material(
+                elevation: 24,
+                borderRadius: BorderRadius.circular(26),
+                color: Colors.white,
+                child: Container(
+                  width: double.infinity,
+                  constraints: BoxConstraints(
+                    maxWidth: 380,
+                    maxHeight: MediaQuery.of(context).size.height * 0.80,
+                  ),
+                  padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(26),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.20),
+                        blurRadius: 28,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Header with Close ('X') button at top right
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const SizedBox(width: 36),
+                            Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: AppTheme.accentEmeraldLight,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppTheme.accentEmerald,
+                                  width: 2.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.accentEmerald
+                                        .withValues(alpha: 0.25),
+                                    blurRadius: 14,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppTheme.accentEmerald,
+                                  size: 36,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Close',
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: Color(0xFF64748B),
+                                size: 24,
+                              ),
+                              onPressed: _dismissRiderAcceptedPrompt,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'A rider has accepted your ride!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppTheme.primarySlate,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${_matchedDriver['name']} is on their way to pick you up.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 13.5,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        // Driver Card Inside the Dialog
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              _buildDriverAvatar(size: 46),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _matchedDriver['name']!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppTheme.primarySlate,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '${_matchedDriver['bodyNumber']} • Arriving in ~$_etaToPassengerMinutes mins',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppTheme.accentEmerald,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Action Button: Dismiss immediately or Track
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton(
+                            onPressed: _dismissRiderAcceptedPrompt,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.accentEmerald,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text(
+                              'Track Driver',
+                              style: TextStyle(
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1577,41 +1592,6 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               ),
             ),
             const SizedBox(height: 8),
-            Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppTheme.accentEmeraldLight,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppTheme.accentEmerald.withValues(alpha: 0.35),
-                  width: 1.2,
-                ),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.check_circle_rounded,
-                    size: 15,
-                    color: AppTheme.accentEmerald,
-                  ),
-                  SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      'A rider has accepted your ride',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.accentEmerald,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
             const Text(
               'Driver is heading to your location...',
               textAlign: TextAlign.center,

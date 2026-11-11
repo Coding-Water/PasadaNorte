@@ -184,7 +184,10 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => const _LocationSearchSheet(),
+      builder: (ctx) => _LocationSearchSheet(
+        initialQuery: _dropoffPoint?.name,
+        currentLocationName: _pickupPoint.name,
+      ),
     );
 
     if (selected != null && mounted) {
@@ -633,18 +636,48 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
 }
 
 class _LocationSearchSheet extends StatefulWidget {
-  const _LocationSearchSheet();
+  final String? initialQuery;
+  final String? currentLocationName;
+
+  const _LocationSearchSheet({
+    this.initialQuery,
+    this.currentLocationName,
+  });
 
   @override
   State<_LocationSearchSheet> createState() => _LocationSearchSheetState();
 }
 
 class _LocationSearchSheetState extends State<_LocationSearchSheet> {
-  final TextEditingController _searchController = TextEditingController();
+  late final TextEditingController _searchController;
   Timer? _debounce;
   bool _isSearching = false;
-  // Never pre-populate or predict hardcoded destinations; start completely empty
   List<LocationPoint> _results = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.initialQuery ?? '');
+    if (_searchController.text.trim().isNotEmpty) {
+      _searchController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _searchController.text.length,
+      );
+      // Run initial search so the pinned address places are displayed immediately
+      _performSearch(_searchController.text);
+    }
+  }
+
+  void _performSearch(String val) async {
+    if (val.trim().isEmpty) return;
+    setState(() => _isSearching = true);
+    final found = await LocationService.searchPlacesInLaoag(val);
+    if (!mounted) return;
+    setState(() {
+      _isSearching = false;
+      _results = found;
+    });
+  }
 
   @override
   void dispose() {
@@ -662,15 +695,9 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
       });
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 350), () async {
+    _debounce = Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
-      setState(() => _isSearching = true);
-      final found = await LocationService.searchPlacesInLaoag(val);
-      if (!mounted) return;
-      setState(() {
-        _isSearching = false;
-        _results = found;
-      });
+      _performSearch(val);
     });
   }
 
@@ -748,18 +775,23 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
                     color: const Color(0xFFFAFAFA),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.location_on_rounded,
                         color: AppTheme.accentEmerald,
                         size: 20,
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Your current location',
-                          style: TextStyle(
+                          (widget.currentLocationName != null &&
+                                  widget.currentLocationName!.trim().isNotEmpty)
+                              ? widget.currentLocationName!
+                              : 'Your current location',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
                             fontSize: 14.5,
                             fontWeight: FontWeight.w700,
                             color: AppTheme.primarySlate,
