@@ -162,21 +162,47 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
   }
 
   Future<void> _useCurrentGpsForPickup({bool silent = false}) async {
+    // 1. Immediately snap/recenter map camera to user's known coordinates with zero lag
+    _mapController.move(_pickupPoint.latLng, 16.5);
+
+    if (!silent && mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.gps_fixed_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Map centered on your location (${_pickupPoint.name})',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+
+    // 2. Fetch fresh hardware GPS fix in the background to ensure high precision
     try {
       final gpsPoint = await LocationService.warmUpDeviceGpsLocation();
       if (!mounted) return;
-      setState(() {
-        _pickupPoint = gpsPoint;
-      });
-      _mapController.move(_pickupPoint.latLng, 16.0);
-      if (_dropoffPoint != null) {
-        _updateRouteAndFare();
+      if (gpsPoint.latitude != _pickupPoint.latitude ||
+          gpsPoint.longitude != _pickupPoint.longitude) {
+        setState(() {
+          _pickupPoint = gpsPoint;
+        });
+        _mapController.move(_pickupPoint.latLng, 16.5);
+        if (_dropoffPoint != null) {
+          _updateRouteAndFare();
+        }
       }
-      return;
     } catch (_) {}
-
-    if (!mounted) return;
-    _mapController.move(_pickupPoint.latLng, 16.0);
   }
 
   Future<void> _openDestinationSearchSheet() async {
@@ -235,13 +261,18 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
   Widget build(BuildContext context) {
     final bool isDelivery = _selectedTripType == TripType.pabiliPadala;
     final bool hasDestination = _dropoffPoint != null && _fareBreakdown != null;
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+    final double bottomSheetHeight = bottomInset +
+        152.0 +
+        (isDelivery ? 54.0 : 0.0) +
+        (hasDestination ? 66.0 : 0.0);
 
     return Scaffold(
       body: Stack(
         children: [
           // 1. Full-Bleed Interactive Google Map with User Blue Halo Dot
           Positioned.fill(
-            bottom: hasDestination ? 190 : 120,
+            bottom: bottomSheetHeight - 20.0,
             child: FlutterMap(
               mapController: _mapController,
               options: MapOptions(
@@ -379,10 +410,12 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
             ),
           ),
 
-          // 3. Bottom-Right Circular Re-Center GPS Location Button (Readjusts to Accurate Position)
-          Positioned(
+          // 3. Bottom-Right Circular Re-Center GPS Location Button (Floats dynamically above Bottom Sheet)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
             right: 18,
-            bottom: (hasDestination ? (isDelivery ? 290 : 230) : (isDelivery ? 210 : 152)),
+            bottom: bottomSheetHeight + 14.0,
             child: Tooltip(
               message: 'Recenter on my GPS location',
               child: Semantics(
@@ -395,7 +428,7 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
                   shadowColor: Colors.black26,
                   child: InkWell(
                     customBorder: const CircleBorder(),
-                    onTap: () => _useCurrentGpsForPickup(silent: true),
+                    onTap: () => _useCurrentGpsForPickup(silent: false),
                     child: const SizedBox(
                       width: 52,
                       height: 52,
