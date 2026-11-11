@@ -2486,84 +2486,88 @@ class _SlideToConfirmWidgetState extends State<_SlideToConfirmWidget> {
           label: widget.text,
           hint: 'Slide right or double tap to confirm',
           onTap: widget.onConfirmed,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 56),
-            height: 60,
-            decoration: BoxDecoration(
-              color: AppTheme.accentEmerald,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.accentEmerald.withValues(alpha: 0.28),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                // Prompt Text
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 50),
-                    child: Text(
-                      widget.text,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onDoubleTap: widget.onConfirmed,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 56),
+              height: 60,
+              decoration: BoxDecoration(
+                color: AppTheme.accentEmerald,
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.accentEmerald.withValues(alpha: 0.28),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Prompt Text
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 50),
+                      child: Text(
+                        widget.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                // Draggable Circle Thumb
-                Positioned(
-                  left: 4.0 + _dragPosition,
-                  top: 4.0,
-                  bottom: 4.0,
-                  child: GestureDetector(
-                    onHorizontalDragUpdate: (details) {
-                      setState(() {
-                        _dragPosition = (_dragPosition + details.delta.dx)
-                            .clamp(0.0, maxDrag);
-                      });
-                    },
-                    onHorizontalDragEnd: (details) {
-                      if (_dragPosition >= maxDrag * 0.75) {
-                        // Confirmed!
-                        widget.onConfirmed();
-                      }
-                      // Reset slider
-                      setState(() {
-                        _dragPosition = 0.0;
-                      });
-                    },
-                    child: Container(
-                      width: _thumbWidth,
-                      height: _thumbWidth,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.arrow_forward_rounded,
-                        color: AppTheme.accentEmerald,
-                        size: 26,
+                  // Draggable Circle Thumb
+                  Positioned(
+                    left: 4.0 + _dragPosition,
+                    top: 4.0,
+                    bottom: 4.0,
+                    child: GestureDetector(
+                      onHorizontalDragUpdate: (details) {
+                        setState(() {
+                          _dragPosition = (_dragPosition + details.delta.dx)
+                              .clamp(0.0, maxDrag);
+                        });
+                      },
+                      onHorizontalDragEnd: (details) {
+                        if (_dragPosition >= maxDrag * 0.75) {
+                          // Confirmed!
+                          widget.onConfirmed();
+                        }
+                        // Reset slider
+                        setState(() {
+                          _dragPosition = 0.0;
+                        });
+                      },
+                      child: Container(
+                        width: _thumbWidth,
+                        height: _thumbWidth,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: AppTheme.accentEmerald,
+                          size: 26,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
