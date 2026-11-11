@@ -1062,6 +1062,13 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         destination: widget.dropoffPoint.name,
       );
     } catch (_) {}
+
+    try {
+      await SystemNotificationService.showTripCompletedNotification(
+        fareAmount: widget.discountedFare,
+        paymentMethod: _cashReceived ? 'Cash' : 'GCash',
+      );
+    } catch (_) {}
   }
 
   TodaTerminal _getReturnTerminal() {
