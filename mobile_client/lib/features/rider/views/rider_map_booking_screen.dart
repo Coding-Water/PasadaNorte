@@ -172,15 +172,6 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
       if (_dropoffPoint != null) {
         _updateRouteAndFare();
       }
-      if (!silent) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Centered on your GPS location: ${gpsPoint.name}'),
-            backgroundColor: const Color(0xFF1D8FF2),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
       return;
     } catch (_) {}
 
@@ -382,7 +373,7 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
           // 3. Bottom-Right Circular Re-Center GPS Location Button (Readjusts to Accurate Position)
           Positioned(
             right: 18,
-            bottom: (hasDestination ? (isDelivery ? 275 : 215) : (isDelivery ? 195 : 138)),
+            bottom: (hasDestination ? (isDelivery ? 290 : 230) : (isDelivery ? 210 : 152)),
             child: Material(
               color: Colors.white,
               shape: const CircleBorder(),
@@ -390,7 +381,7 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
               shadowColor: Colors.black26,
               child: InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () => _useCurrentGpsForPickup(silent: false),
+                onTap: () => _useCurrentGpsForPickup(silent: true),
                 child: const SizedBox(
                   width: 52,
                   height: 52,
@@ -409,33 +400,54 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
           // 4. Clean Bottom Sheet ("Where to?" Search Bar + Optional Book Ride Button Once Selected)
           Align(
             alignment: Alignment.bottomCenter,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-                boxShadow: [
-                  BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, -4)),
-                ],
-              ),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 4.5,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(10),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragEnd: (details) {
+                // Swiping up opens the full "Where do you want to go?" destination search sheet (Image 2)
+                if ((details.primaryVelocity ?? 0) < -60) {
+                  _openDestinationSearchSheet();
+                }
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 34),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, -4)),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top drag handle line with swipe up & tap activation
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _openDestinationSearchSheet,
+                        onVerticalDragEnd: (details) {
+                          if ((details.primaryVelocity ?? 0) < -60) {
+                            _openDestinationSearchSheet();
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Center(
+                            child: Container(
+                              width: 44,
+                              height: 4.5,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 12),
 
                     // Clean "Where to?" Pill (Matching Reference Screenshot 1 — No Hardcoded Destination)
                     InkWell(
@@ -565,7 +577,8 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
               ),
             ),
           ),
-        ],
+        ),
+      ],
       ),
     );
   }
@@ -647,13 +660,25 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 42,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(10),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.pop(context),
+            onVerticalDragEnd: (details) {
+              if ((details.primaryVelocity ?? 0) > 80) {
+                Navigator.pop(context);
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               ),
             ),
           ),
