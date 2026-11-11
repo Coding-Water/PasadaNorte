@@ -55,9 +55,9 @@ void main() {
       await tester.drag(find.text('Maria Clara Santos'), const Offset(0, -300));
       await tester.pumpAndSettle();
 
-      // Expanded: Header, Rank pill, and Upfront Fare card are visible
+      // Expanded: Header and Upfront Fare card are visible (Pila rank badge is hidden during active trip)
       expect(find.textContaining('Calculated Upfront Fare'), findsOneWidget);
-      expect(find.text('PILA RANK #1'), findsOneWidget);
+      expect(find.text('PILA RANK #1'), findsNothing);
       expect(find.text('Maria Clara Santos'), findsOneWidget);
 
       // Swipe DOWN to collapse again

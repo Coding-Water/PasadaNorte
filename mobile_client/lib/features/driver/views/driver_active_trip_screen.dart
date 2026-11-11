@@ -2000,48 +2000,25 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   }
 
   Widget _buildStageHeaderRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Semantics(
-                header: true,
-                child: Text(
-                  _getStageTitle(),
-                  style: const TextStyle(
-                    color: AppTheme.primarySlate,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _getStageSubtitle(),
-                style: TextStyle(color: Colors.grey.shade700, fontSize: 12.5),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFEF3C7),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFFDE68A)),
-          ),
-          child: const Text(
-            'PILA RANK #1',
-            style: TextStyle(
-              color: Color(0xFFB45309),
-              fontWeight: FontWeight.w900,
-              fontSize: 11,
+        Semantics(
+          header: true,
+          child: Text(
+            _getStageTitle(),
+            style: const TextStyle(
+              color: AppTheme.primarySlate,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
             ),
           ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          _getStageSubtitle(),
+          style: TextStyle(color: Colors.grey.shade700, fontSize: 12.5),
         ),
       ],
     );
