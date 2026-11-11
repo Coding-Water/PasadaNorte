@@ -68,7 +68,7 @@ class DriverStatsService {
   // Driver & Tricycle Franchise Profile
   static const String driverFullName = 'Eduardo "Manong Eddie" Castro';
   static const String todaAssociation = 'Laoag Central Terminal TODA Association';
-  static const String bodyNumber = '042';
+  static const String bodyNumber = '0042';
   static const String plateNumber = '7489-IN';
   static const String mincFranchiseNumber = 'MINC-LAOAG-2024-0892';
   static const String franchiseExpiry = 'December 31, 2027';

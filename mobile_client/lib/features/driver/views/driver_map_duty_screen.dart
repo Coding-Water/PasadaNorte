@@ -11,7 +11,6 @@ import '../../../core/services/toda_queue_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import 'driver_active_trip_screen.dart';
-import 'toda_queue_screen.dart';
 
 class DriverMapDutyScreen extends StatefulWidget {
   final String fullName;
@@ -764,44 +763,18 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   ],
                 ),
                 const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => TodaQueueScreen(
-                                driverName: widget.fullName,
-                                initialTerminalId: 'term_01',
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.fullscreen_rounded, size: 18),
-                        label: const Text('FULL BOARD', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                      ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.accentEmerald,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.accentEmerald,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(0, 48),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
-                      ),
-                    ),
-                  ],
+                    child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+                  ),
                 ),
               ],
             ),
@@ -1609,7 +1582,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
             alignment: Alignment.bottomCenter,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
@@ -1617,40 +1590,26 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   BoxShadow(color: Colors.black12, blurRadius: 16, offset: Offset(0, -4)),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _showDigitalPilaStatusSheet,
+                      icon: const Icon(Icons.format_list_numbered_rounded, size: 18),
+                      label: const Text('Queue Status', style: TextStyle(fontSize: 13)),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _showDigitalPilaStatusSheet,
-                          icon: const Icon(Icons.format_list_numbered_rounded, size: 18),
-                          label: const Text('Queue Status', style: TextStyle(fontSize: 13)),
-                        ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: _simulateIncomingRideRequest,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentEmerald,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton.icon(
-                          onPressed: _simulateIncomingRideRequest,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.accentEmerald,
-                          ),
-                          icon: const Icon(Icons.notifications_active_rounded, size: 18),
-                          label: const Text('Test 15s Ride Dispatch', style: TextStyle(fontSize: 13.5)),
-                        ),
-                      ),
-                    ],
+                      icon: const Icon(Icons.notifications_active_rounded, size: 18),
+                      label: const Text('Test 15s Ride Dispatch', style: TextStyle(fontSize: 13.5)),
+                    ),
                   ),
                 ],
               ),
