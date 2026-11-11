@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/sound_alert_service.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/system_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 
@@ -252,6 +253,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
     // Immediate ring noise and vibration alert when driver accepts
     SoundAlertService.playDispatchOfferChime();
+    SystemNotificationService.showDriverAcceptedNotification(
+      driverName: _matchedDriver['name'] ?? 'Eduardo Castro',
+      bodyNumber: _matchedDriver['bodyNumber'] ?? '0042',
+    );
 
     _riderAcceptedPromptTimer?.cancel();
     _riderAcceptedPromptTimer = Timer(const Duration(seconds: 3), () {
@@ -326,6 +331,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       _etaToDestinationMinutes = _totalTripDurationMinutes;
     });
 
+    SystemNotificationService.showTripStartedNotification(
+      dropoffLocation: widget.dropoffPoint.name,
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _fitDestinationRouteBounds();
@@ -384,6 +393,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       _remainingDestinationKm = 0.0;
       _etaToDestinationMinutes = 0;
     });
+    SystemNotificationService.showTripCompletedNotification(
+      fareAmount: widget.fareBreakdown.finalFare,
+      paymentMethod: 'Cash',
+    );
     _mapController.move(widget.dropoffPoint.latLng, 17.5);
   }
 

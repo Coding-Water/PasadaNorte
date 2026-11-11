@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/system_notification_service.dart';
 import '../../../core/services/toda_queue_service.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -1197,6 +1198,17 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       _currentDriverLocation = terminal.centerPoint.latLng;
       _currentPolylineIndex = max(0, _currentRoutePolyline.length - 1);
     });
+
+    if (assignedRank == 1) {
+      SystemNotificationService.showRankOneNotification(
+        terminalName: terminal.name,
+      );
+    } else {
+      SystemNotificationService.showQueuedInPilaNotification(
+        rank: assignedRank,
+        terminalName: terminal.name,
+      );
+    }
 
     if (!mounted) return;
     bool viewedQueue = false;

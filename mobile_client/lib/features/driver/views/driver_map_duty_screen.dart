@@ -8,6 +8,7 @@ import '../../../core/services/location_service.dart';
 import '../../../core/services/sound_alert_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/toda_queue_service.dart';
+import '../../../core/services/system_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import 'driver_active_trip_screen.dart';
@@ -88,6 +89,11 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
 
     // Trigger native audio chime and heavy haptics immediately for hands-free driver alert
     SoundAlertService.playDispatchOfferChime();
+    SystemNotificationService.showNewDispatchOfferNotification(
+      passengerName: 'Maria Clara Santos',
+      pickup: 'Laoag Central Terminal & Public Market',
+      fare: 16.0,
+    );
 
     showDialog(
       context: context,
