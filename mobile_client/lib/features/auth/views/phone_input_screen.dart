@@ -65,14 +65,6 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           return;
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Welcome back, $fullName!'),
-            backgroundColor: AppTheme.accentEmerald,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-
         if (roleStr == 'driver') {
           Navigator.push(
             context,
