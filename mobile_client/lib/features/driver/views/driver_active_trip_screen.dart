@@ -2087,19 +2087,22 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                _getStageTitle(),
-                style: const TextStyle(
-                  color: AppTheme.primarySlate,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
+              Semantics(
+                header: true,
+                child: Text(
+                  _getStageTitle(),
+                  style: const TextStyle(
+                    color: AppTheme.primarySlate,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 _getStageSubtitle(),
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 12.5),
               ),
             ],
           ),
@@ -2191,7 +2194,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: AppTheme.accentEmerald,
+                    color: AppTheme.accentEmeraldDark,
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
                   ),
@@ -2205,12 +2208,16 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
           _buildOutlinedCircleBtn(
             icon: Icons.chat_bubble_outline_rounded,
             onTap: _openPassengerChatModal,
+            tooltip: 'Chat with passenger',
+            semanticLabel: 'Chat with passenger',
           ),
           const SizedBox(width: 10),
           // Outlined Call Button
           _buildOutlinedCircleBtn(
             icon: Icons.phone_outlined,
             onTap: _openPassengerCallModal,
+            tooltip: 'Call passenger',
+            semanticLabel: 'Call passenger',
           ),
         ],
       ],
@@ -2218,13 +2225,14 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   }
 
   Widget _buildUpfrontFareCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return MergeSemantics(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
       child: Column(
         children: [
           Row(
@@ -2297,8 +2305,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildReturnToPilaCard() {
     final term = _returnTerminal ?? _getReturnTerminal();
@@ -2499,19 +2508,28 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   Widget _buildOutlinedCircleBtn({
     required IconData icon,
     required VoidCallback onTap,
+    String? tooltip,
+    String? semanticLabel,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: const Color(0xFFF1F5F9),
-          border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.4), width: 1.5),
+    return Tooltip(
+      message: tooltip ?? semanticLabel ?? '',
+      child: Semantics(
+        button: true,
+        label: semanticLabel ?? tooltip,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFF1F5F9),
+              border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.4), width: 1.5),
+            ),
+            child: Icon(icon, color: AppTheme.accentEmerald, size: 22),
+          ),
         ),
-        child: Icon(icon, color: AppTheme.accentEmerald, size: 20),
       ),
     );
   }
@@ -2543,83 +2561,90 @@ class _SlideToConfirmWidgetState extends State<_SlideToConfirmWidget> {
       builder: (context, constraints) {
         final double maxDrag = constraints.maxWidth - _thumbWidth - 8.0;
 
-        return Container(
-          height: 60,
-          decoration: BoxDecoration(
-            color: AppTheme.accentEmerald,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.accentEmerald.withValues(alpha: 0.28),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // Prompt Text
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 50),
-                  child: Text(
-                    widget.text,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
+        return Semantics(
+          button: true,
+          label: widget.text,
+          hint: 'Slide right or double tap to confirm',
+          onTap: widget.onConfirmed,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 56),
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppTheme.accentEmerald,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.accentEmerald.withValues(alpha: 0.28),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                // Prompt Text
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 50),
+                    child: Text(
+                      widget.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              // Draggable Circle Thumb
-              Positioned(
-                left: 4.0 + _dragPosition,
-                top: 4.0,
-                bottom: 4.0,
-                child: GestureDetector(
-                  onHorizontalDragUpdate: (details) {
-                    setState(() {
-                      _dragPosition = (_dragPosition + details.delta.dx)
-                          .clamp(0.0, maxDrag);
-                    });
-                  },
-                  onHorizontalDragEnd: (details) {
-                    if (_dragPosition >= maxDrag * 0.75) {
-                      // Confirmed!
-                      widget.onConfirmed();
-                    }
-                    // Reset slider
-                    setState(() {
-                      _dragPosition = 0.0;
-                    });
-                  },
-                  child: Container(
-                    width: _thumbWidth,
-                    height: _thumbWidth,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: AppTheme.accentEmerald,
-                      size: 26,
+                // Draggable Circle Thumb
+                Positioned(
+                  left: 4.0 + _dragPosition,
+                  top: 4.0,
+                  bottom: 4.0,
+                  child: GestureDetector(
+                    onHorizontalDragUpdate: (details) {
+                      setState(() {
+                        _dragPosition = (_dragPosition + details.delta.dx)
+                            .clamp(0.0, maxDrag);
+                      });
+                    },
+                    onHorizontalDragEnd: (details) {
+                      if (_dragPosition >= maxDrag * 0.75) {
+                        // Confirmed!
+                        widget.onConfirmed();
+                      }
+                      // Reset slider
+                      setState(() {
+                        _dragPosition = 0.0;
+                      });
+                    },
+                    child: Container(
+                      width: _thumbWidth,
+                      height: _thumbWidth,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: AppTheme.accentEmerald,
+                        size: 26,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

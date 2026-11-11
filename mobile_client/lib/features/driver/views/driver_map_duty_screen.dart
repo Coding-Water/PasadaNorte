@@ -136,16 +136,21 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       style: TextStyle(color: AppTheme.primarySlate, fontSize: 16, fontWeight: FontWeight.w800),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFFDE68A)),
-                    ),
-                    child: Text(
-                      '${remainingSeconds}s',
-                      style: const TextStyle(color: Color(0xFFB45309), fontWeight: FontWeight.w900, fontSize: 13),
+                  Semantics(
+                    container: true,
+                    liveRegion: true,
+                    label: '$remainingSeconds seconds remaining to accept dispatch',
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: Text(
+                        '${remainingSeconds}s',
+                        style: const TextStyle(color: Color(0xFFB45309), fontWeight: FontWeight.w900, fontSize: 13),
+                      ),
                     ),
                   ),
                 ],
@@ -1324,22 +1329,31 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       ),
                       const SizedBox(width: 8),
                       // Emergency SOS Panic Button
-                      GestureDetector(
-                        onTap: _showSosEmergencyDialog,
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444),
+                      Tooltip(
+                        message: 'Emergency SOS',
+                        child: Semantics(
+                          button: true,
+                          label: 'Emergency SOS, Broadcast alert to Laoag PNP and TODA Dispatch',
+                          child: InkWell(
+                            onTap: _showSosEmergencyDialog,
                             borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFEF4444).withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                            child: Container(
+                              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                            ],
+                              child: const Icon(Icons.emergency_rounded, color: Colors.white, size: 24),
+                            ),
                           ),
-                          child: const Icon(Icons.emergency_rounded, color: Colors.white, size: 20),
                         ),
                       ),
                     ],

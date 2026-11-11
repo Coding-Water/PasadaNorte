@@ -270,29 +270,32 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
                       point: _pickupPoint.latLng,
                       width: 110,
                       height: 110,
-                      child: Center(
-                        child: Container(
-                          width: 104,
-                          height: 104,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF3B82F6).withValues(alpha: 0.24),
-                          ),
-                          child: Center(
-                            child: Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0A84FF),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 5.5),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Colors.black26,
-                                    blurRadius: 8,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
+                      child: Semantics(
+                        label: 'Your current location: ${_pickupPoint.name}',
+                        child: Center(
+                          child: Container(
+                            width: 104,
+                            height: 104,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF3B82F6).withValues(alpha: 0.24),
+                            ),
+                            child: Center(
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0A84FF),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 5.5),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black26,
+                                      blurRadius: 8,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -305,16 +308,19 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
                         point: _dropoffPoint!.latLng,
                         width: 48,
                         height: 48,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black26, blurRadius: 6),
-                            ],
+                        child: Semantics(
+                          label: 'Destination location: ${_dropoffPoint!.name}',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black26, blurRadius: 6),
+                              ],
+                            ),
+                            child: const Icon(Icons.location_on, color: Colors.white, size: 22),
                           ),
-                          child: const Icon(Icons.location_on, color: Colors.white, size: 22),
                         ),
                       ),
                   ],
@@ -374,22 +380,29 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
           Positioned(
             right: 18,
             bottom: (hasDestination ? (isDelivery ? 290 : 230) : (isDelivery ? 210 : 152)),
-            child: Material(
-              color: Colors.white,
-              shape: const CircleBorder(),
-              elevation: 5,
-              shadowColor: Colors.black26,
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: () => _useCurrentGpsForPickup(silent: true),
-                child: const SizedBox(
-                  width: 52,
-                  height: 52,
-                  child: Center(
-                    child: Icon(
-                      Icons.my_location_rounded,
-                      size: 24,
-                      color: Color(0xFF334155),
+            child: Tooltip(
+              message: 'Recenter on my GPS location',
+              child: Semantics(
+                button: true,
+                label: 'Recenter map on current GPS location',
+                child: Material(
+                  color: Colors.white,
+                  shape: const CircleBorder(),
+                  elevation: 5,
+                  shadowColor: Colors.black26,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => _useCurrentGpsForPickup(silent: true),
+                    child: const SizedBox(
+                      width: 52,
+                      height: 52,
+                      child: Center(
+                        child: Icon(
+                          Icons.my_location_rounded,
+                          size: 24,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -433,15 +446,20 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
                             _openDestinationSearchSheet();
                           }
                         },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Center(
-                            child: Container(
-                              width: 44,
-                              height: 4.5,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(10),
+                        child: Semantics(
+                          button: true,
+                          label: 'Expand destination search',
+                          hint: 'Double tap or swipe up to open destination search',
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Center(
+                              child: Container(
+                                width: 44,
+                                height: 4.5,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade300,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
                             ),
                           ),
@@ -588,16 +606,26 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
     required String tooltip,
     required VoidCallback onTap,
   }) {
-    return Material(
-      color: Colors.white,
-      shape: const CircleBorder(),
-      elevation: 4,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(10.0),
-          child: Icon(icon, size: 20, color: AppTheme.primarySlate),
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: Material(
+          color: Colors.white,
+          shape: const CircleBorder(),
+          elevation: 4,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Icon(icon, size: 22, color: AppTheme.primarySlate),
+              ),
+            ),
+          ),
         ),
       ),
     );

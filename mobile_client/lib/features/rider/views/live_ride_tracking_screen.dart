@@ -1081,15 +1081,19 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           if (_showRiderAcceptedPrompt &&
               _ridePhase == _RidePhase.driverHeadingToPickup)
             Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _dismissRiderAcceptedPrompt,
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: GestureDetector(
-                    onTap: () {}, // Prevent tap from bubbling to backdrop
+              child: Semantics(
+                container: true,
+                liveRegion: true,
+                label: 'A driver has accepted your ride. ${_matchedDriver['name']} is on their way to pick you up.',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _dismissRiderAcceptedPrompt,
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: GestureDetector(
+                      onTap: () {}, // Prevent tap from bubbling to backdrop
                     child: Material(
                       elevation: 20,
                       borderRadius: BorderRadius.circular(26),
@@ -1257,6 +1261,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                 ),
               ),
             ),
+          ),
 
           // 3. FLOATING CIRCULAR BACK (<) AND GPS TARGET BUTTONS ABOVE BOTTOM SHEET
           if (!_isSheetExpanded &&
@@ -1267,6 +1272,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               child: _buildFloatingMapCircleButton(
                 icon: Icons.chevron_left_rounded,
                 size: 26,
+                tooltip: 'Go back',
                 onTap: () => Navigator.pop(context),
               ),
             ),
@@ -1276,6 +1282,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               child: _buildFloatingMapCircleButton(
                 icon: Icons.my_location_rounded,
                 size: 22,
+                tooltip: 'Recenter map on driver and route',
                 onTap: _recenterMap,
               ),
             ),
@@ -1983,43 +1990,88 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                             ),
                           ),
                           const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: List.generate(5, (index) {
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: List.generate(5, (index) {
                               final bool isSelected =
                                   _selectedMoodIndex == index;
-                              return GestureDetector(
-                                key: ValueKey('mood_face_$index'),
-                                onTap: () {
-                                  setState(() {
-                                    _selectedMoodIndex = index;
-                                    if (index > 1) {
-                                      _showLowRatingError = false;
-                                    }
-                                  });
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: isSelected
-                                        ? (index <= 1
-                                            ? AppTheme.cancelRed
-                                            : AppTheme.accentEmerald)
-                                        : const Color(0xFFE0E0E0),
-                                  ),
-                                  child: CustomPaint(
-                                    painter: _MoodFacePainter(
-                                      moodIndex: index,
-                                      faceColor: Colors.white,
+                              const moodLabels = [
+                                'Very Dissatisfied',
+                                'Dissatisfied',
+                                'Neutral',
+                                'Satisfied',
+                                'Very Satisfied',
+                              ];
+                              const moodShortTitles = [
+                                'Very Bad',
+                                'Bad',
+                                'Neutral',
+                                'Good',
+                                'Great',
+                              ];
+                              return Semantics(
+                                button: true,
+                                selected: isSelected,
+                                label: '${moodLabels[index]} mood rating',
+                                child: Tooltip(
+                                  message: moodLabels[index],
+                                  child: InkWell(
+                                    key: ValueKey('mood_face_$index'),
+                                    borderRadius: BorderRadius.circular(24),
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedMoodIndex = index;
+                                        if (index > 1) {
+                                          _showLowRatingError = false;
+                                        }
+                                      });
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          AnimatedContainer(
+                                            duration: const Duration(milliseconds: 180),
+                                            width: 48,
+                                            height: 48,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: isSelected
+                                                  ? (index <= 1
+                                                      ? AppTheme.cancelRed
+                                                      : AppTheme.accentEmerald)
+                                                  : const Color(0xFFE0E0E0),
+                                            ),
+                                            child: CustomPaint(
+                                              painter: _MoodFacePainter(
+                                                moodIndex: index,
+                                                faceColor: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            moodShortTitles[index],
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                              color: isSelected
+                                                  ? AppTheme.primarySlate
+                                                  : Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
                               );
                             }),
                           ),
+                        ),
 
                           if (_selectedMoodIndex <= 1) ...[
                             const SizedBox(height: 18),
@@ -2710,20 +2762,24 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   }) {
     return Tooltip(
       message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppTheme.accentEmerald, width: 1.6),
-          ),
-          child: Icon(
-            icon,
-            color: AppTheme.accentEmerald,
-            size: 21,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppTheme.accentEmerald, width: 1.6),
+            ),
+            child: Icon(
+              icon,
+              color: AppTheme.accentEmerald,
+              size: 22,
+            ),
           ),
         ),
       ),
@@ -2734,23 +2790,32 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     required IconData icon,
     required double size,
     required VoidCallback onTap,
+    String? tooltip,
   }) {
-    return Material(
-      color: Colors.white,
-      shape: const CircleBorder(),
-      elevation: 4,
-      shadowColor: Colors.black26,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Center(
-            child: Icon(
-              icon,
-              size: size,
-              color: AppTheme.primarySlate,
+    final label = tooltip ?? (icon == Icons.chevron_left_rounded ? 'Go back' : 'Recenter map');
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: Material(
+          color: Colors.white,
+          shape: const CircleBorder(),
+          elevation: 4,
+          shadowColor: Colors.black26,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Center(
+                child: Icon(
+                  icon,
+                  size: size,
+                  color: AppTheme.primarySlate,
+                ),
+              ),
             ),
           ),
         ),

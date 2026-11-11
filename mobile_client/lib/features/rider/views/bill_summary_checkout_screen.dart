@@ -119,7 +119,7 @@ class _BillSummaryCheckoutScreenState extends State<BillSummaryCheckoutScreen> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
-                              color: isDelivery ? const Color(0xFFD97706) : AppTheme.accentEmerald,
+                              color: isDelivery ? const Color(0xFFD97706) : AppTheme.accentEmeraldDark,
                             ),
                           ),
                         ),
@@ -188,101 +188,109 @@ class _BillSummaryCheckoutScreenState extends State<BillSummaryCheckoutScreen> {
               const SizedBox(height: 18),
 
               // 2. Itemized Bill Breakdown Card (Locked Fare Tier)
-              const Text(
-                'Itemized Bill Summary',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.primarySlate,
+              Semantics(
+                header: true,
+                child: const Text(
+                  'Itemized Bill Summary',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primarySlate,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Column(
-                  children: [
-                    _buildBillRow(
-                      'Verified Account Fare Tier',
-                      '${fb.category.name.toUpperCase()} (Locked at Registration)',
-                      isBold: true,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildBillRow(
-                      'Base First ${fb.baseDistanceKm.toStringAsFixed(1)} km Rate',
-                      '₱${fb.baseFare.toStringAsFixed(2)}',
-                    ),
-                    const SizedBox(height: 8),
-                    _buildBillRow(
-                      fb.usedBracketAddOns
-                          ? 'Succeeding Distance Bracket Add-On (₱3/₱5 SP Oct 2026)'
-                          : 'Succeeding Distance (${fb.distanceKm > fb.baseDistanceKm ? (fb.distanceKm - fb.baseDistanceKm).toStringAsFixed(2) : "0.00"} km × ₱${cfg.succeedingKmRate.toStringAsFixed(2)})',
-                      '₱${fb.distanceFare.toStringAsFixed(2)}',
-                    ),
-                    if (fb.discountAmount > 0) ...[
-                      const SizedBox(height: 8),
+              MergeSemantics(
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
+                    children: [
                       _buildBillRow(
-                        'Verified Municipal Discount (Flat ₱5.00 Base + Succeeding)',
-                        '-₱${fb.discountAmount.toStringAsFixed(2)}',
-                        valueColor: AppTheme.accentEmerald,
+                        'Verified Account Fare Tier',
+                        '${fb.category.name.toUpperCase()} (Locked at Registration)',
                         isBold: true,
                       ),
-                      const SizedBox(height: 4),
-                      _buildBillRow(
-                        'LTFRB MC 2025-10 50%-50% Schema Accounting',
-                        'TNC ₱${fb.platformDiscountShare.toStringAsFixed(2)} / Operator ₱${fb.operatorDiscountShare.toStringAsFixed(2)}',
-                      ),
-                    ],
-                    if (isDelivery) ...[
                       const SizedBox(height: 8),
                       _buildBillRow(
-                        'Pa-Deliver Handling Multiplier',
-                        '1.25x (Errand / Parcel Service)',
-                        valueColor: const Color(0xFFD97706),
+                        'Base First ${fb.baseDistanceKm.toStringAsFixed(1)} km Rate',
+                        '₱${fb.baseFare.toStringAsFixed(2)}',
                       ),
-                    ],
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.0),
-                      child: Divider(thickness: 1.2),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Total Amount Due',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                            color: AppTheme.primarySlate,
-                          ),
+                      const SizedBox(height: 8),
+                      _buildBillRow(
+                        fb.usedBracketAddOns
+                            ? 'Succeeding Distance Bracket Add-On (₱3/₱5 SP Oct 2026)'
+                            : 'Succeeding Distance (${fb.distanceKm > fb.baseDistanceKm ? (fb.distanceKm - fb.baseDistanceKm).toStringAsFixed(2) : "0.00"} km × ₱${cfg.succeedingKmRate.toStringAsFixed(2)})',
+                        '₱${fb.distanceFare.toStringAsFixed(2)}',
+                      ),
+                      if (fb.discountAmount > 0) ...[
+                        const SizedBox(height: 8),
+                        _buildBillRow(
+                          'Verified Municipal Discount (Flat ₱5.00 Base + Succeeding)',
+                          '-₱${fb.discountAmount.toStringAsFixed(2)}',
+                          valueColor: AppTheme.accentEmerald,
+                          isBold: true,
                         ),
-                        Text(
-                          '₱${fb.finalFare.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            color: AppTheme.accentEmerald,
-                          ),
+                        const SizedBox(height: 4),
+                        _buildBillRow(
+                          'LTFRB MC 2025-10 50%-50% Schema Accounting',
+                          'TNC ₱${fb.platformDiscountShare.toStringAsFixed(2)} / Operator ₱${fb.operatorDiscountShare.toStringAsFixed(2)}',
                         ),
                       ],
-                    ),
-                  ],
+                      if (isDelivery) ...[
+                        const SizedBox(height: 8),
+                        _buildBillRow(
+                          'Pa-Deliver Handling Multiplier',
+                          '1.25x (Errand / Parcel Service)',
+                          valueColor: const Color(0xFFD97706),
+                        ),
+                      ],
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12.0),
+                        child: Divider(thickness: 1.2),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Amount Due',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: AppTheme.primarySlate,
+                            ),
+                          ),
+                          Text(
+                            '₱${fb.finalFare.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: AppTheme.accentEmerald,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
               const SizedBox(height: 22),
 
               // 3. Payment Method Selection
-              const Text(
-                'Select Payment Method',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.primarySlate,
+              Semantics(
+                header: true,
+                child: const Text(
+                  'Select Payment Method',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primarySlate,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -292,56 +300,62 @@ class _BillSummaryCheckoutScreenState extends State<BillSummaryCheckoutScreen> {
                 final selected = _selectedPaymentMethod == name;
                 final color = pm['color'] as Color;
 
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedPaymentMethod = name),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: selected ? const Color(0xFFF0FDF4) : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: selected ? AppTheme.accentEmerald : Colors.grey.shade300,
-                        width: selected ? 2 : 1,
+                return Semantics(
+                  button: true,
+                  selected: selected,
+                  label: '$name. ${pm['subtitle']}',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => setState(() => _selectedPaymentMethod = name),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: selected ? const Color(0xFFF0FDF4) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: selected ? AppTheme.accentEmerald : Colors.grey.shade300,
+                          width: selected ? 2 : 1,
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(12),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(pm['icon'] as IconData, color: color, size: 22),
                           ),
-                          child: Icon(pm['icon'] as IconData, color: color, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14,
-                                  color: AppTheme.primarySlate,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                    color: AppTheme.primarySlate,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                pm['subtitle'] as String,
-                                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
-                              ),
-                            ],
+                                Text(
+                                  pm['subtitle'] as String,
+                                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        Icon(
-                          selected
-                              ? Icons.check_circle_rounded
-                              : Icons.radio_button_unchecked_rounded,
-                          color: selected ? AppTheme.accentEmerald : Colors.grey.shade400,
-                        ),
-                      ],
+                          Icon(
+                            selected
+                                ? Icons.check_circle_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            color: selected ? AppTheme.accentEmerald : Colors.grey.shade400,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
