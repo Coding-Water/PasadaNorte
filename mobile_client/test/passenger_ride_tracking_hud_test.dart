@@ -31,6 +31,7 @@ void main() {
           category: PassengerCategory.student,
         ),
         paymentMethod: 'CASH TO COLLECT',
+        autoAcceptForTesting: true,
       ),
     );
   }

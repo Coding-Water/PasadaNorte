@@ -205,32 +205,19 @@ class TodaQueueService {
   // Dynamic FIFO Queue State per TODA Terminal (Eliminates Static Hardcoding)
   // ==========================================================================
   static final Map<String, List<PilaDriverUnit>> _queues = {
-    'term_01': [
-      PilaDriverUnit(rank: 1, bodyNumber: '#0042', driverName: 'Eduardo "Manong Eddie" Castro', status: 'Next to Board (First in Line)', isCurrentDriver: true),
-      PilaDriverUnit(rank: 2, bodyNumber: '#0012', driverName: 'Arturo Domingo', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 3, bodyNumber: '#2133', driverName: 'Nestor Valdez', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 4, bodyNumber: '#0835', driverName: 'Jaime Alcantara', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 5, bodyNumber: '#1058', driverName: 'Crisanto Agbayani', status: 'Standing by', isCurrentDriver: false),
-    ],
-    'term_02': [
-      PilaDriverUnit(rank: 1, bodyNumber: '#0019', driverName: 'Rogelio Pascual', status: 'Next to Board', isCurrentDriver: false),
-      PilaDriverUnit(rank: 2, bodyNumber: '#1088', driverName: 'Marcos Barba', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 3, bodyNumber: '#0412', driverName: 'Emilio Farinas', status: 'Standing by', isCurrentDriver: false),
-    ],
-    'term_03': [
-      PilaDriverUnit(rank: 1, bodyNumber: '#0031', driverName: 'Ferdinand Corpuz', status: 'Next to Board', isCurrentDriver: false),
-      PilaDriverUnit(rank: 2, bodyNumber: '#1062', driverName: 'Vicente Keon', status: 'In Terminal Bay', isCurrentDriver: false),
-    ],
+    'term_01': [],
+    'term_02': [],
+    'term_03': [],
+    'term_04': [],
+    'term_05': [],
   };
 
   static List<PilaDriverUnit> getTerminalQueue(String terminalId, {String? driverName}) {
-    final list = _queues[terminalId] ?? _queues['term_01']!;
+    final list = _queues[terminalId] ?? [];
     return list.map((u) {
       final bool isMe = driverName != null &&
           (u.driverName.toLowerCase().contains(driverName.toLowerCase()) ||
-              driverName.toLowerCase().contains(u.driverName.toLowerCase()) ||
-              u.bodyNumber == '#0042' ||
-              u.bodyNumber == '#042');
+              driverName.toLowerCase().contains(u.driverName.toLowerCase()));
       return u.copyWith(isCurrentDriver: isMe);
     }).toList();
   }
@@ -249,12 +236,11 @@ class TodaQueueService {
 
   // Dequeues driver when taking a passenger: subsequent drivers move up in line
   static void dequeueDriverForTrip(String terminalId, String driverName) {
-    final list = _queues[terminalId] ?? _queues['term_01']!;
+    final list = _queues[terminalId];
+    if (list == null || list.isEmpty) return;
     final index = list.indexWhere((u) =>
         u.driverName.toLowerCase().contains(driverName.toLowerCase()) ||
-        driverName.toLowerCase().contains(u.driverName.toLowerCase()) ||
-        u.bodyNumber == '#0042' ||
-        u.bodyNumber == '#042');
+        driverName.toLowerCase().contains(u.driverName.toLowerCase()));
 
     if (index != -1) {
       list.removeAt(index);
@@ -269,7 +255,7 @@ class TodaQueueService {
 
   // Enqueues driver at tail of FIFO line when returning to terminal geofence
   static int enqueueDriverAtTail(String terminalId, String driverName, String bodyNumber) {
-    final list = _queues[terminalId] ?? _queues['term_01']!;
+    final list = _queues.putIfAbsent(terminalId, () => []);
     final existingIndex = list.indexWhere((u) =>
         u.driverName.toLowerCase().contains(driverName.toLowerCase()) ||
         driverName.toLowerCase().contains(u.driverName.toLowerCase()) ||
@@ -284,7 +270,7 @@ class TodaQueueService {
       rank: newRank,
       bodyNumber: bodyNumber,
       driverName: driverName,
-      status: 'Just Queued (FIFO Line)',
+      status: newRank == 1 ? 'Next to Board (First in Line)' : 'Just Queued (FIFO Line)',
       isCurrentDriver: true,
     );
     list.add(newEntry);

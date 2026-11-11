@@ -28,7 +28,6 @@ class DriverMapDutyScreen extends StatefulWidget {
 class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   bool _isOnline = true;
   bool _simulateNetworkDropFailSafe = false; // ISO/IEC 25010:2023 operational fail-safe during mobile data loss
-  int _queuePosition = 1;
   bool _showHotspots = false; // Default OFF so driver map is clean and does not cause dizziness
   bool _isHybridSatellite = false; // Google Roadmap vs Google Hybrid Satellite
   final LatLng _driverLocation = const LatLng(18.1960, 120.5935); // Laoag Central Terminal / Aurora Park
@@ -43,10 +42,32 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     );
   }
 
+  StreamSubscription<Map<String, dynamic>>? _rideRequestedSubscription;
+  bool _isDispatchDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
     _loadForecast();
+    _listenToRealtimeDispatches();
+  }
+
+  void _listenToRealtimeDispatches() {
+    try {
+      SupabaseService.getDispatchChannel();
+      _rideRequestedSubscription =
+          SupabaseService.onRideRequested.listen((payload) {
+        if (_isOnline && mounted && !_isDispatchDialogOpen) {
+          _handleIncomingRealRideRequest(payload);
+        }
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _rideRequestedSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadForecast() async {
@@ -83,16 +104,32 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     );
   }
 
-  void _simulateIncomingRideRequest() {
+  void _handleIncomingRealRideRequest(Map<String, dynamic> request) {
+    if (_isDispatchDialogOpen) return;
+    _isDispatchDialogOpen = true;
+
     int remainingSeconds = TodaQueueService.autoPassSeconds; // 15 seconds
     Timer? countdownTimer;
+
+    final String passengerName = (request['passenger_name'] as String?) ?? 'Commuter';
+    final String passengerCategory = (request['passenger_category'] as String?) ?? 'REGULAR';
+    final String pickupName = (request['pickup_name'] as String?) ?? 'Laoag Central Terminal & Public Market';
+    final double pickupLat = (request['pickup_lat'] as num?)?.toDouble() ?? 18.194096;
+    final double pickupLng = (request['pickup_lng'] as num?)?.toDouble() ?? 120.595856;
+    final String dropoffName = (request['dropoff_name'] as String?) ?? 'Destination';
+    final double dropoffLat = (request['dropoff_lat'] as num?)?.toDouble() ?? 18.203595;
+    final double dropoffLng = (request['dropoff_lng'] as num?)?.toDouble() ?? 120.593643;
+    final double distanceKm = (request['distance_km'] as num?)?.toDouble() ?? 1.25;
+    final double fare = (request['fare'] as num?)?.toDouble() ?? 16.0;
+    final String paymentMethod = (request['payment_method'] as String?) ?? 'Cash';
+    final String? deliveryNotes = request['delivery_notes'] as String?;
 
     // Trigger native audio chime and heavy haptics immediately for hands-free driver alert
     SoundAlertService.playDispatchOfferChime();
     SystemNotificationService.showNewDispatchOfferNotification(
-      passengerName: 'Maria Clara Santos',
-      pickup: 'Laoag Central Terminal & Public Market',
-      fare: 16.0,
+      passengerName: passengerName,
+      pickup: pickupName,
+      fare: fare,
     );
 
     showDialog(
@@ -105,6 +142,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
               if (remainingSeconds <= 1) {
                 timer.cancel();
                 SoundAlertService.stop();
+                _isDispatchDialogOpen = false;
                 if (Navigator.canPop(dialogContext)) {
                   Navigator.pop(dialogContext);
                   ScaffoldMessenger.of(this.context).showSnackBar(
@@ -170,21 +208,27 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       color: AppTheme.accentEmeraldLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text(
-                      '🔊 "Adda sakay dita Laoag Central Market!"',
-                      style: TextStyle(color: AppTheme.accentEmerald, fontWeight: FontWeight.w700, fontSize: 12.5),
+                    child: Text(
+                      '🔊 "Adda sakay dita $pickupName!"',
+                      style: const TextStyle(color: AppTheme.accentEmerald, fontWeight: FontWeight.w700, fontSize: 12.5),
                     ),
                   ),
                   const SizedBox(height: 14),
-                  const Text('Pickup: Laoag Central Terminal & Public Market', style: TextStyle(color: AppTheme.primarySlate, fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text('Passenger: $passengerName ($passengerCategory)', style: const TextStyle(color: AppTheme.primarySlate, fontWeight: FontWeight.w700, fontSize: 13)),
                   const SizedBox(height: 4),
-                  const Text('Dropoff: MMSU Laoag Campus (CTE / CIT Gate)', style: TextStyle(color: AppTheme.primarySlate, fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text('Pickup: $pickupName', style: const TextStyle(color: AppTheme.primarySlate, fontWeight: FontWeight.w600, fontSize: 13)),
                   const SizedBox(height: 4),
-                  Text('Distance: 1.25 km • Student 20% Discount', style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5)),
+                  Text('Dropoff: $dropoffName', style: const TextStyle(color: AppTheme.primarySlate, fontWeight: FontWeight.w600, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  Text('Distance: ${distanceKm.toStringAsFixed(2)} km', style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5)),
+                  if (deliveryNotes != null && deliveryNotes.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('Note: $deliveryNotes', style: const TextStyle(color: Color(0xFFD97706), fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
                   const SizedBox(height: 12),
-                  const Text(
-                    '₱16.00 (Cash)',
-                    style: TextStyle(color: AppTheme.primarySlate, fontSize: 24, fontWeight: FontWeight.w900),
+                  Text(
+                    '₱${fare.toStringAsFixed(2)} ($paymentMethod)',
+                    style: const TextStyle(color: AppTheme.primarySlate, fontSize: 24, fontWeight: FontWeight.w900),
                   ),
                 ],
               ),
@@ -193,6 +237,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   onPressed: () {
                     countdownTimer?.cancel();
                     SoundAlertService.stop();
+                    _isDispatchDialogOpen = false;
                     Navigator.pop(dialogContext);
                   },
                   child: Text('Pass to #2', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
@@ -201,6 +246,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   onPressed: () async {
                     countdownTimer?.cancel();
                     SoundAlertService.stop();
+                    _isDispatchDialogOpen = false;
                     Navigator.pop(dialogContext);
 
                     // Broadcast ride acceptance to Supabase Realtime WebSocket channel
@@ -212,69 +258,44 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                         plateNumber: 'IN-4829',
                         phone: '+63 917 840 2291',
                         vehicleHeadline: 'Honda TMX 125 Tricycle, Green • Body #0418',
-                        driverLat: 18.192096,
-                        driverLng: 120.594356,
+                        driverLat: _driverLocation.latitude,
+                        driverLng: _driverLocation.longitude,
+                        extra: {
+                          'ride_id': request['ride_id'],
+                        },
                       ),
                     );
 
                     // Dequeue driver from terminal queue when accepting passenger trip
                     TodaQueueService.dequeueDriverForTrip('term_01', widget.fullName);
 
-                    final queuedInPila = await Navigator.push<bool>(
+                    await Navigator.push<bool>(
                       this.context,
                       MaterialPageRoute(
                         builder: (_) => DriverActiveTripScreen(
                           driverName: widget.fullName,
-                          pickupPoint: const LocationPoint(
-                            latitude: 18.194096,
-                            longitude: 120.595856,
-                            name: 'Laoag Central Terminal & Public Market',
+                          passengerName: passengerName,
+                          passengerCategory: passengerCategory,
+                          pickupPoint: LocationPoint(
+                            latitude: pickupLat,
+                            longitude: pickupLng,
+                            name: pickupName,
                             zoneCode: 'Z01',
                           ),
-                          dropoffPoint: const LocationPoint(
-                            latitude: 18.203595,
-                            longitude: 120.593643,
-                            name: 'MMSU Laoag Campus (CTE / CIT Gate)',
+                          dropoffPoint: LocationPoint(
+                            latitude: dropoffLat,
+                            longitude: dropoffLng,
+                            name: dropoffName,
                             zoneCode: 'Z02',
                           ),
-                          distanceKm: 1.25,
-                          regularFare: 20.00,
-                          discountedFare: 16.00,
-                          passengerCategory: 'STUDENT (20% STATUTORY DISCOUNT)',
+                          distanceKm: distanceKm,
+                          regularFare: fare,
+                          discountedFare: fare,
+                          paymentMethod: paymentMethod,
                         ),
                       ),
                     );
                     if (mounted) {
-                      if (queuedInPila == true) {
-                        final currentRank = TodaQueueService.getCurrentDriverRank('term_01', driverName: widget.fullName);
-                        setState(() {
-                          _queuePosition = currentRank > 0 ? currentRank : 5;
-                        });
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          SnackBar(
-                            content: Row(
-                              children: [
-                                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    '✓ Returned to Terminal & Queued (Rank #$_queuePosition in Line)!',
-                                    style: const TextStyle(fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            backgroundColor: AppTheme.accentEmerald,
-                            behavior: SnackBarBehavior.floating,
-                            duration: const Duration(seconds: 4),
-                            action: SnackBarAction(
-                              label: 'VIEW STATUS',
-                              textColor: Colors.white,
-                              onPressed: _showDigitalPilaStatusSheet,
-                            ),
-                          ),
-                        );
-                      }
                       setState(() {});
                     }
                   },
@@ -290,7 +311,10 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
           },
         );
       },
-    ).then((_) => countdownTimer?.cancel());
+    ).then((_) {
+      countdownTimer?.cancel();
+      _isDispatchDialogOpen = false;
+    });
   }
 
   void _showShiftEarningsSheet() {
@@ -1338,114 +1362,6 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       ),
                     ),
 
-                  // Floating Digital Pila Rank Pill (Read-only live status)
-                  if (_isOnline)
-                    GestureDetector(
-                      onTap: _showDigitalPilaStatusSheet,
-                      child: Builder(
-                        builder: (context) {
-                          final currentDynamicRank = TodaQueueService.getCurrentDriverRank('term_01', driverName: widget.fullName);
-                          final isDriverInQueue = currentDynamicRank > 0;
-
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: LocationService.hasMockLocationViolation
-                                    ? Colors.red.shade400
-                                    : Colors.grey.shade200,
-                                width: LocationService.hasMockLocationViolation ? 1.5 : 1.0,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: LocationService.hasMockLocationViolation
-                                      ? Colors.red.withValues(alpha: 0.15)
-                                      : Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: LocationService.hasMockLocationViolation
-                                        ? const Color(0xFFFEE2E2)
-                                        : (isDriverInQueue ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9)),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: LocationService.hasMockLocationViolation
-                                          ? const Color(0xFFFCA5A5)
-                                          : (isDriverInQueue ? const Color(0xFFFDE68A) : const Color(0xFFCBD5E1)),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    LocationService.hasMockLocationViolation
-                                        ? 'SPOOF BLOCKED'
-                                        : (isDriverInQueue ? 'PILA #$currentDynamicRank' : 'EN ROUTE'),
-                                    style: TextStyle(
-                                      color: LocationService.hasMockLocationViolation
-                                          ? const Color(0xFF991B1B)
-                                          : (isDriverInQueue ? const Color(0xFFB45309) : const Color(0xFF475569)),
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        LocationService.hasMockLocationViolation
-                                            ? 'Mock GPS Violation Detected'
-                                            : 'Laoag Central Terminal TODA',
-                                        style: TextStyle(
-                                          color: LocationService.hasMockLocationViolation
-                                              ? Colors.red.shade900
-                                              : AppTheme.primarySlate,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 12.5,
-                                        ),
-                                      ),
-                                      Text(
-                                        LocationService.hasMockLocationViolation
-                                            ? 'Queue paused under Ord. 2023-005. Tap to inspect.'
-                                            : (isDriverInQueue
-                                                ? 'Rank #$currentDynamicRank in Digital Pila • Standing by for dispatch'
-                                                : 'Outside terminal bay • Enter geofence to queue at tail'),
-                                        style: TextStyle(
-                                          color: LocationService.hasMockLocationViolation
-                                              ? Colors.red.shade700
-                                              : (isDriverInQueue ? const Color(0xFF059669) : const Color(0xFFD97706)),
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(
-                                  LocationService.hasMockLocationViolation
-                                      ? Icons.gpp_bad_rounded
-                                      : (isDriverInQueue ? Icons.check_circle_rounded : Icons.alt_route_rounded),
-                                  color: LocationService.hasMockLocationViolation
-                                      ? Colors.red.shade700
-                                      : (isDriverInQueue ? const Color(0xFF059669) : const Color(0xFFD97706)),
-                                  size: 20,
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 8),
                   // Joyride Driver Metrics Quick Action Bar (Passenger Clean White Architecture)
                   Row(
                     children: [
@@ -1583,12 +1499,12 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
             ),
           ),
 
-          // 3. Bottom Driver Dispatch Sheet (Simplified, Compact)
+          // 3. Bottom Driver Pila Queue Status Bar
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
@@ -1596,28 +1512,58 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   BoxShadow(color: Colors.black12, blurRadius: 16, offset: Offset(0, -4)),
                 ],
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _showDigitalPilaStatusSheet,
-                      icon: const Icon(Icons.format_list_numbered_rounded, size: 18),
-                      label: const Text('Queue Status', style: TextStyle(fontSize: 13)),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: _simulateIncomingRideRequest,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.accentEmerald,
+              child: Builder(
+                builder: (context) {
+                  final currentDynamicRank = TodaQueueService.getCurrentDriverRank(
+                    'term_01',
+                    driverName: widget.fullName,
+                  );
+                  final isDriverInQueue = currentDynamicRank > 0;
+                  final String pilaLabel = isDriverInQueue
+                      ? 'Pila #$currentDynamicRank - Laoag Central Terminal TODA'
+                      : 'Pila #-- - Laoag Central Terminal TODA';
+
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _showDigitalPilaStatusSheet,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 48),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: const Icon(Icons.format_list_numbered_rounded, size: 18),
+                          label: const Text(
+                            'Queue Status',
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                          ),
+                        ),
                       ),
-                      icon: const Icon(Icons.notifications_active_rounded, size: 18),
-                      label: const Text('Test 15s Ride Dispatch', style: TextStyle(fontSize: 13.5)),
-                    ),
-                  ),
-                ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: _showDigitalPilaStatusSheet,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accentEmerald,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 48),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: Text(
+                            pilaLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -1626,7 +1572,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
           // 4a. Bottom Left: Hotspot Flame Toggle
           Positioned(
             left: 16,
-            bottom: 112,
+            bottom: 120,
             child: _buildCircleAction(
               icon: _showHotspots ? Icons.local_fire_department_rounded : Icons.local_fire_department_outlined,
               color: _showHotspots ? const Color(0xFFEF4444) : AppTheme.primarySlate,
@@ -1650,7 +1596,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
           // 4b. Bottom Right: Recenter on Driver Location
           Positioned(
             right: 16,
-            bottom: 112,
+            bottom: 120,
             child: _buildCircleAction(
               icon: Icons.my_location_rounded,
               onTap: () {

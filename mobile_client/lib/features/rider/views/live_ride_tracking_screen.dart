@@ -27,6 +27,7 @@ class LiveRideTrackingScreen extends StatefulWidget {
   final FareBreakdown fareBreakdown;
   final String paymentMethod;
   final String deliveryNotes;
+  final bool autoAcceptForTesting;
 
   const LiveRideTrackingScreen({
     super.key,
@@ -37,6 +38,7 @@ class LiveRideTrackingScreen extends StatefulWidget {
     required this.fareBreakdown,
     required this.paymentMethod,
     this.deliveryNotes = '',
+    this.autoAcceptForTesting = false,
   });
 
   @override
@@ -142,6 +144,21 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           if (payload['body_number'] != null) {
             _matchedDriver['bodyNumber'] = payload['body_number'] as String;
           }
+          if (payload['phone'] != null) {
+            _matchedDriver['phone'] = payload['phone'] as String;
+          }
+          if (payload['plate_number'] != null) {
+            _matchedDriver['plateNumber'] = payload['plate_number'] as String;
+          }
+          if (payload['toda'] != null) {
+            _matchedDriver['toda'] = payload['toda'] as String;
+          }
+          if (payload['driver_lat'] != null && payload['driver_lng'] != null) {
+            _tricycleLivePos = LatLng(
+              (payload['driver_lat'] as num).toDouble(),
+              (payload['driver_lng'] as num).toDouble(),
+            );
+          }
           _beginDriverApproachPhase();
         }
       });
@@ -223,6 +240,24 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       _etaToPassengerMinutes = approachRoute.durationMinutes.clamp(1, 4);
     });
 
+    // Broadcast ride request to all online drivers via Supabase Realtime WebSocket
+    unawaited(
+      SupabaseService.broadcastRideRequest(
+        passengerName: widget.passengerName,
+        pickupName: widget.pickupPoint.name,
+        pickupLat: widget.pickupPoint.latitude,
+        pickupLng: widget.pickupPoint.longitude,
+        dropoffName: widget.dropoffPoint.name,
+        dropoffLat: widget.dropoffPoint.latitude,
+        dropoffLng: widget.dropoffPoint.longitude,
+        fare: widget.fareBreakdown.finalFare,
+        distanceKm: widget.fareBreakdown.distanceKm,
+        passengerCategory: widget.fareBreakdown.category.name.toUpperCase(),
+        paymentMethod: widget.paymentMethod,
+        deliveryNotes: widget.deliveryNotes,
+      ),
+    );
+
     _startWaitingForAcceptance();
   }
 
@@ -233,8 +268,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       setState(() {
         _waitSecondsElapsed++;
       });
-      // After 3 seconds of radar pulse, Rank #1 queued tricycle accepts the booking
-      if (_waitSecondsElapsed >= 3) {
+      // Fast-forward only if explicitly enabled for automated unit tests
+      if (widget.autoAcceptForTesting && _waitSecondsElapsed >= 3) {
         timer.cancel();
         _beginDriverApproachPhase();
       }

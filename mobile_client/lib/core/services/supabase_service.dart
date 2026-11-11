@@ -390,10 +390,16 @@ class SupabaseService {
   static RealtimeChannel? _dispatchChannel;
   static final StreamController<Map<String, dynamic>> _rideAcceptedStreamController =
       StreamController<Map<String, dynamic>>.broadcast();
+  static final StreamController<Map<String, dynamic>> _rideRequestedStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   /// Reactive stream for ride acceptance events
   static Stream<Map<String, dynamic>> get onRideAccepted =>
       _rideAcceptedStreamController.stream;
+
+  /// Reactive stream for incoming ride requests (Passenger -> Drivers)
+  static Stream<Map<String, dynamic>> get onRideRequested =>
+      _rideRequestedStreamController.stream;
 
   /// Initializes or retrieves the shared Supabase Realtime dispatch channel
   static RealtimeChannel? getDispatchChannel() {
@@ -407,10 +413,63 @@ class SupabaseService {
         callback: (payload) {
           _rideAcceptedStreamController.add(payload);
         },
+      ).onBroadcast(
+        event: 'ride_requested',
+        callback: (payload) {
+          _rideRequestedStreamController.add(payload);
+        },
       ).subscribe();
       return _dispatchChannel;
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Broadcasts ride request from passenger to online drivers via Supabase Realtime
+  static Future<void> broadcastRideRequest({
+    required String passengerName,
+    required String pickupName,
+    required double pickupLat,
+    required double pickupLng,
+    required String dropoffName,
+    required double dropoffLat,
+    required double dropoffLng,
+    required double fare,
+    required double distanceKm,
+    required String passengerCategory,
+    required String paymentMethod,
+    String? deliveryNotes,
+    String? rideId,
+  }) async {
+    final payload = <String, dynamic>{
+      'ride_id': rideId ?? 'RIDE_${DateTime.now().millisecondsSinceEpoch}',
+      'passenger_name': passengerName,
+      'pickup_name': pickupName,
+      'pickup_lat': pickupLat,
+      'pickup_lng': pickupLng,
+      'dropoff_name': dropoffName,
+      'dropoff_lat': dropoffLat,
+      'dropoff_lng': dropoffLng,
+      'fare': fare,
+      'distance_km': distanceKm,
+      'passenger_category': passengerCategory,
+      'payment_method': paymentMethod,
+      'delivery_notes': deliveryNotes,
+      'requested_at': DateTime.now().toIso8601String(),
+    };
+
+    // 1. Local in-app stream dispatch (instantaneous reactivity if testing locally)
+    _rideRequestedStreamController.add(payload);
+
+    // 2. Realtime WebSocket broadcast across network
+    if (_isConnected) {
+      try {
+        final channel = getDispatchChannel();
+        await channel?.sendBroadcastMessage(
+          event: 'ride_requested',
+          payload: payload,
+        );
+      } catch (_) {}
     }
   }
 
