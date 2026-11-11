@@ -1268,56 +1268,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                             height: 1.35,
                           ),
                         ),
-                        const SizedBox(height: 18),
-                        // Driver Card Inside the Dialog
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: const Color(0xFFE2E8F0),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              _buildDriverAvatar(size: 46),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _matchedDriver['name']!,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 14.5,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppTheme.primarySlate,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      '${_matchedDriver['bodyNumber']} • Arriving in ~$_etaToPassengerMinutes mins',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppTheme.accentEmerald,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+
                         const SizedBox(height: 20),
                         // Action Button: Dismiss immediately or Track
                         SizedBox(
