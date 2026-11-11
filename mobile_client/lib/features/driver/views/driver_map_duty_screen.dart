@@ -1170,7 +1170,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                                     ],
                                   ),
                                   child: const Text(
-                                    'YOU (#042)',
+                                    'YOU (#0042)',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 9,

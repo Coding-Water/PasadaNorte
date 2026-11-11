@@ -48,7 +48,7 @@ void main() {
       final assignedRank = TodaQueueService.enqueueDriverAtTail(
         'term_01',
         'Eduardo "Manong Eddie" Castro',
-        '#042',
+        '#0042',
       );
 
       // Assigned rank must be at the end of the line (Rank #5)
@@ -57,7 +57,7 @@ void main() {
       final queue = TodaQueueService.getTerminalQueue('term_01', driverName: 'Eduardo');
       expect(queue.length, 5);
       expect(queue.last.rank, 5);
-      expect(queue.last.bodyNumber, '#042');
+      expect(queue.last.bodyNumber, '#0042');
       expect(queue.last.isCurrentDriver, isTrue);
       expect(queue.last.status, contains('Just Queued'));
     });
@@ -90,8 +90,8 @@ void main() {
       expect(find.text('Live FIFO Terminal Line'), findsOneWidget);
       expect(find.textContaining('Eduardo "Manong Eddie" Castro (YOU)'), findsOneWidget);
       expect(find.text('Arturo Domingo'), findsOneWidget);
-      expect(find.text('#042'), findsOneWidget);
-      expect(find.text('#014'), findsOneWidget);
+      expect(find.text('#0042'), findsOneWidget);
+      expect(find.text('#0012'), findsOneWidget);
 
       // Verify Metrics and Ordinance compliance (scroll into view)
       await tester.scrollUntilVisible(find.text('Terminal Bay Metrics'), 200);

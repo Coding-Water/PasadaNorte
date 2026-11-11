@@ -1191,7 +1191,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     final int assignedRank = TodaQueueService.enqueueDriverAtTail(
       terminal.id,
       widget.driverName,
-      '#042',
+      '#0042',
     );
     setState(() {
       _currentDriverLocation = terminal.centerPoint.latLng;

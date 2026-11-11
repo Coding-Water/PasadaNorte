@@ -455,7 +455,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'similarity': 94.8,
       'latency': 1.45,
       'status': 'approved',
-      'note': 'MINC Franchise #042 active & verified.',
+      'note': 'MINC Franchise #0042 active & verified.',
     },
     {
       'id': 'VER-2026-003',
@@ -483,7 +483,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     {
       'id': 'SOS-2026-089',
       'driver_name': 'Eduardo "Manong Eddie" Castro',
-      'body_number': '#042',
+      'body_number': '#0042',
       'plate_number': '7489-IN',
       'toda': 'Laoag Central Terminal TODA',
       'latitude': 18.1960,
@@ -526,7 +526,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               final parsed = {
                 'id': idStr,
                 'driver_name': item['driver_name'] ?? 'Tricycle Driver',
-                'body_number': item['body_number'] ?? '#042',
+                'body_number': item['body_number'] ?? '#0042',
                 'plate_number': item['plate_number'] ?? '7489-IN',
                 'toda': item['toda'] ?? 'Laoag Central Terminal TODA',
                 'latitude': (item['latitude'] as num?)?.toDouble() ?? 18.1960,
@@ -597,7 +597,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     final newAlert = {
       'id': id,
       'driver_name': 'Eduardo "Manong Eddie" Castro',
-      'body_number': '#042',
+      'body_number': '#0042',
       'plate_number': '7489-IN',
       'toda': 'Laoag Central Terminal TODA',
       'latitude': 18.1960,
@@ -615,7 +615,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       _systemAuditLogs.insert(0, {
         'time': 'Just now',
         'actor': 'Live Telemetry Sentinel',
-        'action': 'Received High-Priority SOS Beacon from Body #042 at Gilbert Bridge',
+        'action': 'Received High-Priority SOS Beacon from Body #0042 at Gilbert Bridge',
       });
     });
 
@@ -633,7 +633,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('🚨 LIVE SOS RECEIVED: Driver Eduardo Castro (#042) triggered distress beacon near Gilbert Bridge!'),
+          content: Text('🚨 LIVE SOS RECEIVED: Driver Eduardo Castro (#0042) triggered distress beacon near Gilbert Bridge!'),
           backgroundColor: Color(0xFFDC2626),
           duration: Duration(seconds: 5),
         ),
@@ -1480,7 +1480,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          '🚨 SOS: ${_sosAlerts.firstWhere((a) => a['status'] == 'ACTIVE_DISPATCHED')['driver_name']} (#042)',
+                                          '🚨 SOS: ${_sosAlerts.firstWhere((a) => a['status'] == 'ACTIVE_DISPATCHED')['driver_name']} (#0042)',
                                           style: const TextStyle(
                                             color: Color(0xFFDC2626),
                                             fontWeight: FontWeight.w800,
@@ -4468,3 +4468,4 @@ class _SparklinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+

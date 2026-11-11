@@ -206,20 +206,20 @@ class TodaQueueService {
   // ==========================================================================
   static final Map<String, List<PilaDriverUnit>> _queues = {
     'term_01': [
-      PilaDriverUnit(rank: 1, bodyNumber: '#042', driverName: 'Eduardo "Manong Eddie" Castro', status: 'Next to Board (First in Line)', isCurrentDriver: true),
-      PilaDriverUnit(rank: 2, bodyNumber: '#014', driverName: 'Arturo Domingo', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 3, bodyNumber: '#027', driverName: 'Nestor Valdez', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 4, bodyNumber: '#035', driverName: 'Jaime Alcantara', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 5, bodyNumber: '#058', driverName: 'Crisanto Agbayani', status: 'Standing by', isCurrentDriver: false),
+      PilaDriverUnit(rank: 1, bodyNumber: '#0042', driverName: 'Eduardo "Manong Eddie" Castro', status: 'Next to Board (First in Line)', isCurrentDriver: true),
+      PilaDriverUnit(rank: 2, bodyNumber: '#0012', driverName: 'Arturo Domingo', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 3, bodyNumber: '#2133', driverName: 'Nestor Valdez', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 4, bodyNumber: '#0835', driverName: 'Jaime Alcantara', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 5, bodyNumber: '#1058', driverName: 'Crisanto Agbayani', status: 'Standing by', isCurrentDriver: false),
     ],
     'term_02': [
-      PilaDriverUnit(rank: 1, bodyNumber: '#019', driverName: 'Rogelio Pascual', status: 'Next to Board', isCurrentDriver: false),
-      PilaDriverUnit(rank: 2, bodyNumber: '#088', driverName: 'Marcos Barba', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 3, bodyNumber: '#041', driverName: 'Emilio Farinas', status: 'Standing by', isCurrentDriver: false),
+      PilaDriverUnit(rank: 1, bodyNumber: '#0019', driverName: 'Rogelio Pascual', status: 'Next to Board', isCurrentDriver: false),
+      PilaDriverUnit(rank: 2, bodyNumber: '#1088', driverName: 'Marcos Barba', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 3, bodyNumber: '#0412', driverName: 'Emilio Farinas', status: 'Standing by', isCurrentDriver: false),
     ],
     'term_03': [
-      PilaDriverUnit(rank: 1, bodyNumber: '#031', driverName: 'Ferdinand Corpuz', status: 'Next to Board', isCurrentDriver: false),
-      PilaDriverUnit(rank: 2, bodyNumber: '#062', driverName: 'Vicente Keon', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 1, bodyNumber: '#0031', driverName: 'Ferdinand Corpuz', status: 'Next to Board', isCurrentDriver: false),
+      PilaDriverUnit(rank: 2, bodyNumber: '#1062', driverName: 'Vicente Keon', status: 'In Terminal Bay', isCurrentDriver: false),
     ],
   };
 
@@ -229,6 +229,7 @@ class TodaQueueService {
       final bool isMe = driverName != null &&
           (u.driverName.toLowerCase().contains(driverName.toLowerCase()) ||
               driverName.toLowerCase().contains(u.driverName.toLowerCase()) ||
+              u.bodyNumber == '#0042' ||
               u.bodyNumber == '#042');
       return u.copyWith(isCurrentDriver: isMe);
     }).toList();
@@ -252,6 +253,7 @@ class TodaQueueService {
     final index = list.indexWhere((u) =>
         u.driverName.toLowerCase().contains(driverName.toLowerCase()) ||
         driverName.toLowerCase().contains(u.driverName.toLowerCase()) ||
+        u.bodyNumber == '#0042' ||
         u.bodyNumber == '#042');
 
     if (index != -1) {
@@ -291,20 +293,20 @@ class TodaQueueService {
 
   static void resetQueuesForTesting() {
     _queues['term_01'] = [
-      PilaDriverUnit(rank: 1, bodyNumber: '#042', driverName: 'Eduardo "Manong Eddie" Castro', status: 'Next to Board (First in Line)', isCurrentDriver: true),
-      PilaDriverUnit(rank: 2, bodyNumber: '#014', driverName: 'Arturo Domingo', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 3, bodyNumber: '#027', driverName: 'Nestor Valdez', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 4, bodyNumber: '#035', driverName: 'Jaime Alcantara', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 5, bodyNumber: '#058', driverName: 'Crisanto Agbayani', status: 'Standing by', isCurrentDriver: false),
+      PilaDriverUnit(rank: 1, bodyNumber: '#0042', driverName: 'Eduardo "Manong Eddie" Castro', status: 'Next to Board (First in Line)', isCurrentDriver: true),
+      PilaDriverUnit(rank: 2, bodyNumber: '#0012', driverName: 'Arturo Domingo', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 3, bodyNumber: '#2133', driverName: 'Nestor Valdez', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 4, bodyNumber: '#0835', driverName: 'Jaime Alcantara', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 5, bodyNumber: '#1058', driverName: 'Crisanto Agbayani', status: 'Standing by', isCurrentDriver: false),
     ];
     _queues['term_02'] = [
-      PilaDriverUnit(rank: 1, bodyNumber: '#019', driverName: 'Rogelio Pascual', status: 'Next to Board', isCurrentDriver: false),
-      PilaDriverUnit(rank: 2, bodyNumber: '#088', driverName: 'Marcos Barba', status: 'In Terminal Bay', isCurrentDriver: false),
-      PilaDriverUnit(rank: 3, bodyNumber: '#041', driverName: 'Emilio Farinas', status: 'Standing by', isCurrentDriver: false),
+      PilaDriverUnit(rank: 1, bodyNumber: '#0019', driverName: 'Rogelio Pascual', status: 'Next to Board', isCurrentDriver: false),
+      PilaDriverUnit(rank: 2, bodyNumber: '#1088', driverName: 'Marcos Barba', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 3, bodyNumber: '#0412', driverName: 'Emilio Farinas', status: 'Standing by', isCurrentDriver: false),
     ];
     _queues['term_03'] = [
-      PilaDriverUnit(rank: 1, bodyNumber: '#031', driverName: 'Ferdinand Corpuz', status: 'Next to Board', isCurrentDriver: false),
-      PilaDriverUnit(rank: 2, bodyNumber: '#062', driverName: 'Vicente Keon', status: 'In Terminal Bay', isCurrentDriver: false),
+      PilaDriverUnit(rank: 1, bodyNumber: '#0031', driverName: 'Ferdinand Corpuz', status: 'Next to Board', isCurrentDriver: false),
+      PilaDriverUnit(rank: 2, bodyNumber: '#1062', driverName: 'Vicente Keon', status: 'In Terminal Bay', isCurrentDriver: false),
     ];
   }
 }
