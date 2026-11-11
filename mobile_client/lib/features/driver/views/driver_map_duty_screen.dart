@@ -678,6 +678,68 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 ),
               ),
               const SizedBox(height: 14),
+              const Text(
+                'Live Terminal Dispatch Line',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.primarySlate),
+              ),
+              const SizedBox(height: 8),
+              ...[
+                {'rank': 1, 'body': '#014', 'name': 'Juan Santos', 'status': 'Dispatch Ready', 'isMe': _queuePosition == 1},
+                {'rank': 2, 'body': '#027', 'name': 'Rodrigo Marcos', 'status': 'In Bay', 'isMe': _queuePosition == 2},
+                {'rank': 3, 'body': '#035', 'name': 'Mario Agbayani', 'status': 'In Bay', 'isMe': _queuePosition == 3},
+                {'rank': 4, 'body': '#042', 'name': '${widget.fullName} (YOU)', 'status': 'Queued #$_queuePosition', 'isMe': _queuePosition == 4},
+                {'rank': 5, 'body': '#058', 'name': 'Danilo Pascua', 'status': 'Standing by', 'isMe': _queuePosition == 5},
+              ].map((unit) {
+                final bool isMe = unit['isMe'] as bool;
+                final int rank = unit['rank'] as int;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isMe ? const Color(0xFFF0FDF4) : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: isMe ? AppTheme.accentEmerald : Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isMe ? AppTheme.accentEmerald : (rank == 1 ? const Color(0xFFF59E0B) : Colors.grey.shade200),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '#$rank',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                              color: (isMe || rank == 1) ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          unit['name'] as String,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: isMe ? FontWeight.w800 : FontWeight.w600,
+                            color: isMe ? AppTheme.accentEmerald : AppTheme.primarySlate,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        unit['body'] as String,
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Icon(Icons.info_outline_rounded, size: 16, color: Colors.grey.shade500),

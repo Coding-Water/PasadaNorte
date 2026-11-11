@@ -1252,7 +1252,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               child: ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  Navigator.pop(context, true);
+                  _showTodaPilaQueueModal(terminal);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.accentEmerald,
@@ -1288,6 +1288,195 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showTodaPilaQueueModal(TodaTerminal terminal) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (modalCtx) => SafeArea(
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          terminal.name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.primarySlate,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Live FIFO Dispatch Order & Queued Units',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: const Text(
+                      'YOU: RANK #4',
+                      style: TextStyle(
+                        color: Color(0xFFB45309),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    _buildPilaQueueItem(rank: 1, body: '#014', name: 'Juan Santos', status: 'Dispatch Ready (First in line)', isMe: false),
+                    _buildPilaQueueItem(rank: 2, body: '#027', name: 'Rodrigo Marcos', status: 'Waiting in terminal bay', isMe: false),
+                    _buildPilaQueueItem(rank: 3, body: '#035', name: 'Mario Agbayani', status: 'Waiting in terminal bay', isMe: false),
+                    _buildPilaQueueItem(rank: 4, body: '#042', name: '${widget.driverName} (YOU)', status: 'Just Queued • Position #4', isMe: true),
+                    _buildPilaQueueItem(rank: 5, body: '#058', name: 'Danilo Pascua', status: 'Standing by', isMe: false),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(modalCtx);
+                    Navigator.pop(context, true);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.accentEmerald,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('BACK TO DUTY MAP (STANDBY FOR DISPATCH)', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPilaQueueItem({
+    required int rank,
+    required String body,
+    required String name,
+    required String status,
+    required bool isMe,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isMe ? const Color(0xFFF0FDF4) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isMe ? AppTheme.accentEmerald : Colors.grey.shade200,
+          width: isMe ? 1.5 : 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isMe ? AppTheme.accentEmerald : (rank == 1 ? const Color(0xFFF59E0B) : Colors.grey.shade200),
+            ),
+            child: Center(
+              child: Text(
+                '#$rank',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  color: (isMe || rank == 1) ? Colors.white : Colors.black87,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                        color: isMe ? AppTheme.accentEmerald : AppTheme.primarySlate,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        body,
+                        style: TextStyle(color: Colors.grey.shade700, fontSize: 10.5, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  status,
+                  style: TextStyle(
+                    color: isMe ? const Color(0xFF059669) : Colors.grey.shade600,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
