@@ -102,23 +102,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   bool _isOffRoute = false;
   bool _isRerouting = false;
   String _rerouteBannerMessage = '';
-  String _topNotificationMessage = '';
-  Timer? _topNotificationTimer;
-
-  void _showTopNotification(String message) {
-    _topNotificationTimer?.cancel();
-    setState(() {
-      _topNotificationMessage = message;
-    });
-    _topNotificationTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted) {
-        setState(() {
-          _topNotificationMessage = '';
-        });
-      }
-    });
-  }
-
   // Driver simulated live position
   late LatLng _currentDriverLocation;
   List<LatLng> _currentRoutePolyline = [];
@@ -160,7 +143,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     _telemetryTimer?.cancel();
     _navigationTimer?.cancel();
     _autoFollowResumeTimer?.cancel();
-    _topNotificationTimer?.cancel();
     super.dispose();
   }
 
@@ -396,13 +378,11 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         _isSheetExpanded = true; // Slides up when arrived at pickup waiting for passenger
         _currentDriverLocation = widget.pickupPoint.latLng;
         _buildStageRoute();
-        _showTopNotification('Notified Passenger: "Your TODA driver has arrived at pickup."');
       } else if (_currentStage == DriverTripStage.arrivedAtPickup) {
         _currentStage = DriverTripStage.inTransitToDropoff;
         _isSheetExpanded = false; // Auto-collapse to Image 2 & 3 for clear road map view during transit
         _buildStageRoute();
         _mapController.move(_currentDriverLocation, _navigationZoom);
-        _showTopNotification('Trip Started: GPS meter running to ${widget.dropoffPoint.name}.');
       } else if (_currentStage == DriverTripStage.inTransitToDropoff) {
         _navigationTimer?.cancel();
         _currentStage = DriverTripStage.tripCompleted;
@@ -1119,8 +1099,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       targetTerminal.centerPoint.longitude,
     );
 
-    _showTopNotification('🗺️ Routing to ${targetTerminal.name} • Queuing inside 25m geofence...');
-
     setState(() {
       _currentStage = DriverTripStage.returningToPila;
       _returnTerminal = targetTerminal;
@@ -1214,8 +1192,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       _currentDriverLocation = terminal.centerPoint.latLng;
       _currentPolylineIndex = max(0, _currentRoutePolyline.length - 1);
     });
-
-    _showTopNotification('✓ ENTERED PILA GEOFENCE (${distMeters <= 0 ? "0" : distMeters.toStringAsFixed(0)}m <= 25m): Queued at Rank #1 in ${terminal.name}!');
 
     if (!mounted) return;
     showModalBottomSheet(
@@ -1393,20 +1369,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                   urlTemplate: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                   userAgentPackageName: 'ph.laoag.pasadanorte',
                 ),
-                // 25m Pila Geofence Circle
-                if (_currentStage == DriverTripStage.returningToPila && _returnTerminal != null)
-                  CircleLayer(
-                    circles: [
-                      CircleMarker(
-                        point: _returnTerminal!.centerPoint.latLng,
-                        radius: _returnTerminal!.radiusMeters,
-                        useRadiusInMeter: true,
-                        color: AppTheme.accentEmerald.withValues(alpha: 0.22),
-                        borderColor: AppTheme.accentEmerald,
-                        borderStrokeWidth: 2.5,
-                      ),
-                    ],
-                  ),
                 // Route Polylines: Traversed Trail Left Behind + Active Ahead Green Route
                 PolylineLayer(
                   polylines: [
@@ -1747,48 +1709,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               ],
             ),
           ),
-
-          // 5. Signature Top Notification Banner (Overhead HUD)
-          if (_topNotificationMessage.isNotEmpty)
-            Positioned(
-              top: 14,
-              left: 16,
-              right: 16,
-              child: SafeArea(
-                child: Material(
-                  elevation: 12,
-                  borderRadius: BorderRadius.circular(18),
-                  color: AppTheme.accentEmerald,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentEmerald,
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _topNotificationMessage,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );

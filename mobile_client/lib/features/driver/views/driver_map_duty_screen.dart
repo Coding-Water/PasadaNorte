@@ -883,19 +883,6 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       }).toList(),
                     ),
                   ],
-                  // TODA Terminal Station Geofence (Subtle and clean)
-                  CircleLayer(
-                    circles: TodaQueueService.laoagTerminals.map((term) {
-                      return CircleMarker(
-                        point: term.centerPoint.latLng,
-                        radius: term.radiusMeters,
-                        useRadiusInMeter: true,
-                        color: AppTheme.accentEmerald.withValues(alpha: 0.12),
-                        borderColor: AppTheme.accentEmerald.withValues(alpha: 0.70),
-                        borderStrokeWidth: 1.5,
-                      );
-                    }).toList(),
-                  ),
                   // Marker Layer: Driver Location (YOU) & Terminal Station Pins
                   MarkerLayer(
                     markers: [
@@ -1456,13 +1443,6 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
               icon: Icons.my_location_rounded,
               onTap: () {
                 _mapController.move(_driverLocation, 17.5);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Centered on your location (Laoag Public Market TODA).'),
-                    duration: Duration(seconds: 1),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
               },
             ),
           ),
