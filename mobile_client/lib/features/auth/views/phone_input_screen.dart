@@ -306,133 +306,151 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                 const SizedBox(height: 20),
 
                 // Primary CTA Button
-                ElevatedButton(
-                  onPressed: _isCheckingAccount ? null : _onContinue,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isRegisterMode ? AppTheme.accentEmerald : AppTheme.primarySlate,
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isCheckingAccount ? null : _onContinue,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isRegisterMode ? AppTheme.accentEmerald : AppTheme.primarySlate,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: _isCheckingAccount
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                          )
+                        : Text(
+                            _isRegisterMode ? 'Send Verification Code' : 'Continue',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
-                  child: _isCheckingAccount
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                        )
-                      : Text(
-                          _isRegisterMode ? 'Continue to Role Selection' : 'Continue',
-                        ),
                 ),
 
-                if (!_isRegisterMode) ...[
-                  const SizedBox(height: 28),
-                  Row(
+                const SizedBox(height: 24),
+
+                // Informational Notice: SMS Verification
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: Divider(color: Colors.grey.shade200)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        child: Text(
-                          'INSTANT TEST ACCOUNTS',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.grey.shade500,
-                            letterSpacing: 0.6,
-                          ),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentEmeraldLight,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.mark_email_read_rounded,
+                          color: AppTheme.accentEmerald,
+                          size: 20,
                         ),
                       ),
-                      Expanded(child: Divider(color: Colors.grey.shade200)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'SMS Verification (OTP)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.primarySlate,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'We will send a 6-digit one-time PIN to verify ownership of your mobile number before proceeding.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                ),
 
-                  _buildQuickAccountTile(
-                    icon: Icons.person_pin_circle_rounded,
-                    iconBg: const Color(0xFFDCFCE7),
-                    iconColor: AppTheme.accentEmerald,
-                    title: 'Passenger Mode',
-                    subtitle: '+63 999 000 0001 • Book Rides & Approved Fares',
-                    phoneDigits: '9990000001',
+                const SizedBox(height: 24),
+
+                // Bottom Mode Switcher
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _isRegisterMode = !_isRegisterMode;
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                    ),
+                    child: RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                          fontFamily: 'Inter',
+                        ),
+                        children: [
+                          TextSpan(
+                            text: _isRegisterMode
+                                ? 'Already have an account? '
+                                : "Don't have an account? ",
+                          ),
+                          TextSpan(
+                            text: _isRegisterMode ? 'Log In' : 'Create Account',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.accentEmerald,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  _buildQuickAccountTile(
-                    icon: Icons.electric_rickshaw_rounded,
-                    iconBg: const Color(0xFFFEF3C7),
-                    iconColor: const Color(0xFFD97706),
-                    title: 'Tricycle Driver Mode',
-                    subtitle: '+63 999 000 0002 • Thermal Radar & Digital Pila',
-                    phoneDigits: '9990000002',
+                ),
+
+                const SizedBox(height: 16),
+
+                // Data Privacy Trust Badge (RA 10173 Compliance)
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.shield_outlined, size: 15, color: Colors.grey.shade500),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Secured under RA 10173 • Data Privacy Act of 2012',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  _buildQuickAccountTile(
-                    icon: Icons.admin_panel_settings_rounded,
-                    iconBg: const Color(0xFFE0E7FF),
-                    iconColor: const Color(0xFF1D4ED8),
-                    title: 'TODA / MINC Admin Portal',
-                    subtitle: '+63 999 000 0003 • 1:1 Reviews, Geofences & Fares',
-                    phoneDigits: '9990000003',
-                  ),
-                ],
+                ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickAccountTile({
-    required IconData icon,
-    required Color iconBg,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required String phoneDigits,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        _phoneController.text = phoneDigits;
-        _onContinue();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: iconColor, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                      color: AppTheme.primarySlate,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios_rounded, size: 15, color: Colors.grey.shade400),
-          ],
         ),
       ),
     );
