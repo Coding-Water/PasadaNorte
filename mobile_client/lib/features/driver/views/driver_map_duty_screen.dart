@@ -11,7 +11,6 @@ import '../../../core/services/toda_queue_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import 'driver_active_trip_screen.dart';
-import 'toda_queue_screen.dart';
 
 class DriverMapDutyScreen extends StatefulWidget {
   final String fullName;
@@ -256,16 +255,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                             behavior: SnackBarBehavior.floating,
                             duration: const Duration(seconds: 4),
                             action: SnackBarAction(
-                              label: 'VIEW QUEUE',
+                              label: 'VIEW STATUS',
                               textColor: Colors.white,
-                              onPressed: () {
-                                Navigator.push(
-                                  this.context,
-                                  MaterialPageRoute(
-                                    builder: (_) => TodaQueueScreen(driverName: widget.fullName),
-                                  ),
-                                );
-                              },
+                              onPressed: _showDigitalPilaStatusSheet,
                             ),
                           ),
                         );
@@ -586,6 +578,156 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showDigitalPilaStatusSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: Text(
+                      'PILA #$_queuePosition OF 8',
+                      style: const TextStyle(
+                        color: Color(0xFFB45309),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Digital Pila Queue Status',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.primarySlate,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    _buildPilaInfoRow(
+                      icon: Icons.store_mall_directory_rounded,
+                      title: 'Terminal Station',
+                      value: 'Laoag Central Terminal TODA',
+                    ),
+                    const Divider(height: 18),
+                    _buildPilaInfoRow(
+                      icon: Icons.badge_outlined,
+                      title: 'Registered TODA',
+                      value: 'CENTRAL-TODA',
+                    ),
+                    const Divider(height: 18),
+                    _buildPilaInfoRow(
+                      icon: Icons.verified_user_outlined,
+                      title: 'Geofence Compliance',
+                      value: 'In-Bounds (Within 25m Radius)',
+                      valueColor: const Color(0xFF059669),
+                    ),
+                    const Divider(height: 18),
+                    _buildPilaInfoRow(
+                      icon: Icons.alt_route_rounded,
+                      title: 'Dispatch Order',
+                      value: 'FIFO Priority (Rank #$_queuePosition in Line)',
+                      valueColor: const Color(0xFF059669),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 16, color: Colors.grey.shade500),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Terminal geofence boundaries and calibration are managed by TODA & MINC Administrators via the PasadaNorte Web Command Center.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.accentEmerald,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPilaInfoRow({
+    required IconData icon,
+    required String title,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: const Color(0xFF64748B)),
+        const SizedBox(width: 10),
+        Text(title, style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: valueColor ?? AppTheme.primarySlate,
+          ),
+        ),
+      ],
     );
   }
 
@@ -1108,17 +1250,10 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       ),
                     ),
 
-                  // Floating Digital Pila Rank Pill (Tap to calibrate)
+                  // Floating Digital Pila Rank Pill (Read-only live status)
                   if (_isOnline)
                     GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TodaQueueScreen(driverName: widget.fullName),
-                          ),
-                        ).then((_) => setState(() {}));
-                      },
+                      onTap: _showDigitalPilaStatusSheet,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
@@ -1188,12 +1323,13 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                                   Text(
                                     LocationService.hasMockLocationViolation
                                         ? 'Queue paused under Ord. 2023-005. Tap to inspect.'
-                                        : 'Tap to open Digital Pila GPS Calibration',
+                                        : 'Rank #$_queuePosition in Digital Pila • Standing by for dispatch',
                                     style: TextStyle(
                                       color: LocationService.hasMockLocationViolation
                                           ? Colors.red.shade700
-                                          : Colors.grey.shade600,
+                                          : const Color(0xFF059669),
                                       fontSize: 11,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],
@@ -1202,10 +1338,10 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                             Icon(
                               LocationService.hasMockLocationViolation
                                   ? Icons.gpp_bad_rounded
-                                  : Icons.tune_rounded,
+                                  : Icons.info_outline_rounded,
                               color: LocationService.hasMockLocationViolation
                                   ? Colors.red.shade700
-                                  : const Color(0xFFD97706),
+                                  : const Color(0xFF059669),
                               size: 20,
                             ),
                           ],
@@ -1379,16 +1515,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => TodaQueueScreen(driverName: widget.fullName),
-                              ),
-                            ).then((_) => setState(() {}));
-                          },
-                          icon: const Icon(Icons.sensors_rounded, size: 18),
-                          label: const Text('Digital Pila', style: TextStyle(fontSize: 13)),
+                          onPressed: _showDigitalPilaStatusSheet,
+                          icon: const Icon(Icons.format_list_numbered_rounded, size: 18),
+                          label: const Text('Queue Status', style: TextStyle(fontSize: 13)),
                         ),
                       ),
                       const SizedBox(width: 10),
