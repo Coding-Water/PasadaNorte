@@ -1186,7 +1186,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     });
   }
 
-  void _onArrivedAtPila(TodaTerminal terminal, double distMeters) {
+  void _onArrivedAtPila(TodaTerminal terminal, double distMeters) async {
     _navigationTimer?.cancel();
     final int assignedRank = TodaQueueService.enqueueDriverAtTail(
       terminal.id,
@@ -1199,10 +1199,12 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     });
 
     if (!mounted) return;
-    showModalBottomSheet(
+    bool viewedQueue = false;
+
+    await showModalBottomSheet(
       context: context,
-      isDismissible: false,
-      enableDrag: false,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
@@ -1256,8 +1258,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               height: 48,
               child: ElevatedButton.icon(
                 onPressed: () {
+                  viewedQueue = true;
                   Navigator.pop(ctx);
-                  _showTodaPilaQueueModal(terminal, assignedRank);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.accentEmerald,
@@ -1278,8 +1280,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               height: 44,
               child: TextButton(
                 onPressed: () {
+                  viewedQueue = false;
                   Navigator.pop(ctx);
-                  Navigator.pop(context, true);
                 },
                 child: Text(
                   'RETURN TO DUTY MAP (STANDBY FOR DISPATCH)',
@@ -1295,11 +1297,21 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         ),
       ),
     );
+
+    if (!mounted) return;
+
+    if (viewedQueue) {
+      await _showTodaPilaQueueModal(terminal, assignedRank);
+    }
+
+    if (mounted) {
+      Navigator.pop(context, true);
+    }
   }
 
-  void _showTodaPilaQueueModal(TodaTerminal terminal, int myRank) {
+  Future<void> _showTodaPilaQueueModal(TodaTerminal terminal, int myRank) async {
     final queue = TodaQueueService.getTerminalQueue(terminal.id, driverName: widget.driverName);
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -1389,7 +1401,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(modalCtx);
-                    Navigator.pop(context, true);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.accentEmerald,
@@ -1599,8 +1610,10 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                 ),
                 MarkerLayer(
                   markers: [
-                    if (_currentStage != DriverTripStage.returningToPila) ...[
-                      // Pickup Marker
+                    // Pickup Marker: only visible while driver is en route or waiting at pickup.
+                    // Removed once passenger has boarded the tricycle.
+                    if (_currentStage == DriverTripStage.enRouteToPickup ||
+                        _currentStage == DriverTripStage.arrivedAtPickup) ...[
                       Marker(
                         point: widget.pickupPoint.latLng,
                         width: 52,
@@ -1618,6 +1631,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                           ),
                         ),
                       ),
+                    ],
+                    if (_currentStage != DriverTripStage.returningToPila) ...[
                       // Dropoff Marker
                       Marker(
                         point: widget.dropoffPoint.latLng,

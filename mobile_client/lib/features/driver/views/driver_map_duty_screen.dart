@@ -596,208 +596,215 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) => SafeArea(
-        child: Padding(
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
           padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4.5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4.5,
                     decoration: BoxDecoration(
-                      color: isQueued ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
+                      color: Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: isQueued ? const Color(0xFFFDE68A) : const Color(0xFFCBD5E1)),
-                    ),
-                    child: Text(
-                      isQueued ? 'PILA #$dynamicRank OF ${queue.length}' : 'NOT QUEUED • EN ROUTE',
-                      style: TextStyle(
-                        color: isQueued ? const Color(0xFFB45309) : const Color(0xFF475569),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 12.5,
-                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Digital Pila Queue Status',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.primarySlate,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: Column(
+                const SizedBox(height: 16),
+                Row(
                   children: [
-                    _buildPilaInfoRow(
-                      icon: Icons.store_mall_directory_rounded,
-                      title: 'Terminal Station',
-                      value: 'Laoag Central Terminal TODA',
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isQueued ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: isQueued ? const Color(0xFFFDE68A) : const Color(0xFFCBD5E1)),
+                      ),
+                      child: Text(
+                        isQueued ? 'PILA #$dynamicRank OF ${queue.length}' : 'NOT QUEUED • EN ROUTE',
+                        style: TextStyle(
+                          color: isQueued ? const Color(0xFFB45309) : const Color(0xFF475569),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12.5,
+                        ),
+                      ),
                     ),
-                    const Divider(height: 18),
-                    _buildPilaInfoRow(
-                      icon: Icons.badge_outlined,
-                      title: 'Registered TODA',
-                      value: 'CENTRAL-TODA',
-                    ),
-                    const Divider(height: 18),
-                    _buildPilaInfoRow(
-                      icon: Icons.verified_user_outlined,
-                      title: 'Geofence Compliance',
-                      value: isQueued ? 'In-Bounds (Within 25m Radius)' : 'Outside Terminal Geofence',
-                      valueColor: isQueued ? const Color(0xFF059669) : const Color(0xFFD97706),
-                    ),
-                    const Divider(height: 18),
-                    _buildPilaInfoRow(
-                      icon: Icons.alt_route_rounded,
-                      title: 'Dispatch Order',
-                      value: isQueued
-                          ? 'FIFO Priority (Rank #$dynamicRank in Line)'
-                          : 'Standby / En Route (Enter bay to queue)',
-                      valueColor: isQueued ? const Color(0xFF059669) : const Color(0xFFD97706),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Digital Pila Queue Status',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primarySlate,
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'Live Terminal Dispatch Line',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.primarySlate),
-              ),
-              const SizedBox(height: 8),
-              ...TodaQueueService.getTerminalQueue('term_01', driverName: widget.fullName).map((unit) {
-                final bool isMe = unit.isCurrentDriver;
-                final int rank = unit.rank;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isMe ? const Color(0xFFF0FDF4) : Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: isMe ? AppTheme.accentEmerald : Colors.grey.shade200),
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isMe ? AppTheme.accentEmerald : (rank == 1 ? const Color(0xFFF59E0B) : Colors.grey.shade200),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '#$rank',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w900,
-                              color: (isMe || rank == 1) ? Colors.white : Colors.black87,
-                            ),
-                          ),
-                        ),
+                      _buildPilaInfoRow(
+                        icon: Icons.store_mall_directory_rounded,
+                        title: 'Terminal Station',
+                        value: 'Laoag Central Terminal TODA',
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          isMe ? '${widget.fullName} (YOU)' : unit.driverName,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: isMe ? FontWeight.w800 : FontWeight.w600,
-                            color: isMe ? AppTheme.accentEmerald : AppTheme.primarySlate,
-                          ),
-                        ),
+                      const Divider(height: 18),
+                      _buildPilaInfoRow(
+                        icon: Icons.badge_outlined,
+                        title: 'Registered TODA',
+                        value: 'CENTRAL-TODA',
                       ),
-                      Text(
-                        unit.bodyNumber,
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                      const Divider(height: 18),
+                      _buildPilaInfoRow(
+                        icon: Icons.verified_user_outlined,
+                        title: 'Geofence Compliance',
+                        value: isQueued ? 'In-Bounds (Within 25m Radius)' : 'Outside Terminal Geofence',
+                        valueColor: isQueued ? const Color(0xFF059669) : const Color(0xFFD97706),
+                      ),
+                      const Divider(height: 18),
+                      _buildPilaInfoRow(
+                        icon: Icons.alt_route_rounded,
+                        title: 'Dispatch Order',
+                        value: isQueued
+                            ? 'FIFO Priority (Rank #$dynamicRank in Line)'
+                            : 'Standby / En Route (Enter bay to queue)',
+                        valueColor: isQueued ? const Color(0xFF059669) : const Color(0xFFD97706),
                       ),
                     ],
                   ),
-                );
-              }),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, size: 16, color: Colors.grey.shade500),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Terminal geofence boundaries and calibration are managed by TODA & MINC Administrators via the PasadaNorte Web Command Center.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.3),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Live Terminal Dispatch Line',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.primarySlate),
+                ),
+                const SizedBox(height: 8),
+                ...TodaQueueService.getTerminalQueue('term_01', driverName: widget.fullName).map((unit) {
+                  final bool isMe = unit.isCurrentDriver;
+                  final int rank = unit.rank;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isMe ? const Color(0xFFF0FDF4) : Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: isMe ? AppTheme.accentEmerald : Colors.grey.shade200),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TodaQueueScreen(
-                              driverName: widget.fullName,
-                              initialTerminalId: 'term_01',
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isMe ? AppTheme.accentEmerald : (rank == 1 ? const Color(0xFFF59E0B) : Colors.grey.shade200),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '#$rank',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w900,
+                                color: (isMe || rank == 1) ? Colors.white : Colors.black87,
+                              ),
                             ),
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.fullscreen_rounded, size: 18),
-                      label: const Text('FULL BOARD', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            isMe ? '${widget.fullName} (YOU)' : unit.driverName,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: isMe ? FontWeight.w800 : FontWeight.w600,
+                              color: isMe ? AppTheme.accentEmerald : AppTheme.primarySlate,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          unit.bodyNumber,
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 16, color: Colors.grey.shade500),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Terminal geofence boundaries and calibration are managed by TODA & MINC Administrators via the PasadaNorte Web Command Center.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.3),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.accentEmerald,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(0, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TodaQueueScreen(
+                                driverName: widget.fullName,
+                                initialTerminalId: 'term_01',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.fullscreen_rounded, size: 18),
+                        label: const Text('FULL BOARD', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
                       ),
-                      child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentEmerald,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 48),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -814,14 +821,19 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
       children: [
         Icon(icon, size: 18, color: const Color(0xFF64748B)),
         const SizedBox(width: 10),
-        Text(title, style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
-        const Spacer(),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: valueColor ?? AppTheme.primarySlate,
+        Text(title, style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              color: valueColor ?? AppTheme.primarySlate,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
