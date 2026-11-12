@@ -110,12 +110,23 @@ void main() {
     expect(find.text('Share Receipt'), findsWidgets);
     expect(find.text('Recent people'), findsOneWidget);
     expect(find.text('Social media'), findsOneWidget);
+    expect(find.text('Charlotte\nHanlin'), findsOneWidget);
+    expect(find.text('Kristin\nWatson'), findsOneWidget);
+    expect(find.text('Clinton\nMcClure'), findsOneWidget);
+    expect(find.text('Maryland\nWinkles'), findsOneWidget);
+    expect(find.text('Alex\nHern'), findsOneWidget);
     expect(find.text('WhatsApp'), findsWidgets);
     expect(find.text('Facebook'), findsWidgets);
+    expect(find.text('Instagram'), findsOneWidget);
+    expect(find.text('Telegram'), findsOneWidget);
+    expect(find.text('X (Twitter)'), findsOneWidget);
 
-    // Dismiss sheet and screen
-    Navigator.of(tester.element(find.byType(ShareReceiptSheet))).pop();
+    // Tap WhatsApp to test native share trigger
+    await tester.tap(find.text('WhatsApp').first);
     await tester.pumpAndSettle();
+
+    // Verify sheet dismissed
+    expect(find.byType(ShareReceiptSheet), findsNothing);
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 

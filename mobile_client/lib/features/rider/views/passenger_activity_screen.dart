@@ -161,6 +161,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
 
   Widget _buildScheduledPasaDeliverBanner() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBEB),
@@ -168,9 +169,11 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
         border: Border.all(color: const Color(0xFFFDE68A)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: const Color(0xFFF59E0B),
               borderRadius: BorderRadius.circular(10),
@@ -180,6 +183,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
           const SizedBox(width: 12),
           const Expanded(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -190,6 +194,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
                     color: Color(0xFF92400E),
                   ),
                 ),
+                SizedBox(height: 2),
                 Text(
                   'Schedule a TODA delivery rider anytime.',
                   style: TextStyle(fontSize: 11.5, color: Color(0xFFB45309)),
@@ -197,6 +202,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
               ],
             ),
           ),
+          const SizedBox(width: 8),
           ElevatedButton(
             onPressed: _openSchedulePasaDeliver,
             style: ElevatedButton.styleFrom(
@@ -218,6 +224,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
       padding: const EdgeInsets.symmetric(vertical: 48),
       child: Center(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
@@ -350,6 +357,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -374,6 +382,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
                   ),
                 ),
                 Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
@@ -407,6 +416,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
                 border: Border.all(color: const Color(0xFFF1F5F9)),
               ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,

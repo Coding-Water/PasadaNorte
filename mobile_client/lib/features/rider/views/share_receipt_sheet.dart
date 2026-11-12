@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/app_theme.dart';
 import '../models/activity_trip_model.dart';
 
@@ -27,25 +27,26 @@ class ShareReceiptSheet extends StatelessWidget {
         'Date: ${trip.dateTime.month}/${trip.dateTime.day}/${trip.dateTime.year}\n'
         'Driver: ${trip.driverName} (${trip.driverVehicle})';
 
-    // Copy to clipboard for instant pasting on native intent
-    await Clipboard.setData(ClipboardData(text: receiptText));
-
-    if (!context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
 
-    // If WhatsApp is tapped, attempt deep-link
-    if (platformName == 'WhatsApp') {
-      final uri = Uri.parse('whatsapp://send?text=${Uri.encodeComponent(receiptText)}');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-        return;
-      }
-    }
+    try {
+      await Clipboard.setData(ClipboardData(text: receiptText));
+    } catch (_) {}
+
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text: receiptText,
+          subject: 'PasadaNorte Official Receipt - ${trip.bookingId}',
+          title: 'Share PasadaNorte Receipt',
+        ),
+      );
+    } catch (_) {}
 
     messenger.showSnackBar(
       SnackBar(
-        content: Text('Receipt copied & shared to $platformName!'),
+        content: Text('Receipt shared to $platformName!'),
         backgroundColor: AppTheme.accentEmerald,
         behavior: SnackBarBehavior.floating,
       ),
@@ -56,22 +57,6 @@ class ShareReceiptSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final fileName = 'IMG-${trip.transactionId}-${trip.bookingId}.jpg';
 
-    final recentPeople = [
-      {'name': 'Charlotte\nHanlin', 'color': const Color(0xFFE11D48), 'app': 'WhatsApp', 'badgeColor': const Color(0xFF22C55E)},
-      {'name': 'Kristin\nWatson', 'color': const Color(0xFF6366F1), 'app': 'Facebook', 'badgeColor': const Color(0xFF1877F2)},
-      {'name': 'Clinton\nMcClure', 'color': const Color(0xFF06B6D4), 'app': 'Instagram', 'badgeColor': const Color(0xFFE1306C)},
-      {'name': 'Maryland\nWinkles', 'color': const Color(0xFFF59E0B), 'app': 'WhatsApp', 'badgeColor': const Color(0xFF22C55E)},
-      {'name': 'Alex\nHern', 'color': const Color(0xFF10B981), 'app': 'Telegram', 'badgeColor': const Color(0xFF0088CC)},
-    ];
-
-    final socialApps = [
-      {'name': 'WhatsApp', 'color': const Color(0xFF25D366), 'icon': Icons.chat_bubble_outline_rounded},
-      {'name': 'Facebook', 'color': const Color(0xFF1877F2), 'icon': Icons.facebook_rounded},
-      {'name': 'Instagram', 'color': const Color(0xFFE1306C), 'icon': Icons.camera_alt_outlined},
-      {'name': 'Telegram', 'color': const Color(0xFF0088CC), 'icon': Icons.send_rounded},
-      {'name': 'X (Twitter)', 'color': Colors.black87, 'icon': Icons.close_rounded},
-    ];
-
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -80,7 +65,7 @@ class ShareReceiptSheet extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,15 +73,15 @@ class ShareReceiptSheet extends StatelessWidget {
               // Drag Handle
               Center(
                 child: Container(
-                  width: 44,
+                  width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: const Color(0xFFD1D5DB),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
 
               // Title
               const Center(
@@ -111,36 +96,37 @@ class ShareReceiptSheet extends StatelessWidget {
               ),
               const SizedBox(height: 18),
 
-              // File Attachment Card (Image 4)
+              // File Attachment Card (Exact layout as image 1)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      width: 42,
+                      height: 42,
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8F8EF),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
                         Icons.image_rounded,
                         color: AppTheme.accentEmerald,
-                        size: 20,
+                        size: 22,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         fileName,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.primarySlate,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -150,135 +136,270 @@ class ShareReceiptSheet extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // Recent people section
+              // Recent people section title
               Text(
                 'Recent people',
                 style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                   color: Colors.grey.shade600,
                 ),
               ),
               const SizedBox(height: 14),
 
-              SizedBox(
-                height: 86,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: recentPeople.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 18),
-                  itemBuilder: (context, idx) {
-                    final person = recentPeople[idx];
-                    final personName = person['name'] as String;
-                    return GestureDetector(
-                      onTap: () => _shareToNativePlatform(context, personName.replaceAll('\n', ' ')),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              CircleAvatar(
-                                radius: 24,
-                                backgroundColor: (person['color'] as Color).withValues(alpha: 0.18),
-                                child: Text(
-                                  personName.substring(0, 1),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    color: person['color'] as Color,
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                right: -2,
-                                bottom: -2,
-                                child: CircleAvatar(
-                                  radius: 8,
-                                  backgroundColor: person['badgeColor'] as Color,
-                                  child: const Icon(
-                                    Icons.check,
-                                    size: 9,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            person['name'] as String,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: AppTheme.primarySlate,
-                              height: 1.15,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+              // 5 Recent people columns (evenly spaced across width)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildRecentPerson(
+                      context: context,
+                      firstName: 'Charlotte',
+                      lastName: 'Hanlin',
+                      letter: 'C',
+                      bgCircleColor: const Color(0xFFFFDDE2),
+                      letterColor: const Color(0xFFE11D48),
+                      badgeColor: const Color(0xFF22C55E),
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildRecentPerson(
+                      context: context,
+                      firstName: 'Kristin',
+                      lastName: 'Watson',
+                      letter: 'K',
+                      bgCircleColor: const Color(0xFFE0E7FF),
+                      letterColor: const Color(0xFF4F46E5),
+                      badgeColor: const Color(0xFF2563EB),
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildRecentPerson(
+                      context: context,
+                      firstName: 'Clinton',
+                      lastName: 'McClure',
+                      letter: 'C',
+                      bgCircleColor: const Color(0xFFCFFAFE),
+                      letterColor: const Color(0xFF0891B2),
+                      badgeColor: const Color(0xFFE11D48),
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildRecentPerson(
+                      context: context,
+                      firstName: 'Maryland',
+                      lastName: 'Winkles',
+                      letter: 'M',
+                      bgCircleColor: const Color(0xFFFEF3C7),
+                      letterColor: const Color(0xFFD97706),
+                      badgeColor: const Color(0xFF22C55E),
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildRecentPerson(
+                      context: context,
+                      firstName: 'Alex',
+                      lastName: 'Hern',
+                      letter: 'A',
+                      bgCircleColor: const Color(0xFFD1FAE5),
+                      letterColor: const Color(0xFF059669),
+                      badgeColor: const Color(0xFF2563EB),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 14),
-
-              const Divider(color: Color(0xFFF1F5F9), height: 1),
               const SizedBox(height: 16),
 
-              // Social media section
+              const Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1),
+              const SizedBox(height: 16),
+
+              // Social media section title
               Text(
                 'Social media',
                 style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                   color: Colors.grey.shade600,
                 ),
               ),
               const SizedBox(height: 14),
 
-              SizedBox(
-                height: 80,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: socialApps.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 18),
-                  itemBuilder: (context, idx) {
-                    final app = socialApps[idx];
-                    return GestureDetector(
-                      onTap: () => _shareToNativePlatform(context, app['name'] as String),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: (app['color'] as Color).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Icon(
-                              app['icon'] as IconData,
-                              color: app['color'] as Color,
-                              size: 26,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            app['name'] as String,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppTheme.primarySlate,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+              // 5 Social media app columns (evenly spaced across width)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildSocialApp(
+                      context: context,
+                      name: 'WhatsApp',
+                      bgColor: const Color(0xFFE8F8EF),
+                      iconColor: const Color(0xFF22C55E),
+                      icon: Icons.chat_bubble_outline_rounded,
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildSocialApp(
+                      context: context,
+                      name: 'Facebook',
+                      bgColor: const Color(0xFFEFF6FF),
+                      iconColor: const Color(0xFF1877F2),
+                      icon: Icons.facebook_rounded,
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildSocialApp(
+                      context: context,
+                      name: 'Instagram',
+                      bgColor: const Color(0xFFFDF2F8),
+                      iconColor: const Color(0xFFE1306C),
+                      icon: Icons.camera_alt_outlined,
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildSocialApp(
+                      context: context,
+                      name: 'Telegram',
+                      bgColor: const Color(0xFFE0F2FE),
+                      iconColor: const Color(0xFF0284C7),
+                      icon: Icons.send_rounded,
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildSocialApp(
+                      context: context,
+                      name: 'X (Twitter)',
+                      bgColor: const Color(0xFFF1F5F9),
+                      iconColor: const Color(0xFF0F172A),
+                      icon: Icons.close_rounded,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRecentPerson({
+    required BuildContext context,
+    required String firstName,
+    required String lastName,
+    required String letter,
+    required Color bgCircleColor,
+    required Color letterColor,
+    required Color badgeColor,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _shareToNativePlatform(context, '$firstName $lastName'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 50,
+            height: 50,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: bgCircleColor,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    letter,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: letterColor,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: -1,
+                  bottom: -1,
+                  child: Container(
+                    width: 17,
+                    height: 17,
+                    decoration: BoxDecoration(
+                      color: badgeColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.check,
+                      size: 9.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            '$firstName\n$lastName',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.primarySlate,
+              height: 1.15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSocialApp({
+    required BuildContext context,
+    required String name,
+    required Color bgColor,
+    required Color iconColor,
+    required IconData icon,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _shareToNativePlatform(context, name),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 26,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.primarySlate,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
