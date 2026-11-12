@@ -2664,7 +2664,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
 }
 
 // ============================================================================
-// JOYRIDE-STYLE SLIDE-TO-CONFIRM WIDGET
+// PASADANORTE SLIDE-TO-CONFIRM WIDGET
 // ============================================================================
 class _SlideToConfirmWidget extends StatefulWidget {
   final String text;

@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_client/features/auth/views/welcome_onboarding_screen.dart';
 
 void main() {
-  testWidgets('WelcomeOnboardingScreen renders clean Joyride hero, phone mockup, and bottom sheet',
+  testWidgets('WelcomeOnboardingScreen renders clean hero, phone mockup, and bottom sheet',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
@@ -22,7 +22,7 @@ void main() {
     expect(find.text('Perms'), findsNothing);
     expect(find.text('LAOAG CITY COMMUTE'), findsNothing);
 
-    // Verify First Slide Walkthrough Elements (Matching Joyride Page 17)
+    // Verify First Slide Walkthrough Elements
     expect(
       find.text('Welcome to PasadaNorte - Your\nJourney, Your Way'),
       findsOneWidget,
@@ -40,7 +40,7 @@ void main() {
     expect(find.text('Continue'), findsOneWidget);
   });
 
-  testWidgets('WelcomeOnboardingScreen advances through all 3 Joyride walkthrough slides',
+  testWidgets('WelcomeOnboardingScreen advances through all 3 walkthrough slides',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
@@ -54,7 +54,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Slide 1 -> Slide 2 (Route & Choose Ride - Matching Joyride Page 18)
+    // Slide 1 -> Slide 2 (Route & Choose Ride)
     final continueBtn = find.text('Continue');
     expect(continueBtn, findsOneWidget);
     await tester.tap(continueBtn);
@@ -69,7 +69,7 @@ void main() {
       findsOneWidget,
     );
 
-    // Slide 2 -> Slide 3 (Payment Methods - Matching Joyride Page 19)
+    // Slide 2 -> Slide 3 (Payment Methods)
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 

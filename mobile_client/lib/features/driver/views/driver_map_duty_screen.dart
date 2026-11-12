@@ -1362,7 +1362,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       ),
                     ),
 
-                  // Joyride Driver Metrics Quick Action Bar (Passenger Clean White Architecture)
+                  // Driver Metrics Quick Action Bar (Clean White Architecture)
                   Row(
                     children: [
                       // Earnings Action Card

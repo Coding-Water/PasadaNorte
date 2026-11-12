@@ -16,7 +16,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // PasadaNorte Emerald & Joyride Color Palette
+  // PasadaNorte Emerald Color Palette
   static const Color _primaryGreen = Color(0xFF00C466);
   static const Color _mintBackground = Color(0xFFE8F8EF);
   static const Color _darkHeading = Color(0xFF212121);
@@ -37,7 +37,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
     {
       'title': 'Secure Payments &\nSeamless Transactions',
       'subtitle':
-          'Say hello to convenience payments. Pay for your rides securely using GoRide Wallet, PayPal, Google Pay, Apple Pay, card, and or cash.',
+          'Say hello to convenience payments. Pay for your rides securely using Cash, Maya, GCash QR Ph, or TODA terminal digital dispatch.',
     },
   ];
 
@@ -75,7 +75,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
 
     // White bottom sheet takes ~50% of the screen height
     final bottomSheetHeight = math.min(screenHeight * 0.50, 450.0);
-    // Phone mockup width is ~76% of screen width (matching Joyride 1:1)
+    // Phone mockup width is ~76% of screen width
     final phoneWidth = math.min(screenWidth * 0.76, 320.0);
     // Phone mockup extends downward behind the white scooped curve
     final phoneHeight = math.min(screenHeight * 0.58, 510.0);
@@ -96,19 +96,19 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
               left: (screenWidth - phoneWidth) / 2,
               width: phoneWidth,
               height: phoneHeight,
-              child: _ImmersiveJoyridePhone(
+              child: _ImmersivePhoneMockup(
                 currentPage: _currentPage,
               ),
             ),
 
-            // 2. White Container with Downward Dipping Scoop Curve (Joyride Image 2)
+            // 2. White Container with Downward Dipping Scoop Curve
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
               height: bottomSheetHeight,
               child: ClipPath(
-                clipper: const _JoyrideWhiteScoopClipper(),
+                clipper: const _WhiteScoopClipper(),
                 child: Container(
                   color: Colors.white,
                   child: SafeArea(
@@ -289,10 +289,10 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// White Scoop Clipper (Dips DOWN in the center, matching Joyride Image 2)
+// White Scoop Clipper (Dips down smoothly in the center)
 // ---------------------------------------------------------------------------
-class _JoyrideWhiteScoopClipper extends CustomClipper<Path> {
-  const _JoyrideWhiteScoopClipper();
+class _WhiteScoopClipper extends CustomClipper<Path> {
+  const _WhiteScoopClipper();
 
   @override
   Path getClip(Size size) {
@@ -323,10 +323,10 @@ class _JoyrideWhiteScoopClipper extends CustomClipper<Path> {
 // ---------------------------------------------------------------------------
 // Immersive Phone Chassis (Pure UI edge-to-edge inside iPhone Frame)
 // ---------------------------------------------------------------------------
-class _ImmersiveJoyridePhone extends StatelessWidget {
+class _ImmersivePhoneMockup extends StatelessWidget {
   final int currentPage;
 
-  const _ImmersiveJoyridePhone({required this.currentPage});
+  const _ImmersivePhoneMockup({required this.currentPage});
 
   @override
   Widget build(BuildContext context) {
@@ -357,7 +357,7 @@ class _ImmersiveJoyridePhone extends StatelessWidget {
                 ),
               ),
 
-              // 2. Joyride iPhone Dynamic Island at Top
+              // 2. Dynamic Island at Top
               Positioned(
                 top: 10,
                 left: 0,
