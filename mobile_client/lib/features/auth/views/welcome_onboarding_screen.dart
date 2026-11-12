@@ -75,10 +75,10 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
 
     // White bottom sheet takes ~50% of the screen height
     final bottomSheetHeight = math.min(screenHeight * 0.50, 450.0);
-    // Phone mockup width is ~76% of screen width
-    final phoneWidth = math.min(screenWidth * 0.76, 320.0);
+    // Phone mockup width increased for a wider, immersive presentation
+    final phoneWidth = math.min(screenWidth * 0.90, 400.0);
     // Phone mockup extends downward behind the white scooped curve
-    final phoneHeight = math.min(screenHeight * 0.58, 510.0);
+    final phoneHeight = math.min(screenHeight * 0.60, 540.0);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -343,11 +343,15 @@ class _ImmersivePhoneMockup extends StatelessWidget {
       'assets/images/walkthrough_3.png',
     ];
 
-    return Image.asset(
-      assetNames[index],
-      key: ValueKey(assetNames[index]),
-      fit: BoxFit.cover,
+    return Transform.scale(
+      scale: 1.06,
       alignment: Alignment.topCenter,
+      child: Image.asset(
+        assetNames[index],
+        key: ValueKey(assetNames[index]),
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
+      ),
     );
   }
 }
