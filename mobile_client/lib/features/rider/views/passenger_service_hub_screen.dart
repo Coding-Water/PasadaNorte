@@ -2,19 +2,37 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
+import 'passenger_account_screen.dart';
+import 'passenger_activity_screen.dart';
 import 'rider_map_booking_screen.dart';
 
-class PassengerServiceHubScreen extends StatelessWidget {
+class PassengerServiceHubScreen extends StatefulWidget {
   final String fullName;
   final PassengerCategory lockedCategory;
   final String verifiedIdType;
+  final int initialTabIndex;
 
   const PassengerServiceHubScreen({
     super.key,
     required this.fullName,
     this.lockedCategory = PassengerCategory.regular,
     this.verifiedIdType = 'National ID (PhilID)',
+    this.initialTabIndex = 0,
   });
+
+  @override
+  State<PassengerServiceHubScreen> createState() =>
+      _PassengerServiceHubScreenState();
+}
+
+class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialTabIndex;
+  }
 
   void _returnToHome(BuildContext context) {
     Navigator.pushAndRemoveUntil(
@@ -26,100 +44,256 @@ class PassengerServiceHubScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final config = FareCalculatorService.activeConfig;
-
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _returnToHome(context);
+        if (!didPop) {
+          if (_currentIndex != 0) {
+            setState(() => _currentIndex = 0);
+          } else {
+            _returnToHome(context);
+          }
+        }
       },
       child: Scaffold(
-        backgroundColor: AppTheme.backgroundLight,
-        appBar: AppBar(
-          leading: IconButton(
-            tooltip: 'Back to Home',
-            onPressed: () => _returnToHome(context),
-            icon: const Icon(Icons.home_rounded),
-          ),
-          title: const Text('PasadaNorte'),
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'What would you like to do today?',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.primarySlate,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Select a service below. Your verified ${lockedCategory.name.toUpperCase()} rate is automatically applied to your bill.',
-                  style: TextStyle(fontSize: 13.5, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 22),
-
-                // OPTION 1: BOOK A RIDE
-                _buildServiceCard(
-                  context: context,
-                  badge: 'COMMUTER TRANSIT',
-                  title: 'Book a Ride',
-                  subtitle:
-                      'Point-to-point tricycle ride anywhere in Laoag City. Pick your destination on the map, review your Bill Summary, and choose your payment method.',
-                  icon: Icons.electric_rickshaw_rounded,
-                  accentColor: AppTheme.accentEmerald,
-                  bgColor: const Color(0xFFF0FDF4),
-                  rateText: lockedCategory == PassengerCategory.regular
-                      ? '₱${config.regularFirstKmFare.toStringAsFixed(0)} 1st km + ₱${config.succeedingKmRate.toStringAsFixed(0)}/km'
-                      : '₱${config.discountedFirstKmFare.toStringAsFixed(0)} Discounted 1st km + 20% off succ. km',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RiderMapBookingScreen(
-                          fullName: fullName,
-                          lockedCategory: lockedCategory,
-                          initialTripType: TripType.standard,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 18),
-
-                // OPTION 2: PA-DELIVER (ERRAND / PARCEL DELIVERY)
-                _buildServiceCard(
-                  context: context,
-                  badge: 'PARCEL & MARKET ERRAND',
-                  title: 'Pa-Deliver (Padala / Pabili)',
-                  subtitle:
-                      'Book a verified TODA tricycle driver to deliver packages, documents, food, or public market goods across Laoag City with live GPS tracking.',
-                  icon: Icons.local_shipping_rounded,
-                  accentColor: const Color(0xFFD97706),
-                  bgColor: const Color(0xFFFFFBEB),
-                  rateText: 'Ordinance Distance Rate + Delivery Handling (1.25x)',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RiderMapBookingScreen(
-                          fullName: fullName,
-                          lockedCategory: lockedCategory,
-                          initialTripType: TripType.pabiliPadala,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: IndexedStack(
+          index: _currentIndex,
+          children: [
+            _buildHomeContent(context),
+            PassengerActivityScreen(fullName: widget.fullName),
+            PassengerAccountScreen(
+              fullName: widget.fullName,
+              lockedCategory: widget.lockedCategory,
+              verifiedIdType: widget.verifiedIdType,
             ),
+          ],
+        ),
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(
+              top: BorderSide(color: Color(0xFFF1F5F9), width: 1.2),
+            ),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) => setState(() => _currentIndex = index),
+            backgroundColor: Colors.white,
+            elevation: 0,
+            selectedItemColor: AppTheme.accentEmerald,
+            unselectedItemColor: Colors.grey.shade400,
+            selectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 12,
+            ),
+            type: BottomNavigationBarType.fixed,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                activeIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.assignment_outlined),
+                activeIcon: Icon(Icons.assignment_rounded),
+                label: 'Activity',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline_rounded),
+                activeIcon: Icon(Icons.person_rounded),
+                label: 'Account',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeContent(BuildContext context) {
+    final config = FareCalculatorService.activeConfig;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        titleSpacing: 16,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Center(
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F8EF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.electric_rickshaw_rounded,
+                color: AppTheme.accentEmerald,
+                size: 22,
+              ),
+            ),
+          ),
+        ),
+        title: const Text(
+          'PasadaNorte',
+          style: TextStyle(
+            color: AppTheme.primarySlate,
+            fontWeight: FontWeight.w900,
+            fontSize: 20,
+            letterSpacing: -0.4,
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Activity History',
+            icon: const Icon(Icons.history_rounded, color: AppTheme.primarySlate),
+            onPressed: () => setState(() => _currentIndex = 1),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // User Greeting Banner
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00C466), Color(0xFF059669)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00C466).withValues(alpha: 0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hello, ${widget.fullName.split(' ').first}!',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Where would you like to travel in Laoag City today?',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: Colors.white,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Verified ${widget.lockedCategory.name.toUpperCase()} Fare Tier Active',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              const Text(
+                'Services',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.primarySlate,
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // OPTION 1: BOOK A RIDE
+              _buildServiceCard(
+                context: context,
+                badge: 'COMMUTER TRANSIT',
+                title: 'Book a Ride',
+                subtitle:
+                    'Point-to-point tricycle ride anywhere in Laoag City. Pick destination, review fare breakdown, and hail driver.',
+                icon: Icons.electric_rickshaw_rounded,
+                accentColor: AppTheme.accentEmerald,
+                bgColor: const Color(0xFFE8F8EF),
+                rateText: widget.lockedCategory == PassengerCategory.regular
+                    ? '₱${config.regularFirstKmFare.toStringAsFixed(0)} 1st km + ₱${config.succeedingKmRate.toStringAsFixed(0)}/km'
+                    : '₱${config.discountedFirstKmFare.toStringAsFixed(0)} Discounted 1st km + 20% off',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RiderMapBookingScreen(
+                        fullName: widget.fullName,
+                        lockedCategory: widget.lockedCategory,
+                        initialTripType: TripType.standard,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // OPTION 2: PA-DELIVER (ERRAND / PARCEL DELIVERY)
+              _buildServiceCard(
+                context: context,
+                badge: 'PARCEL & MARKET ERRAND',
+                title: 'PasaDeliver (Padala / Pabili)',
+                subtitle:
+                    'Send or receive documents, food, or public market packages with verified TODA dispatch and live GPS tracking.',
+                icon: Icons.local_shipping_rounded,
+                accentColor: const Color(0xFFD97706),
+                bgColor: const Color(0xFFFEF3C7),
+                rateText: 'Ordinance Distance Rate + Handling Fee',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RiderMapBookingScreen(
+                        fullName: widget.fullName,
+                        lockedCategory: widget.lockedCategory,
+                        initialTripType: TripType.pabiliPadala,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -141,16 +315,16 @@ class PassengerServiceHubScreen extends StatelessWidget {
       borderRadius: BorderRadius.circular(22),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: accentColor.withValues(alpha: 0.45), width: 1.8),
+          border: Border.all(color: const Color(0xFFF1F5F9)),
           boxShadow: [
             BoxShadow(
-              color: accentColor.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -160,12 +334,13 @@ class PassengerServiceHubScreen extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  width: 52,
+                  height: 52,
                   decoration: BoxDecoration(
                     color: bgColor,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: accentColor, size: 32),
+                  child: Icon(icon, color: accentColor, size: 28),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -175,7 +350,7 @@ class PassengerServiceHubScreen extends StatelessWidget {
                       Text(
                         badge,
                         style: TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 10,
                           fontWeight: FontWeight.w800,
                           color: accentColor,
                           letterSpacing: 0.6,
@@ -185,8 +360,8 @@ class PassengerServiceHubScreen extends StatelessWidget {
                       Text(
                         title,
                         style: const TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
                           color: AppTheme.primarySlate,
                         ),
                       ),
@@ -194,20 +369,28 @@ class PassengerServiceHubScreen extends StatelessWidget {
                   ),
                 ),
                 CircleAvatar(
-                  radius: 18,
+                  radius: 16,
                   backgroundColor: accentColor,
-                  child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Text(
               subtitle,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
+              style: TextStyle(
+                fontSize: 12.5,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: bgColor,
                 borderRadius: BorderRadius.circular(10),
@@ -215,13 +398,13 @@ class PassengerServiceHubScreen extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.sell_rounded, size: 14, color: accentColor),
+                  Icon(Icons.sell_rounded, size: 13, color: accentColor),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
                       rateText,
                       style: TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w800,
                         color: accentColor,
                       ),
