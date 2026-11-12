@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'core/services/onboarding_preferences_service.dart';
 import 'core/services/supabase_service.dart';
 import 'core/services/system_notification_service.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/views/phone_input_screen.dart';
 import 'features/auth/views/welcome_onboarding_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const PasadaNorteMobileApp());
+  final hasCompletedOnboarding =
+      await OnboardingPreferencesService.hasCompletedOnboarding();
+  runApp(PasadaNorteMobileApp(showLoginDirectly: hasCompletedOnboarding));
   unawaited(SupabaseService.initialize());
   unawaited(SystemNotificationService.initialize());
   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -16,7 +20,12 @@ void main() {
 }
 
 class PasadaNorteMobileApp extends StatelessWidget {
-  const PasadaNorteMobileApp({super.key});
+  final bool showLoginDirectly;
+
+  const PasadaNorteMobileApp({
+    super.key,
+    this.showLoginDirectly = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +33,9 @@ class PasadaNorteMobileApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'PasadaNorte Laoag City',
       theme: AppTheme.lightTheme,
-      home: const WelcomeOnboardingScreen(),
+      home: showLoginDirectly
+          ? const PhoneInputScreen(initialIsRegisterMode: false)
+          : const WelcomeOnboardingScreen(),
     );
   }
 }

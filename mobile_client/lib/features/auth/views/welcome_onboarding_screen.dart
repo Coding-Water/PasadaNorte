@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/services/android_permissions_service.dart';
+import '../../../core/services/onboarding_preferences_service.dart';
 import 'phone_input_screen.dart';
 
 class WelcomeOnboardingScreen extends StatefulWidget {
@@ -55,9 +56,11 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
   }
 
   Future<void> _handleNavigation({required bool startInRegisterMode}) async {
+    await OnboardingPreferencesService.markOnboardingCompleted();
+    if (!mounted) return;
     await AndroidPermissionsService.ensureAllPermissionsSequential(context);
     if (!mounted) return;
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => PhoneInputScreen(

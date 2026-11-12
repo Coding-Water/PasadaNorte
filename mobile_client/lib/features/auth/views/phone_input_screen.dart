@@ -6,7 +6,6 @@ import '../../driver/views/driver_map_duty_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../../rider/views/passenger_service_hub_screen.dart';
 import 'otp_verification_screen.dart';
-import 'welcome_onboarding_screen.dart';
 
 class PhoneInputScreen extends StatefulWidget {
   final bool initialIsRegisterMode;
@@ -142,20 +141,13 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
         backgroundColor: Colors.white,
         foregroundColor: AppTheme.primarySlate,
         elevation: 0,
-        leading: IconButton(
-          tooltip: 'Back',
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const WelcomeOnboardingScreen()),
-              );
-            }
-          },
-        ),
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                tooltip: 'Back',
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
