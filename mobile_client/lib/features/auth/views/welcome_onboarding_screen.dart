@@ -321,7 +321,7 @@ class _WhiteScoopClipper extends CustomClipper<Path> {
 }
 
 // ---------------------------------------------------------------------------
-// Passenger App Screen Hero (Direct screenshot display without borders)
+// Passenger App Screen Hero (Direct phone screenshot display without clipping)
 // ---------------------------------------------------------------------------
 class _ImmersivePhoneMockup extends StatelessWidget {
   final int currentPage;
@@ -330,24 +330,9 @@ class _ImmersivePhoneMockup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: _buildScreenContent(currentPage),
-        ),
-      ),
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: _buildScreenContent(currentPage),
     );
   }
 
