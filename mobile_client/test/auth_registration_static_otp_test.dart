@@ -94,8 +94,8 @@ void main() {
       // Verify Screen 1: Are you a Passenger or a Driver?
       expect(find.text('Are you a Passenger or a Driver?'), findsOneWidget);
 
-      // Tap Passenger / Commuter
-      await tester.tap(find.text('Passenger / Commuter'));
+      // Tap Passenger
+      await tester.tap(find.text('Passenger'));
       await tester.pumpAndSettle();
 
       // Verify Screen 2: Are you a Student?
@@ -162,8 +162,8 @@ void main() {
         ),
       );
 
-      // Tap Tricycle Driver (TODA)
-      await tester.tap(find.text('Tricycle Driver (TODA)'));
+      // Tap Driver
+      await tester.tap(find.text('Driver'));
       await tester.pumpAndSettle();
 
       // Verify User Details Input Screen for Driver
@@ -223,9 +223,9 @@ void main() {
         ),
       );
 
-      // Screen 1: Tap Passenger / Commuter
+      // Screen 1: Tap Passenger
       expect(find.text('Are you a Passenger or a Driver?'), findsOneWidget);
-      await tester.tap(find.text('Passenger / Commuter'));
+      await tester.tap(find.text('Passenger'));
       await tester.pumpAndSettle();
 
       // Screen 2: Tap No, I am not a Student
