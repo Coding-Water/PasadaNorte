@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../models/user_model.dart';
-import 'id_upload_screen.dart';
+import 'student_check_screen.dart';
+import 'user_details_input_screen.dart';
 
-class RoleSelectionScreen extends StatefulWidget {
+class RoleSelectionScreen extends StatelessWidget {
   final String phoneNumber;
 
   const RoleSelectionScreen({
@@ -13,368 +14,236 @@ class RoleSelectionScreen extends StatefulWidget {
   });
 
   @override
-  State<RoleSelectionScreen> createState() => _RoleSelectionScreenState();
-}
-
-class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
-  UserRole _selectedRole = UserRole.rider;
-  PassengerCategory _selectedPassengerCategory = PassengerCategory.regular;
-  final _nameController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  void _onNext() {
-    if (_formKey.currentState!.validate()) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => IdUploadScreen(
-            phoneNumber: widget.phoneNumber,
-            fullName: _nameController.text.trim(),
-            role: _selectedRole,
-            passengerCategory: _selectedRole == UserRole.rider
-                ? _selectedPassengerCategory
-                : PassengerCategory.regular,
-          ),
-        ),
-      );
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text('Account Setup'),
+        backgroundColor: Colors.white,
+        elevation: 0,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                const Text(
-                  'Are you a Passenger or a Driver?',
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Step indicator
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'STEP 1 OF 4: ACCOUNT ROLE',
                   style: TextStyle(
-                    fontSize: 23,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: AppTheme.primarySlate,
-                    letterSpacing: -0.4,
+                    color: AppTheme.accentEmeraldDark,
+                    letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Choose your account role and enter your full name as shown on your identification card.',
-                  style: TextStyle(color: Colors.black54, fontSize: 13.5),
+              ),
+              const SizedBox(height: 14),
+
+              const Text(
+                'Are you a Passenger or a Driver?',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.primarySlate,
+                  letterSpacing: -0.5,
                 ),
-
-                const SizedBox(height: 22),
-
-                TextFormField(
-                  controller: _nameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Full Name',
-                    hintText: 'Juan Dela Cruz',
-                    prefixIcon: Icon(Icons.person_rounded),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your full name';
-                    }
-                    if (value.trim().split(' ').length < 2) {
-                      return 'Please enter your first and last name';
-                    }
-                    return null;
-                  },
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Choose how you want to use PasadaNorte in Laoag City. Your account setup will tailor options specifically for you.',
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 14,
+                  height: 1.45,
                 ),
+              ),
+              const SizedBox(height: 28),
 
-                const SizedBox(height: 24),
+              // Button 1: Passenger / Commuter
+              _buildRoleCard(
+                context: context,
+                icon: Icons.directions_walk_rounded,
+                iconColor: AppTheme.accentEmerald,
+                iconBg: const Color(0xFFDCFCE7),
+                title: 'Passenger / Commuter',
+                subtitle: 'Book tricycle rides, request Pa-Deliver, and access fixed ordinance fares with student, senior, or regular rates.',
+                badgeText: 'Ride & Delivery Booking',
+                badgeColor: const Color(0xFF15803D),
+                badgeBg: const Color(0xFFDCFCE7),
+                borderColor: AppTheme.accentEmerald,
+                backgroundColor: const Color(0xFFF0FDF4),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => StudentCheckScreen(phoneNumber: phoneNumber),
+                    ),
+                  );
+                },
+              ),
 
-                const Text(
-                  '1. Select Account Role:',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.primarySlate,
-                  ),
-                ),
-                const SizedBox(height: 12),
+              const SizedBox(height: 18),
 
-                // Card 1: Passenger
-                GestureDetector(
-                  onTap: () => setState(() => _selectedRole = UserRole.rider),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _selectedRole == UserRole.rider
-                          ? const Color(0xFFF0FDF4)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: _selectedRole == UserRole.rider
-                            ? AppTheme.accentEmerald
-                            : Colors.grey.shade300,
-                        width: _selectedRole == UserRole.rider ? 2.2 : 1,
+              // Button 2: Tricycle Driver (TODA)
+              _buildRoleCard(
+                context: context,
+                icon: Icons.electric_rickshaw_rounded,
+                iconColor: const Color(0xFFD97706),
+                iconBg: const Color(0xFFFEF3C7),
+                title: 'Tricycle Driver (TODA)',
+                subtitle: 'Accept passenger bookings and deliveries across Laoag City, view thermal demand heatmaps, and join Digital Pila queues.',
+                badgeText: 'Laoag Paratransit Franchise',
+                badgeColor: const Color(0xFFB45309),
+                badgeBg: const Color(0xFFFEF3C7),
+                borderColor: const Color(0xFFF59E0B),
+                backgroundColor: const Color(0xFFFFFBEB),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => UserDetailsInputScreen(
+                        phoneNumber: phoneNumber,
+                        role: UserRole.driver,
+                        passengerCategory: PassengerCategory.regular,
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppTheme.accentEmerald.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.directions_walk_rounded,
-                            color: AppTheme.accentEmerald,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Passenger / Commuter',
-                                style: TextStyle(
-                                  fontSize: 15.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppTheme.primarySlate,
-                                ),
-                              ),
-                              SizedBox(height: 3),
-                              Text(
-                                'Book a Ride or Pa-Deliver across Laoag City with fixed ordinance fares.',
-                                style: TextStyle(fontSize: 12, color: Colors.black54),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          _selectedRole == UserRole.rider
-                              ? Icons.check_circle_rounded
-                              : Icons.radio_button_unchecked_rounded,
-                          color: _selectedRole == UserRole.rider
-                              ? AppTheme.accentEmerald
-                              : Colors.grey.shade400,
-                        ),
-                      ],
-                    ),
-                  ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 32),
+
+              // Information banner
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200),
                 ),
-
-                const SizedBox(height: 12),
-
-                // Card 2: Tricycle Driver
-                GestureDetector(
-                  onTap: () => setState(() => _selectedRole = UserRole.driver),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _selectedRole == UserRole.driver
-                          ? const Color(0xFFFEF3C7)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: _selectedRole == UserRole.driver
-                            ? const Color(0xFFD97706)
-                            : Colors.grey.shade300,
-                        width: _selectedRole == UserRole.driver ? 2.2 : 1,
+                child: Row(
+                  children: [
+                    const Icon(Icons.shield_outlined, color: AppTheme.primarySlate, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Verified identity ensures zero ghost accounts and protects ordinance fare compliance under City Ordinance No. 2023-005.',
+                        style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600, height: 1.35),
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFDE68A),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.electric_rickshaw_rounded,
-                            color: Color(0xFFB45309),
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Tricycle Driver (TODA)',
-                                style: TextStyle(
-                                  fontSize: 15.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppTheme.primarySlate,
-                                ),
-                              ),
-                              SizedBox(height: 3),
-                              Text(
-                                'Accept rides & deliveries, view thermal demand heatmaps & Digital Pila.',
-                                style: TextStyle(fontSize: 12, color: Colors.black54),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          _selectedRole == UserRole.driver
-                              ? Icons.check_circle_rounded
-                              : Icons.radio_button_unchecked_rounded,
-                          color: _selectedRole == UserRole.driver
-                              ? const Color(0xFFD97706)
-                              : Colors.grey.shade400,
-                        ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
-
-                // 2. Passenger Fare Classification Selector (Only when Passenger is selected!)
-                if (_selectedRole == UserRole.rider) ...[
-                  const SizedBox(height: 24),
-                  const Text(
-                    '2. Select Passenger Fare Classification:',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.primarySlate,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Your fare rate is automatically locked to your verified account so you don\'t have to switch it on every trip.',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildPassengerCategoryTile(
-                    category: PassengerCategory.regular,
-                    title: 'Regular Commuter / Tourist',
-                    subtitle: 'Standard Laoag Fare: ₱20.00 first km + ₱2.00/km',
-                    badge: 'Valid Government ID',
-                    icon: Icons.badge_outlined,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildPassengerCategoryTile(
-                    category: PassengerCategory.student,
-                    title: 'Student (Discounted Fare)',
-                    subtitle: 'Discounted Rate: ₱15.00 first km + 20% LTFRB discount',
-                    badge: 'Requires School / Student ID Photo',
-                    icon: Icons.school_rounded,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildPassengerCategoryTile(
-                    category: PassengerCategory.senior,
-                    title: 'Senior Citizen / PWD (Discounted Fare)',
-                    subtitle: 'Discounted Rate: ₱15.00 first km + 20% statutory discount',
-                    badge: 'Requires Senior Citizen / PWD ID Photo',
-                    icon: Icons.elderly_rounded,
-                  ),
-                ],
-
-                const SizedBox(height: 28),
-
-                ElevatedButton(
-                  onPressed: _onNext,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentEmerald,
-                  ),
-                  child: const Text('Proceed to ID & Face Verification'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildPassengerCategoryTile({
-    required PassengerCategory category,
+  Widget _buildRoleCard({
+    required BuildContext context,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
     required String title,
     required String subtitle,
-    required String badge,
-    required IconData icon,
+    required String badgeText,
+    required Color badgeColor,
+    required Color badgeBg,
+    required Color borderColor,
+    required Color backgroundColor,
+    required VoidCallback onTap,
   }) {
-    final bool isSelected = _selectedPassengerCategory == category;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedPassengerCategory = category),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFF0FDF4) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? AppTheme.accentEmerald : Colors.grey.shade300,
-            width: isSelected ? 2 : 1,
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor, width: 2.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? AppTheme.accentEmerald : AppTheme.primarySlate,
-              size: 24,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13.5,
-                      color: AppTheme.primarySlate,
+        ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(22.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: iconBg,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(icon, color: iconColor, size: 32),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(fontSize: 11.5, color: Colors.black87),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppTheme.accentEmerald.withValues(alpha: 0.15)
-                          : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      badge,
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        color: isSelected ? AppTheme.accentEmerald : Colors.black54,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.primarySlate,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: badgeBg,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badgeText,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: badgeColor,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black38, size: 18),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.45,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Icon(
-              isSelected
-                  ? Icons.radio_button_checked_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: isSelected ? AppTheme.accentEmerald : Colors.grey.shade400,
-              size: 22,
-            ),
-          ],
+          ),
         ),
       ),
     );

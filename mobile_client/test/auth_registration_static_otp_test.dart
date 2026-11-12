@@ -6,6 +6,9 @@ import 'package:mobile_client/features/auth/views/face_scan_screen.dart';
 import 'package:mobile_client/features/auth/views/id_upload_screen.dart';
 import 'package:mobile_client/features/auth/views/otp_verification_screen.dart';
 import 'package:mobile_client/features/auth/views/role_selection_screen.dart';
+import 'package:mobile_client/features/auth/views/student_check_screen.dart';
+import 'package:mobile_client/features/auth/views/senior_pwd_check_screen.dart';
+import 'package:mobile_client/features/auth/views/user_details_input_screen.dart';
 import 'package:mobile_client/features/driver/views/driver_map_duty_screen.dart';
 import 'package:mobile_client/features/rider/views/passenger_service_hub_screen.dart';
 
@@ -88,6 +91,25 @@ void main() {
         ),
       );
 
+      // Verify Screen 1: Are you a Passenger or a Driver?
+      expect(find.text('Are you a Passenger or a Driver?'), findsOneWidget);
+
+      // Tap Passenger / Commuter
+      await tester.tap(find.text('Passenger / Commuter'));
+      await tester.pumpAndSettle();
+
+      // Verify Screen 2: Are you a Student?
+      expect(find.byType(StudentCheckScreen), findsOneWidget);
+      expect(find.text('Are you a Student?'), findsOneWidget);
+
+      // Tap Yes, I am a Student
+      await tester.tap(find.text('Yes, I am a Student'));
+      await tester.pumpAndSettle();
+
+      // Verify Screen 3: User Details Input
+      expect(find.byType(UserDetailsInputScreen), findsOneWidget);
+      expect(find.text('What is your Full Name?'), findsOneWidget);
+
       // Fill full name
       final nameField = find.byType(TextFormField);
       await tester.enterText(nameField, 'Maria Santos');
@@ -99,6 +121,7 @@ void main() {
       await tester.tap(proceedToIdBtn);
       await tester.pumpAndSettle();
 
+      // Verify Individual Screen: ID Upload
       expect(find.byType(IdUploadScreen), findsOneWidget);
 
       // Auto-fill demo ID & consents
@@ -111,6 +134,7 @@ void main() {
       await tester.tap(nextToFaceScan);
       await tester.pumpAndSettle();
 
+      // Verify Individual Screen: Face Scan
       expect(find.byType(FaceScanScreen), findsOneWidget);
 
       // Test the Skip Face Scan button for computer emulator testing
@@ -138,14 +162,17 @@ void main() {
         ),
       );
 
+      // Tap Tricycle Driver (TODA)
+      await tester.tap(find.text('Tricycle Driver (TODA)'));
+      await tester.pumpAndSettle();
+
+      // Verify User Details Input Screen for Driver
+      expect(find.byType(UserDetailsInputScreen), findsOneWidget);
+
       // Fill full name
       final nameField = find.byType(TextFormField);
       await tester.enterText(nameField, 'Danilo Ramos');
       await tester.pump();
-
-      // Select Tricycle Driver (TODA)
-      await tester.tap(find.text('Tricycle Driver (TODA)'));
-      await tester.pumpAndSettle();
 
       // Proceed to ID and Face Verification
       final proceedToIdBtn = find.text('Proceed to ID & Face Verification');
@@ -153,6 +180,7 @@ void main() {
       await tester.tap(proceedToIdBtn);
       await tester.pumpAndSettle();
 
+      // Verify Individual Screen: Driver ID & Vehicle Compliance
       expect(find.byType(IdUploadScreen), findsOneWidget);
       expect(find.text('Step 1: Driver & Vehicle Compliance'), findsOneWidget);
 
@@ -178,6 +206,56 @@ void main() {
 
       // Verifies landing on DriverMapDutyScreen
       expect(find.byType(DriverMapDutyScreen), findsOneWidget);
+    });
+
+    testWidgets('Passenger Branching Flow: Not Student -> Not Senior/PWD -> Automatic Regular Passenger', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: const RoleSelectionScreen(phoneNumber: '+639179998877'),
+        ),
+      );
+
+      // Screen 1: Tap Passenger / Commuter
+      expect(find.text('Are you a Passenger or a Driver?'), findsOneWidget);
+      await tester.tap(find.text('Passenger / Commuter'));
+      await tester.pumpAndSettle();
+
+      // Screen 2: Tap No, I am not a Student
+      expect(find.byType(StudentCheckScreen), findsOneWidget);
+      await tester.tap(find.text('No, I am not a Student'));
+      await tester.pumpAndSettle();
+
+      // Screen 3: Senior/PWD check -> Tap No (Automatic Regular Passenger)
+      expect(find.byType(SeniorPwdCheckScreen), findsOneWidget);
+      expect(find.text('Are you a Senior Citizen or PWD?'), findsOneWidget);
+      await tester.tap(find.text('No, Regular Commuter / Tourist'));
+      await tester.pumpAndSettle();
+
+      // Screen 4: User Details Input Screen shows Regular Commuter
+      expect(find.byType(UserDetailsInputScreen), findsOneWidget);
+      expect(find.text('Regular Commuter'), findsOneWidget);
+
+      // Fill name & proceed
+      final nameField = find.byType(TextFormField);
+      await tester.enterText(nameField, 'Jose Rizal');
+      await tester.pump();
+
+      final proceedToIdBtn = find.text('Proceed to ID & Face Verification');
+      await tester.ensureVisible(proceedToIdBtn);
+      await tester.tap(proceedToIdBtn);
+      await tester.pumpAndSettle();
+
+      // Individual ID Upload Screen verifies Regular Government ID requirement
+      expect(find.byType(IdUploadScreen), findsOneWidget);
+      expect(find.text('Upload Your Government ID'), findsOneWidget);
     });
 
     testWidgets('Instant Login recognizes newly registered users by phone', (tester) async {
