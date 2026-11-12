@@ -321,7 +321,7 @@ class _WhiteScoopClipper extends CustomClipper<Path> {
 }
 
 // ---------------------------------------------------------------------------
-// Immersive Phone Chassis (Pure UI edge-to-edge inside iPhone Frame)
+// Passenger App Screen Hero (Direct screenshot display without borders)
 // ---------------------------------------------------------------------------
 class _ImmersivePhoneMockup extends StatelessWidget {
   final int currentPage;
@@ -332,63 +332,20 @@ class _ImmersivePhoneMockup extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF18181B), // Dark chassis
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(38)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            blurRadius: 24,
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
       ),
-      padding: const EdgeInsets.fromLTRB(4.5, 4.5, 4.5, 0),
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
-        child: Container(
-          color: Colors.white,
-          child: Stack(
-            children: [
-              // 1. Full-Bleed App Screen Image (Clean UI, no outer phone chassis)
-              Positioned.fill(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: _buildScreenContent(currentPage),
-                ),
-              ),
-
-              // 2. Dynamic Island at Top
-              Positioned(
-                top: 10,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    width: 66,
-                    height: 15,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          width: 5,
-                          height: 5,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF1E293B),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          child: _buildScreenContent(currentPage),
         ),
       ),
     );
