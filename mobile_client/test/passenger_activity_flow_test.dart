@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_client/features/fare/services/fare_calculator_service.dart';
-import 'package:mobile_client/features/rider/models/activity_trip_model.dart';
 import 'package:mobile_client/features/rider/views/passenger_activity_screen.dart';
 import 'package:mobile_client/features/rider/views/passenger_service_hub_screen.dart';
 import 'package:mobile_client/features/rider/views/ride_details_screen.dart';
@@ -132,5 +131,54 @@ void main() {
     // In Canceled Ride Details: NO Share Receipt button, but Canceled indicator present
     expect(find.text('Canceled Ride • No fees charged'), findsOneWidget);
     expect(find.text('Share Receipt'), findsNothing);
+  });
+
+  testWidgets('PassengerServiceHubScreen AppBar has no left or right icons and filter pills switch cleanly without hit test errors',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: PassengerServiceHubScreen(
+          fullName: 'Juan Dela Cruz',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify Home AppBar: Only title 'PasadaNorte', no leading or history icon
+    expect(find.text('PasadaNorte'), findsOneWidget);
+    expect(find.byIcon(Icons.history_rounded), findsNothing);
+    expect(find.byIcon(Icons.electric_rickshaw_rounded), findsWidgets); // only in service cards
+
+    // Switch to Activity
+    await tester.tap(find.text('Activity'));
+    await tester.pumpAndSettle();
+
+    // Rapidly switch across all filter tabs to ensure zero hit-test size exceptions
+    await tester.tap(find.text('Completed'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fonacier Street, Brgy. 17'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Canceled'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Canceled'));
+    await tester.pumpAndSettle();
+    expect(find.text('Robinsons Place Ilocos Norte'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('PasaDeliver'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PasaDeliver'));
+    await tester.pumpAndSettle();
+    expect(find.text('PasaDeliver: Public Market Padala'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Ongoing'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ongoing'));
+    await tester.pumpAndSettle();
+    expect(find.text('STI College Laoag'), findsOneWidget);
   });
 }

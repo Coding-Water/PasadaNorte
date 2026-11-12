@@ -57,18 +57,7 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
-        body: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildHomeContent(context),
-            PassengerActivityScreen(fullName: widget.fullName),
-            PassengerAccountScreen(
-              fullName: widget.fullName,
-              lockedCategory: widget.lockedCategory,
-              verifiedIdType: widget.verifiedIdType,
-            ),
-          ],
-        ),
+        body: _getBody(context),
         bottomNavigationBar: Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -115,6 +104,22 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
     );
   }
 
+  Widget _getBody(BuildContext context) {
+    switch (_currentIndex) {
+      case 0:
+        return _buildHomeContent(context);
+      case 1:
+        return PassengerActivityScreen(fullName: widget.fullName);
+      case 2:
+      default:
+        return PassengerAccountScreen(
+          fullName: widget.fullName,
+          lockedCategory: widget.lockedCategory,
+          verifiedIdType: widget.verifiedIdType,
+        );
+    }
+  }
+
   Widget _buildHomeContent(BuildContext context) {
     final config = FareCalculatorService.activeConfig;
 
@@ -123,42 +128,17 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        titleSpacing: 16,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Center(
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F8EF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.electric_rickshaw_rounded,
-                color: AppTheme.accentEmerald,
-                size: 22,
-              ),
-            ),
-          ),
-        ),
+        automaticallyImplyLeading: false,
+        titleSpacing: 20,
         title: const Text(
           'PasadaNorte',
           style: TextStyle(
             color: AppTheme.primarySlate,
             fontWeight: FontWeight.w900,
-            fontSize: 20,
-            letterSpacing: -0.4,
+            fontSize: 22,
+            letterSpacing: -0.5,
           ),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Activity History',
-            icon: const Icon(Icons.history_rounded, color: AppTheme.primarySlate),
-            onPressed: () => setState(() => _currentIndex = 1),
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

@@ -248,49 +248,56 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
     int? badgeCount,
   }) {
     final isSelected = _selectedFilter == status;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = status),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.accentEmerald : Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: isSelected ? AppTheme.accentEmerald : const Color(0xFFE2E8F0),
-            width: 1.2,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : Colors.grey.shade700,
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (_selectedFilter != status) {
+            setState(() => _selectedFilter = status);
+          }
+        },
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.accentEmerald : Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isSelected ? AppTheme.accentEmerald : const Color(0xFFE2E8F0),
+              width: 1.2,
             ),
-            if (badgeCount != null && badgeCount > 0) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : AppTheme.accentEmerald,
-                  borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? Colors.white : Colors.grey.shade700,
                 ),
-                child: Text(
-                  '$badgeCount',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    color: isSelected ? AppTheme.accentEmerald : Colors.white,
+              ),
+              if (badgeCount != null && badgeCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white : AppTheme.accentEmerald,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      color: isSelected ? AppTheme.accentEmerald : Colors.white,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -299,25 +306,28 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
   Widget _buildActivityCard(ActivityTrip trip) {
     final isOngoing = trip.status == ActivityStatus.ongoing;
 
-    return InkWell(
-      onTap: () => _onTripTapped(trip),
+    return Material(
+      color: Colors.white,
       borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      elevation: 0,
+      child: InkWell(
+        onTap: () => _onTripTapped(trip),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFF1F5F9)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Top Row: Vehicle Icon, Destination Title, Price & Time
             Row(
@@ -423,8 +433,8 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        width: 1.5,
-                        height: 12,
+                        width: 2.0,
+                        height: 12.0,
                         color: Colors.grey.shade300,
                       ),
                     ),
@@ -481,8 +491,9 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   String _getFilterName(ActivityStatus status) {
     switch (status) {
