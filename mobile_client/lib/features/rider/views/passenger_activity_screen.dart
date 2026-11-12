@@ -259,23 +259,9 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Row: Vehicle Icon, Destination Title, Price & Time
+            // Top Row: Destination Title, Price & Time
             Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: trip.isDelivery ? const Color(0xFFFEF3C7) : const Color(0xFFE8F8EF),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    trip.isDelivery ? Icons.local_shipping_rounded : Icons.electric_rickshaw_rounded,
-                    color: trip.isDelivery ? const Color(0xFFD97706) : AppTheme.accentEmerald,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -284,24 +270,25 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
                       Text(
                         trip.title,
                         style: const TextStyle(
-                          fontSize: 15.5,
+                          fontSize: 16,
                           fontWeight: FontWeight.w800,
                           color: AppTheme.primarySlate,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 4),
                       Text(
                         '${_formatDate(trip.dateTime)} · ${_formatTime(trip.dateTime)}',
                         style: TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 12,
                           color: Colors.grey.shade500,
                         ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 12),
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
