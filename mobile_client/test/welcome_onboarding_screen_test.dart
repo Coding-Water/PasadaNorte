@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_client/features/auth/views/welcome_onboarding_screen.dart';
 
 void main() {
-  testWidgets('WelcomeOnboardingScreen renders brand header, mockup, and bottom sheet',
+  testWidgets('WelcomeOnboardingScreen renders clean Joyride hero, phone mockup, and bottom sheet',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
@@ -17,32 +17,27 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Verify Brand Bar Elements
-    expect(find.text('PasadaNorte'), findsOneWidget);
-    expect(find.text('Laoag City • Ilocos Norte'), findsOneWidget);
-    expect(find.text('Skip'), findsWidgets);
+    // Verify top bar with [4/4] and [Skip] is REMOVED
+    expect(find.text('4/4'), findsNothing);
+    expect(find.text('Perms'), findsNothing);
+    expect(find.text('LAOAG CITY COMMUTE'), findsNothing);
 
-    // Verify First Slide Walkthrough Elements
-    expect(find.text('LAOAG CITY COMMUTE'), findsOneWidget);
+    // Verify First Slide Walkthrough Elements (Matching Joyride Page 17)
     expect(
-      find.text('Welcome to PasadaNorte — Your Journey, Your Way'),
+      find.text('Welcome to PasadaNorte - Your\nJourney, Your Way'),
       findsOneWidget,
     );
     expect(
-      find.textContaining('Experience hassle-free tricycle mobility'),
+      find.textContaining('Get ready to experience hassle-free paratransit in Laoag City'),
       findsOneWidget,
     );
 
-    // Verify Mockup Phone Elements for Slide 1 (Passenger Map Screen)
-    expect(find.text('Where to in Laoag?'), findsOneWidget);
-    expect(find.text('Laoag Plaza'), findsOneWidget);
-    expect(find.text('5 Tricycles in Central Laoag'), findsOneWidget);
-
-    // Verify Bottom Action Button
+    // Verify Bottom Action Buttons (50/50 Split Skip and Continue)
+    expect(find.text('Skip'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
   });
 
-  testWidgets('WelcomeOnboardingScreen advances through all 3 walkthrough slides',
+  testWidgets('WelcomeOnboardingScreen advances through all 3 Joyride walkthrough slides',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
@@ -56,39 +51,40 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Slide 1 -> Slide 2 (Route & Fare)
+    // Slide 1 -> Slide 2 (Route & Choose Ride - Matching Joyride Page 18)
     final continueBtn = find.text('Continue');
     expect(continueBtn, findsOneWidget);
     await tester.tap(continueBtn);
     await tester.pumpAndSettle();
 
-    expect(find.text('ORDINANCE NO. 2023-005'), findsOneWidget);
     expect(
-      find.text('Choose Your Ride — Approved City Fares'),
+      find.text('Choose Your Ride -\nTailored to Your Needs'),
       findsOneWidget,
     );
     expect(find.text('Laoag Central Terminal'), findsOneWidget);
     expect(find.text('MMSU Laoag Campus'), findsOneWidget);
     expect(find.text('Pasada Regular'), findsOneWidget);
     expect(find.text('₱20.00'), findsOneWidget);
+    expect(find.text('Pasada Discounted'), findsOneWidget);
+    expect(find.text('₱16.00'), findsOneWidget);
 
-    // Slide 2 -> Slide 3 (Payment & TODA Queue)
+    // Slide 2 -> Slide 3 (Payment Methods - Matching Joyride Page 19)
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
-    expect(find.text('FAIR TERMINAL PILA'), findsOneWidget);
     expect(
-      find.text('Fair TODA Digital Pila & Flexible Payments'),
+      find.text('Secure Payments &\nSeamless Transactions'),
       findsOneWidget,
     );
     expect(find.text('Choose Payment Method'), findsOneWidget);
-    expect(find.text('Cash Payment'), findsOneWidget);
+    expect(find.text('Pasada Wallet'), findsOneWidget);
+    expect(find.text('Cash'), findsOneWidget);
     expect(find.text('Maya / GCash (QR Ph)'), findsOneWidget);
-    expect(find.text('Laoag TODA Digital Pila'), findsOneWidget);
+    expect(find.text('TODA Digital Pila Guarantee'), findsOneWidget);
 
-    // Final Action on Slide 3
+    // Final Action on Slide 3: Full-width "Let's Get Started"
     expect(find.text("Let's Get Started"), findsOneWidget);
-    expect(find.text('Log In'), findsOneWidget);
+    expect(find.text('Skip'), findsNothing);
   });
 
   testWidgets('WelcomeOnboardingScreen meets accessibility tap target guidelines',
