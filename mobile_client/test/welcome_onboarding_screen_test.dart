@@ -28,7 +28,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('Get ready to experience hassle-free paratransit in Laoag City'),
+      find.textContaining('Get ready to experience hassle-free transportation'),
       findsOneWidget,
     );
 
@@ -65,7 +65,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('Select your preferred tricycle ride tier'),
+      find.textContaining('Select your preferred mode of transportation'),
       findsOneWidget,
     );
 
@@ -78,7 +78,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('Pay for your rides securely using Cash, Maya, GCash QR Ph'),
+      find.textContaining('Say hello to convenience payments'),
       findsOneWidget,
     );
 
