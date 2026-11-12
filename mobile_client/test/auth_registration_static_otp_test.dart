@@ -43,7 +43,7 @@ void main() {
 
       // Successfully verifies and navigates to RoleSelectionScreen
       expect(find.byType(RoleSelectionScreen), findsOneWidget);
-      expect(find.text('Are you a Passenger or a Driver?'), findsOneWidget);
+      expect(find.text('are you a passenger or a driver'), findsOneWidget);
     });
 
     testWidgets('OtpVerificationScreen rejects invalid OTP and shows helpful hint', (tester) async {
@@ -91,32 +91,32 @@ void main() {
         ),
       );
 
-      // Verify Screen 1: Are you a Passenger or a Driver?
-      expect(find.text('Are you a Passenger or a Driver?'), findsOneWidget);
+      // Verify Screen 1: are you a passenger or a driver
+      expect(find.text('are you a passenger or a driver'), findsOneWidget);
 
-      // Tap Passenger / Commuter
-      await tester.tap(find.text('Passenger / Commuter'));
+      // Tap passenger
+      await tester.tap(find.text('passenger'));
       await tester.pumpAndSettle();
 
-      // Verify Screen 2: Are you a Student?
+      // Verify Screen 2: are you a student
       expect(find.byType(StudentCheckScreen), findsOneWidget);
-      expect(find.text('Are you a Student?'), findsOneWidget);
+      expect(find.text('are you a student'), findsOneWidget);
 
-      // Tap Yes, I am a Student
-      await tester.tap(find.text('Yes, I am a Student'));
+      // Tap yes
+      await tester.tap(find.text('yes'));
       await tester.pumpAndSettle();
 
       // Verify Screen 3: User Details Input
       expect(find.byType(UserDetailsInputScreen), findsOneWidget);
-      expect(find.text('What is your Full Name?'), findsOneWidget);
+      expect(find.text('enter your full name'), findsOneWidget);
 
       // Fill full name
       final nameField = find.byType(TextFormField);
       await tester.enterText(nameField, 'Maria Santos');
       await tester.pump();
 
-      // Ensure button is visible & tap
-      final proceedToIdBtn = find.text('Proceed to ID & Face Verification');
+      // Ensure button is visible & tap continue
+      final proceedToIdBtn = find.text('continue');
       await tester.ensureVisible(proceedToIdBtn);
       await tester.tap(proceedToIdBtn);
       await tester.pumpAndSettle();
@@ -162,12 +162,13 @@ void main() {
         ),
       );
 
-      // Tap Tricycle Driver (TODA)
-      await tester.tap(find.text('Tricycle Driver (TODA)'));
+      // Tap driver
+      await tester.tap(find.text('driver'));
       await tester.pumpAndSettle();
 
       // Verify User Details Input Screen for Driver
       expect(find.byType(UserDetailsInputScreen), findsOneWidget);
+      expect(find.text('enter your full name'), findsOneWidget);
 
       // Fill full name
       final nameField = find.byType(TextFormField);
@@ -175,7 +176,7 @@ void main() {
       await tester.pump();
 
       // Proceed to ID and Face Verification
-      final proceedToIdBtn = find.text('Proceed to ID & Face Verification');
+      final proceedToIdBtn = find.text('continue');
       await tester.ensureVisible(proceedToIdBtn);
       await tester.tap(proceedToIdBtn);
       await tester.pumpAndSettle();
@@ -223,32 +224,33 @@ void main() {
         ),
       );
 
-      // Screen 1: Tap Passenger / Commuter
-      expect(find.text('Are you a Passenger or a Driver?'), findsOneWidget);
-      await tester.tap(find.text('Passenger / Commuter'));
+      // Screen 1: Tap passenger
+      expect(find.text('are you a passenger or a driver'), findsOneWidget);
+      await tester.tap(find.text('passenger'));
       await tester.pumpAndSettle();
 
-      // Screen 2: Tap No, I am not a Student
+      // Screen 2: Tap no
       expect(find.byType(StudentCheckScreen), findsOneWidget);
-      await tester.tap(find.text('No, I am not a Student'));
+      expect(find.text('are you a student'), findsOneWidget);
+      await tester.tap(find.text('no'));
       await tester.pumpAndSettle();
 
-      // Screen 3: Senior/PWD check -> Tap No (Automatic Regular Passenger)
+      // Screen 3: Senior/PWD check -> Tap no (Automatic Regular Passenger)
       expect(find.byType(SeniorPwdCheckScreen), findsOneWidget);
-      expect(find.text('Are you a Senior Citizen or PWD?'), findsOneWidget);
-      await tester.tap(find.text('No, Regular Commuter / Tourist'));
+      expect(find.text('are you a senior or pwd'), findsOneWidget);
+      await tester.tap(find.text('no'));
       await tester.pumpAndSettle();
 
-      // Screen 4: User Details Input Screen shows Regular Commuter
+      // Screen 4: User Details Input Screen
       expect(find.byType(UserDetailsInputScreen), findsOneWidget);
-      expect(find.text('Regular Commuter'), findsOneWidget);
+      expect(find.text('enter your full name'), findsOneWidget);
 
       // Fill name & proceed
       final nameField = find.byType(TextFormField);
       await tester.enterText(nameField, 'Jose Rizal');
       await tester.pump();
 
-      final proceedToIdBtn = find.text('Proceed to ID & Face Verification');
+      final proceedToIdBtn = find.text('continue');
       await tester.ensureVisible(proceedToIdBtn);
       await tester.tap(proceedToIdBtn);
       await tester.pumpAndSettle();
