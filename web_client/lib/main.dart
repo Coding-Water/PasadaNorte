@@ -470,6 +470,105 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     },
   ];
 
+  // Driver Applications & Vehicle Compliance Queue (Laoag City MINC & Ordinance Standards)
+  String _driverAppFilter = 'All'; // 'All', 'submitted', 'under_review', 'approved', 'resubmission_requested', 'rejected'
+  String _driverAppSearchQuery = '';
+  final List<Map<String, dynamic>> _driverApplications = [
+    {
+      'id': 'drv_app_179448001',
+      'full_name': 'Rolando "Lando" Agcaoili',
+      'phone_number': '+639178829910',
+      'birth_date': '1973-04-15',
+      'age': 53,
+      'fit_to_work_cert_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/fit_to_work_cert_lando.jpg',
+      'profile_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/profile_lando_white_bg.jpg',
+      'license_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/license_lando.jpg',
+      'license_number': 'A02-12-984210',
+      'license_expiry_date': '2028-04-15',
+      'nbi_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/nbi_clearance_lando.jpg',
+      'police_or_barangay_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/barangay_clearance_lando.jpg',
+      'motorcycle_brand_model': 'Kawasaki Barako II 175',
+      'engine_displacement_cc': 175,
+      'model_year': 2021,
+      'plate_or_mv_file': '1204-IN',
+      'or_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_or_lando.jpg',
+      'cr_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_cr_lando.jpg',
+      'is_motorcycle_owned': true,
+      'owner_authorization_letter_url': null,
+      'owner_id_photo_url': null,
+      'vehicle_front_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_front_lando.jpg',
+      'vehicle_back_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_back_lando.jpg',
+      'vehicle_left_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_left_lando.jpg',
+      'vehicle_right_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_right_lando.jpg',
+      'toda_code': 'TODA-01',
+      'application_status': 'submitted',
+      'admin_notes': 'Awaiting MINC inspection. Age 53 fit-to-work medical certificate attached and verified.',
+      'submitted_at': '2026-11-12T10:15:00Z',
+    },
+    {
+      'id': 'drv_app_179448002',
+      'full_name': 'Nestor "Ka Nes" Guillermo',
+      'phone_number': '+639201124489',
+      'birth_date': '1995-08-20',
+      'age': 31,
+      'fit_to_work_cert_url': null,
+      'profile_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/profile_nestor_white_bg.jpg',
+      'license_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/license_nestor.jpg',
+      'license_number': 'A01-16-102934',
+      'license_expiry_date': '2029-08-20',
+      'nbi_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/nbi_clearance_nestor.jpg',
+      'police_or_barangay_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/police_clearance_nestor.jpg',
+      'motorcycle_brand_model': 'Honda TMX 125 Alpha',
+      'engine_displacement_cc': 125,
+      'model_year': 2022,
+      'plate_or_mv_file': '4821-IN',
+      'or_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_or_nestor.jpg',
+      'cr_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_cr_nestor.jpg',
+      'is_motorcycle_owned': false,
+      'owner_authorization_letter_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/owner_auth_nestor.jpg',
+      'owner_id_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/owner_id_nestor.jpg',
+      'vehicle_front_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_front_nestor.jpg',
+      'vehicle_back_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_back_nestor.jpg',
+      'vehicle_left_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_left_nestor.jpg',
+      'vehicle_right_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_right_nestor.jpg',
+      'toda_code': 'TODA-02',
+      'application_status': 'submitted',
+      'admin_notes': 'Motorcycle registered under relative; owner authorization letter and ID attached.',
+      'submitted_at': '2026-11-12T09:30:00Z',
+    },
+    {
+      'id': 'drv_app_179448003',
+      'full_name': 'Eduardo "Manong Eddie" Castro',
+      'phone_number': '+639189923310',
+      'birth_date': '1982-11-04',
+      'age': 44,
+      'fit_to_work_cert_url': null,
+      'profile_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/profile_eddie_white_bg.jpg',
+      'license_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/license_eddie.jpg',
+      'license_number': 'A03-08-445892',
+      'license_expiry_date': '2027-11-04',
+      'nbi_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/nbi_clearance_eddie.jpg',
+      'police_or_barangay_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/barangay_clearance_eddie.jpg',
+      'motorcycle_brand_model': 'Bajaj CT 150 Boxer',
+      'engine_displacement_cc': 150,
+      'model_year': 2020,
+      'plate_or_mv_file': '7489-IN',
+      'or_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_or_eddie.jpg',
+      'cr_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_cr_eddie.jpg',
+      'is_motorcycle_owned': true,
+      'owner_authorization_letter_url': null,
+      'owner_id_photo_url': null,
+      'vehicle_front_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_front_eddie.jpg',
+      'vehicle_back_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_back_eddie.jpg',
+      'vehicle_left_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_left_eddie.jpg',
+      'vehicle_right_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_right_eddie.jpg',
+      'toda_code': 'TODA-01',
+      'application_status': 'approved',
+      'admin_notes': 'All documents and vehicle inspections fully approved. Body #0042 assigned.',
+      'submitted_at': '2026-11-10T14:20:00Z',
+    },
+  ];
+
   // System Audit Trail
   final List<Map<String, dynamic>> _systemAuditLogs = [
     {'time': 'Today, 11:30 AM', 'actor': 'MINC Officer Santos', 'action': 'Sent Overcharge Warning Notice to Body #T-0855'},
@@ -866,6 +965,57 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           _discFirstKm = (res['discounted_first_km_fare'] as num?)?.toDouble() ?? _discFirstKm;
           _baseDistKm = (res['base_distance_km'] as num?)?.toDouble() ?? _baseDistKm;
           _succKm = (res['succeeding_km_rate'] as num?)?.toDouble() ?? _succKm;
+        });
+      }
+
+      // Sync live driver applications from Supabase driver_applications table
+      final driverAppRows = await Supabase.instance.client
+          .from('driver_applications')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(50);
+      if (driverAppRows.isNotEmpty) {
+        setState(() {
+          for (final row in driverAppRows) {
+            final idStr = row['id'].toString();
+            final idx = _driverApplications.indexWhere((a) => a['id'] == idStr);
+            final parsed = {
+              'id': idStr,
+              'full_name': row['full_name'] ?? 'Driver Candidate',
+              'phone_number': row['phone_number'] ?? '',
+              'birth_date': row['birth_date'] ?? '1990-01-01',
+              'age': row['age'] ?? 30,
+              'fit_to_work_cert_url': row['fit_to_work_cert_url'],
+              'profile_photo_url': row['profile_photo_url'] ?? '',
+              'license_photo_url': row['license_photo_url'] ?? '',
+              'license_number': row['license_number'] ?? 'N/A',
+              'license_expiry_date': row['license_expiry_date'] ?? 'N/A',
+              'nbi_clearance_url': row['nbi_clearance_url'] ?? '',
+              'police_or_barangay_clearance_url': row['police_or_barangay_clearance_url'] ?? '',
+              'motorcycle_brand_model': row['motorcycle_brand_model'] ?? 'Standard Tricycle',
+              'engine_displacement_cc': row['engine_displacement_cc'] ?? 125,
+              'model_year': row['model_year'] ?? 2020,
+              'plate_or_mv_file': row['plate_or_mv_file'] ?? 'PENDING',
+              'or_photo_url': row['or_photo_url'] ?? '',
+              'cr_photo_url': row['cr_photo_url'] ?? '',
+              'is_motorcycle_owned': row['is_motorcycle_owned'] ?? true,
+              'owner_authorization_letter_url': row['owner_authorization_letter_url'],
+              'owner_id_photo_url': row['owner_id_photo_url'],
+              'vehicle_front_photo_url': row['vehicle_front_photo_url'],
+              'vehicle_back_photo_url': row['vehicle_back_photo_url'],
+              'vehicle_left_photo_url': row['vehicle_left_photo_url'],
+              'vehicle_right_photo_url': row['vehicle_right_photo_url'],
+              'toda_code': row['toda_code'] ?? 'TODA-01',
+              'application_status': row['application_status'] ?? 'submitted',
+              'admin_notes': row['admin_notes'] ?? 'Pending review by MINC.',
+              'submitted_at': row['submitted_at'] ?? DateTime.now().toIso8601String(),
+            };
+            if (idx >= 0) {
+              _driverApplications[idx] = parsed;
+            } else {
+              _driverApplications.insert(0, parsed);
+            }
+          }
         });
       }
     } catch (_) {}
@@ -1321,6 +1471,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       const SizedBox(height: 16),
                       _buildSidebarSectionLabel('ORGANIZATION MANAGEMENT'),
                       _buildSidebarItem(Icons.people_outline_rounded, 'Directory & Drivers'),
+                      _buildSidebarItem(Icons.how_to_reg_outlined, 'Driver Applications'),
                       _buildSidebarItem(Icons.verified_user_outlined, '1:1 Face Verifications'),
                       _buildSidebarItem(Icons.settings_outlined, 'Settings & Compliance'),
                     ],
@@ -1610,6 +1761,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return Icons.payments_outlined;
       case 'Directory & Drivers':
         return Icons.people_outline_rounded;
+      case 'Driver Applications':
+        return Icons.how_to_reg_outlined;
       case '1:1 Face Verifications':
         return Icons.verified_user_outlined;
       case 'Settings & Compliance':
@@ -1644,6 +1797,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return _buildFareMatrixView();
       case 'Directory & Drivers':
         return _buildDirectoryView();
+      case 'Driver Applications':
+        return _buildDriverApplicationsView();
       case '1:1 Face Verifications':
         return _buildFaceVerificationsView();
       case 'Settings & Compliance':
@@ -3496,6 +3651,915 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           );
         }),
       ],
+    );
+  }
+
+  // ===========================================================================
+  // 9B. DRIVER APPLICATIONS & VEHICLE COMPLIANCE VIEW (LAOAG MINC CODE)
+  // ===========================================================================
+  Widget _buildDriverApplicationsView() {
+    final filtered = _driverApplications.where((app) {
+      final query = _driverAppSearchQuery.toLowerCase();
+      final matchesSearch = query.isEmpty ||
+          (app['full_name']?.toString().toLowerCase().contains(query) ?? false) ||
+          (app['phone_number']?.toString().toLowerCase().contains(query) ?? false) ||
+          (app['plate_or_mv_file']?.toString().toLowerCase().contains(query) ?? false) ||
+          (app['motorcycle_brand_model']?.toString().toLowerCase().contains(query) ?? false);
+
+      if (_driverAppFilter == 'All') return matchesSearch;
+      return matchesSearch && (app['application_status'] == _driverAppFilter);
+    }).toList();
+
+    final totalCount = _driverApplications.length;
+    final pendingCount = _driverApplications.where((a) => a['application_status'] == 'submitted' || a['application_status'] == 'under_review').length;
+    final approvedCount = _driverApplications.where((a) => a['application_status'] == 'approved').length;
+    final attentionCount = _driverApplications.where((a) => a['application_status'] == 'resubmission_requested' || a['application_status'] == 'rejected').length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Title & Header
+        const Text(
+          'Laoag City Driver Applications & Vehicle Compliance',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'MINC Paratransit review queue: Personal clearances, 110cc–200cc engine specs, model year 2016+, OR/CR, and 4-angle tricycle photos.',
+          style: TextStyle(color: Colors.grey),
+        ),
+        const SizedBox(height: 16),
+
+        // Statistics Summary Bar
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Total Applications',
+                value: '$totalCount',
+                icon: Icons.assignment_outlined,
+                color: const Color(0xFF0284C7),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Pending Review',
+                value: '$pendingCount',
+                icon: Icons.hourglass_top_rounded,
+                color: const Color(0xFFD97706),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Approved Drivers',
+                value: '$approvedCount',
+                icon: Icons.check_circle_outline_rounded,
+                color: const Color(0xFF059669),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Needs Attention',
+                value: '$attentionCount',
+                icon: Icons.error_outline_rounded,
+                color: const Color(0xFFDC2626),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Search & Filter Toolbar
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search applicant by name, phone, plate #, or motorcycle model...',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                  onChanged: (val) => setState(() => _driverAppSearchQuery = val),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Wrap(
+                spacing: 8,
+                children: [
+                  _buildAppFilterChip('All', 'All ($totalCount)'),
+                  _buildAppFilterChip('submitted', 'Pending ($pendingCount)'),
+                  _buildAppFilterChip('approved', 'Approved ($approvedCount)'),
+                  _buildAppFilterChip('resubmission_requested', 'Resubmit'),
+                  _buildAppFilterChip('rejected', 'Rejected'),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Application Cards List
+        if (filtered.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: const Center(
+              child: Text(
+                'No driver applications found matching your criteria.',
+                style: TextStyle(color: Colors.grey, fontSize: 13.5),
+              ),
+            ),
+          )
+        else
+          ...filtered.map((app) => _buildDriverApplicationCard(app)),
+      ],
+    );
+  }
+
+  Widget _buildMetricTile({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+              Text(title, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppFilterChip(String filterVal, String label) {
+    final isSelected = _driverAppFilter == filterVal;
+    return ChoiceChip(
+      label: Text(label, style: TextStyle(fontSize: 11.5, fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600)),
+      selected: isSelected,
+      selectedColor: const Color(0xFFDCFCE7),
+      labelStyle: TextStyle(color: isSelected ? const Color(0xFF15803D) : const Color(0xFF0F172A)),
+      backgroundColor: Colors.white,
+      side: BorderSide(color: isSelected ? const Color(0xFF16A34A) : Colors.grey.shade300),
+      onSelected: (_) => setState(() => _driverAppFilter = filterVal),
+    );
+  }
+
+  Widget _buildDriverApplicationCard(Map<String, dynamic> app) {
+    final status = app['application_status']?.toString() ?? 'submitted';
+    final isApproved = status == 'approved';
+    final isResubmit = status == 'resubmission_requested';
+    final isRejected = status == 'rejected';
+    final age = app['age'] as int? ?? 30;
+    final isFitToWorkMandatory = age >= 50 && age <= 55;
+    final hasFitToWork = app['fit_to_work_cert_url'] != null;
+    final displacement = app['engine_displacement_cc'] as int? ?? 125;
+    final isDisplacementValid = displacement >= 110 && displacement <= 200;
+    final modelYear = app['model_year'] as int? ?? 2020;
+    final isModelYearValid = modelYear >= 2016;
+    final isOwned = app['is_motorcycle_owned'] as bool? ?? true;
+    final maskedPhone = _maskPhoneNumber(app['phone_number']?.toString() ?? '');
+
+    Color statusBg = const Color(0xFFFEF3C7);
+    Color statusColor = const Color(0xFFB45309);
+    String statusLabel = 'PENDING REVIEW';
+    if (isApproved) {
+      statusBg = const Color(0xFFD1FAE5);
+      statusColor = const Color(0xFF059669);
+      statusLabel = 'APPROVED DRIVER';
+    } else if (isResubmit) {
+      statusBg = const Color(0xFFFEF9C3);
+      statusColor = const Color(0xFF854D0E);
+      statusLabel = 'RESUBMISSION REQUESTED';
+    } else if (isRejected) {
+      statusBg = const Color(0xFFFEE2E2);
+      statusColor = const Color(0xFFDC2626);
+      statusLabel = 'REJECTED';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isApproved ? const Color(0xFF86EFAC) : (isRejected ? const Color(0xFFFCA5A5) : Colors.grey.shade200),
+          width: isApproved ? 1.6 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isApproved ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: isApproved ? const Color(0xFFDCFCE7) : const Color(0xFFE2E8F0),
+                  child: Text(
+                    app['full_name']?.toString().isNotEmpty == true
+                        ? app['full_name'].toString().substring(0, 1).toUpperCase()
+                        : 'D',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: isApproved ? const Color(0xFF059669) : const Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            app['full_name']?.toString() ?? 'Driver Applicant',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Age $age (Born ${app['birth_date']})',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                            ),
+                          ),
+                          if (isFitToWorkMandatory) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: hasFitToWork ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    hasFitToWork ? Icons.medical_services_rounded : Icons.warning_amber_rounded,
+                                    size: 12,
+                                    color: hasFitToWork ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    hasFitToWork ? 'Fit-to-Work Medical Verified' : 'Fit-to-Work Medical Mandated (50-55)',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: hasFitToWork ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Contact: $maskedPhone • TODA: ${app['toda_code'] ?? 'TODA-01'} • Submitted: ${app['submitted_at']?.toString().split('T').first ?? 'Today'}',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(color: statusColor, fontWeight: FontWeight.w800, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Main 4-Grid Breakdown
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Personal Clearances & 2. Motorcycle Specs
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Col A: Personal & Government Clearances
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.badge_rounded, size: 16, color: Color(0xFF059669)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Personal & Clearance Documents',
+                                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _buildDocStatusRow(
+                              title: 'Professional Driver\'s License',
+                              detail: '${app['license_number'] ?? 'Valid'} (Exp: ${app['license_expiry_date'] ?? '2028'})',
+                              isAvailable: app['license_photo_url'] != null,
+                              onView: () => _showDriverAppDocDialog(context, 'Professional Driver\'s License', app['license_photo_url']),
+                            ),
+                            _buildDocStatusRow(
+                              title: 'NBI Clearance',
+                              detail: 'Original / Valid Renewal Receipt',
+                              isAvailable: app['nbi_clearance_url'] != null,
+                              onView: () => _showDriverAppDocDialog(context, 'NBI Clearance', app['nbi_clearance_url']),
+                            ),
+                            _buildDocStatusRow(
+                              title: 'Barangay or Police Clearance',
+                              detail: 'Laoag City Local Jurisdiction',
+                              isAvailable: app['police_or_barangay_clearance_url'] != null,
+                              onView: () => _showDriverAppDocDialog(context, 'Barangay/Police Clearance', app['police_or_barangay_clearance_url']),
+                            ),
+                            if (isFitToWorkMandatory)
+                              _buildDocStatusRow(
+                                title: 'Fit-to-Work Medical Certificate',
+                                detail: 'Mandated for drivers aged 50 to 55',
+                                isAvailable: hasFitToWork,
+                                onView: () => _showDriverAppDocDialog(context, 'Fit-to-Work Medical Certificate', app['fit_to_work_cert_url']),
+                              ),
+                            _buildDocStatusRow(
+                              title: 'Selfie / Profile Photo',
+                              detail: 'White background, well-lit, no accessories',
+                              isAvailable: app['profile_photo_url'] != null,
+                              onView: () => _showDriverAppDocDialog(context, 'Driver White-BG Selfie', app['profile_photo_url']),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+
+                    // Col B: Motorcycle Specs & OR/CR
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.two_wheeler_rounded, size: 16, color: Color(0xFF0284C7)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Motorcycle Specs & Ownership',
+                                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _buildSpecRow(
+                              label: 'Brand & Model',
+                              value: app['motorcycle_brand_model']?.toString() ?? 'Honda TMX 125',
+                            ),
+                            _buildSpecRow(
+                              label: 'Displacement',
+                              value: '${displacement}cc',
+                              complianceBadge: isDisplacementValid
+                                  ? '✓ 110–200cc Compliant'
+                                  : '⚠ Out of Range (110–200cc mandated)',
+                              isCompliant: isDisplacementValid,
+                            ),
+                            _buildSpecRow(
+                              label: 'Model Year',
+                              value: '$modelYear',
+                              complianceBadge: isModelYearValid
+                                  ? '✓ 2016+ Compliant'
+                                  : '⚠ Older than 2016',
+                              isCompliant: isModelYearValid,
+                            ),
+                            _buildSpecRow(
+                              label: 'Plate / MV File #',
+                              value: app['plate_or_mv_file']?.toString() ?? 'PENDING',
+                            ),
+                            const Divider(height: 14),
+                            Row(
+                              children: [
+                                TextButton.icon(
+                                  onPressed: () => _showDriverAppDocDialog(context, 'LTO Official Receipt (OR)', app['or_photo_url']),
+                                  icon: const Icon(Icons.description_outlined, size: 14),
+                                  label: const Text('View OR', style: TextStyle(fontSize: 11)),
+                                ),
+                                const SizedBox(width: 6),
+                                TextButton.icon(
+                                  onPressed: () => _showDriverAppDocDialog(context, 'LTO Certificate of Registration (CR)', app['cr_photo_url']),
+                                  icon: const Icon(Icons.description_outlined, size: 14),
+                                  label: const Text('View CR', style: TextStyle(fontSize: 11)),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: isOwned ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    isOwned ? 'Registered Owner' : 'Authorized by Owner',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: isOwned ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (!isOwned) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: () => _showDriverAppDocDialog(context, 'Owner Authorization Letter', app['owner_authorization_letter_url']),
+                                    icon: const Icon(Icons.forward_to_inbox_rounded, size: 14),
+                                    label: const Text('Auth Letter', style: TextStyle(fontSize: 11)),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: () => _showDriverAppDocDialog(context, 'Owner Valid ID', app['owner_id_photo_url']),
+                                    icon: const Icon(Icons.contact_mail_outlined, size: 14),
+                                    label: const Text('Owner ID', style: TextStyle(fontSize: 11)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // 4-Angle Tricycle Photos Row
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.camera_alt_outlined, size: 16, color: Color(0xFF0F172A)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '4-Angle Tricycle Views:',
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                      ),
+                      const SizedBox(width: 14),
+                      _buildAnglePhotoPill(context, 'Front View', app['vehicle_front_photo_url']),
+                      const SizedBox(width: 8),
+                      _buildAnglePhotoPill(context, 'Back View', app['vehicle_back_photo_url']),
+                      const SizedBox(width: 8),
+                      _buildAnglePhotoPill(context, 'Left Side', app['vehicle_left_photo_url']),
+                      const SizedBox(width: 8),
+                      _buildAnglePhotoPill(context, 'Right Side', app['vehicle_right_photo_url']),
+                    ],
+                  ),
+                ),
+
+                if (app['admin_notes'] != null && app['admin_notes'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Admin Review Note: ${app['admin_notes']}',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontStyle: FontStyle.italic),
+                  ),
+                ],
+
+                const SizedBox(height: 14),
+
+                // Action Bar
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _showDriverAppDocDialog(context, 'Time-Expiring Signed Vault URLs', app['license_photo_url']),
+                      icon: const Icon(Icons.vpn_key_rounded, size: 14, color: Color(0xFF0284C7)),
+                      label: const Text('RA 10173 Signed URLs (300s)', style: TextStyle(fontSize: 11.5)),
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        if (!isApproved) ...[
+                          OutlinedButton.icon(
+                            onPressed: () => _requestResubmissionDriverApp(app),
+                            icon: const Icon(Icons.history_edu_rounded, size: 14, color: Color(0xFFD97706)),
+                            label: const Text('Request Resubmission', style: TextStyle(fontSize: 11.5, color: Color(0xFFD97706))),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _rejectDriverApp(app),
+                            icon: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFDC2626)),
+                            label: const Text('Reject', style: TextStyle(fontSize: 11.5, color: Color(0xFFDC2626))),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () => _approveDriverApp(app),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF059669),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            ),
+                            icon: const Icon(Icons.check_circle_rounded, size: 15),
+                            label: const Text('Approve & Assign Body #', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                          ),
+                        ] else
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDCFCE7),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.verified_rounded, size: 14, color: Color(0xFF15803D)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Franchise Active in Toda Directory',
+                                  style: TextStyle(fontSize: 11.5, color: Color(0xFF15803D), fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocStatusRow({
+    required String title,
+    required String detail,
+    required bool isAvailable,
+    required VoidCallback onView,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3.5),
+      child: Row(
+        children: [
+          Icon(
+            isAvailable ? Icons.check_circle_rounded : Icons.cancel_rounded,
+            size: 14,
+            color: isAvailable ? const Color(0xFF059669) : Colors.grey.shade400,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '$title • $detail',
+              style: const TextStyle(fontSize: 11.5, color: Colors.black87),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          InkWell(
+            onTap: onView,
+            child: const Text(
+              'Inspect',
+              style: TextStyle(fontSize: 11, color: Color(0xFF0284C7), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecRow({
+    required String label,
+    required String value,
+    String? complianceBadge,
+    bool isCompliant = true,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
+      child: Row(
+        children: [
+          Text('$label: ', style: const TextStyle(fontSize: 11.5, color: Colors.black54)),
+          Text(value, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+          if (complianceBadge != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: isCompliant ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                complianceBadge,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  color: isCompliant ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnglePhotoPill(BuildContext context, String angle, String? url) {
+    final hasPhoto = url != null && url.isNotEmpty;
+    return InkWell(
+      onTap: () => _showDriverAppDocDialog(context, 'Tricycle $angle', url),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: hasPhoto ? const Color(0xFFDCFCE7) : Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: hasPhoto ? const Color(0xFF86EFAC) : Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              hasPhoto ? Icons.check_circle_rounded : Icons.photo_camera_outlined,
+              size: 12,
+              color: hasPhoto ? const Color(0xFF15803D) : Colors.grey.shade600,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              angle,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.bold,
+                color: hasPhoto ? const Color(0xFF15803D) : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDriverAppDocDialog(BuildContext context, String docTitle, String? docUrl) {
+    final mockToken = 'sign-hmac-${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.vpn_key_rounded, color: Color(0xFF0284C7)),
+            const SizedBox(width: 8),
+            Text('$docTitle (Document Vault)', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'RA 10173 Protected Access: This time-expiring link expires in 300 seconds (5 minutes). Access is logged to Supabase biometric_access_logs.',
+              style: TextStyle(fontSize: 12, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                docUrl != null && docUrl.startsWith('http')
+                    ? '$docUrl?token=$mockToken&expires_in=300'
+                    : 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/${docTitle.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}.jpg?token=$mockToken&expires_in=300',
+                style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _approveDriverApp(Map<String, dynamic> app) {
+    final assignedBody = '#T-${(300 + _driverDirectory.length)}';
+    setState(() {
+      app['application_status'] = 'approved';
+      app['admin_notes'] = 'Approved by Laoag MINC Officer. Assigned Body $assignedBody.';
+      _driverDirectory.add({
+        'bodyNo': assignedBody,
+        'name': app['full_name'],
+        'toda': app['toda_code'] ?? 'TODA-01',
+        'plateNo': app['plate_or_mv_file'] ?? '1204-IN',
+        'status': 'Active & Compliant',
+        'complianceRating': 100,
+        'tripsToday': 0,
+      });
+      _systemAuditLogs.insert(0, {
+        'time': 'Just now',
+        'actor': 'MINC Officer Santos',
+        'action': 'Approved Driver Application for ${app['full_name']} (Assigned Body $assignedBody)',
+      });
+    });
+
+    try {
+      Supabase.instance.client
+          .from('driver_applications')
+          .update({'application_status': 'approved', 'admin_notes': app['admin_notes']})
+          .eq('phone_number', app['phone_number']);
+    } catch (_) {}
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('✓ Application for ${app['full_name']} APPROVED. Assigned TODA Body $assignedBody.'),
+        backgroundColor: const Color(0xFF059669),
+      ),
+    );
+  }
+
+  void _requestResubmissionDriverApp(Map<String, dynamic> app) {
+    final noteController = TextEditingController(text: 'Please upload a clearer copy of your document renewal receipt.');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Request Document Resubmission', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Specify requirements needed for ${app['full_name']}:', style: const TextStyle(fontSize: 12.5)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: noteController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                app['application_status'] = 'resubmission_requested';
+                app['admin_notes'] = noteController.text;
+                _systemAuditLogs.insert(0, {
+                  'time': 'Just now',
+                  'actor': 'MINC Officer Santos',
+                  'action': 'Requested Resubmission for ${app['full_name']}: ${noteController.text}',
+                });
+              });
+
+              try {
+                Supabase.instance.client
+                    .from('driver_applications')
+                    .update({'application_status': 'resubmission_requested', 'admin_notes': noteController.text})
+                    .eq('phone_number', app['phone_number']);
+              } catch (_) {}
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Resubmission notice dispatched to ${app['full_name']}.'),
+                  backgroundColor: const Color(0xFFD97706),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white),
+            child: const Text('Send Notice'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _rejectDriverApp(Map<String, dynamic> app) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reject Driver Application', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
+        content: Text('Are you sure you want to reject the application for ${app['full_name']}? This action is recorded in the paratransit audit trail.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                app['application_status'] = 'rejected';
+                app['admin_notes'] = 'Application rejected due to non-compliance with Laoag City Paratransit Code.';
+                _systemAuditLogs.insert(0, {
+                  'time': 'Just now',
+                  'actor': 'MINC Officer Santos',
+                  'action': 'Rejected Driver Application for ${app['full_name']}',
+                });
+              });
+
+              try {
+                Supabase.instance.client
+                    .from('driver_applications')
+                    .update({'application_status': 'rejected', 'admin_notes': app['admin_notes']})
+                    .eq('phone_number', app['phone_number']);
+              } catch (_) {}
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Application for ${app['full_name']} marked REJECTED.'),
+                  backgroundColor: const Color(0xFFDC2626),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+            child: const Text('Confirm Rejection'),
+          ),
+        ],
+      ),
     );
   }
 
