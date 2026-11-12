@@ -73,11 +73,12 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
     final screenHeight = mediaQuery.size.height;
     final screenWidth = mediaQuery.size.width;
 
-    // Upward Dome Sheet height takes ~48-50% of the screen
-    final bottomSheetHeight = math.min(screenHeight * 0.49, 440.0);
-    // Phone mockup height extends down to overlap with the bottom sheet
-    final phoneHeight = math.min(screenHeight * 0.54, 490.0);
-    final phoneWidth = math.min(screenWidth * 0.86, 360.0);
+    // White bottom sheet takes ~50% of the screen height
+    final bottomSheetHeight = math.min(screenHeight * 0.50, 450.0);
+    // Phone mockup width is ~76% of screen width (matching Joyride 1:1)
+    final phoneWidth = math.min(screenWidth * 0.76, 320.0);
+    // Phone mockup extends downward behind the white scooped curve
+    final phoneHeight = math.min(screenHeight * 0.58, 510.0);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -89,9 +90,9 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
         backgroundColor: _primaryGreen,
         body: Stack(
           children: [
-            // 1. Phone Mockup Layer (Positioned high, wide, dipping into the bottom sheet)
+            // 1. Phone Mockup Layer (Top hero, submerged into the white container)
             Positioned(
-              top: mediaQuery.padding.top + 16,
+              top: mediaQuery.padding.top + 8,
               left: (screenWidth - phoneWidth) / 2,
               width: phoneWidth,
               height: phoneHeight,
@@ -100,20 +101,20 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
               ),
             ),
 
-            // 2. White Curved Dome Sheet (Arches UP in the center, overlapping the bottom of the phone)
+            // 2. White Container with Downward Dipping Scoop Curve (Joyride Image 2)
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
               height: bottomSheetHeight,
               child: ClipPath(
-                clipper: const _JoyrideWhiteDomeClipper(),
+                clipper: const _JoyrideWhiteScoopClipper(),
                 child: Container(
                   color: Colors.white,
                   child: SafeArea(
                     top: false,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(28, 42, 28, 20),
+                      padding: const EdgeInsets.fromLTRB(28, 48, 28, 24),
                       child: Column(
                         children: [
                           // PageView Content (Centered Title & Subtitle)
@@ -132,7 +133,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                       slide['title']!,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
-                                        fontSize: 24,
+                                        fontSize: 23,
                                         fontWeight: FontWeight.w800,
                                         color: _darkHeading,
                                         letterSpacing: -0.5,
@@ -182,14 +183,14 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                           ),
                           const SizedBox(height: 24),
 
-                          // Bottom Action Buttons (50/50 split on slides 1 & 2, full-width on slide 3)
+                          // Bottom Action Buttons (Skip & Continue on slides 1 & 2, Let's Get Started on slide 3)
                           if (_currentPage < _slides.length - 1)
                             Row(
                               children: [
                                 // Skip Button (Soft Mint Capsule)
                                 Expanded(
                                   child: SizedBox(
-                                    height: 56,
+                                    height: 54,
                                     child: ElevatedButton(
                                       onPressed: () => _handleNavigation(
                                         startInRegisterMode: false,
@@ -200,7 +201,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                         elevation: 0,
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
-                                              BorderRadius.circular(28),
+                                              BorderRadius.circular(27),
                                         ),
                                       ),
                                       child: const Text(
@@ -217,12 +218,12 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                 // Continue Button (Vibrant Emerald Capsule)
                                 Expanded(
                                   child: SizedBox(
-                                    height: 56,
+                                    height: 54,
                                     child: ElevatedButton(
                                       onPressed: () {
                                         _pageController.nextPage(
                                           duration:
-                                              const Duration(milliseconds: 320),
+                                              const Duration(milliseconds: 300),
                                           curve: Curves.easeOutCubic,
                                         );
                                       },
@@ -232,7 +233,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                         elevation: 0,
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
-                                              BorderRadius.circular(28),
+                                              BorderRadius.circular(27),
                                         ),
                                       ),
                                       child: const Text(
@@ -251,7 +252,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                             // Full-width "Let's Get Started"
                             SizedBox(
                               width: double.infinity,
-                              height: 56,
+                              height: 54,
                               child: ElevatedButton(
                                 onPressed: () => _handleNavigation(
                                   startInRegisterMode: true,
@@ -261,7 +262,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                   foregroundColor: Colors.white,
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(28),
+                                    borderRadius: BorderRadius.circular(27),
                                   ),
                                 ),
                                 child: const Text(
@@ -288,24 +289,25 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// White Dome Clipper (Arches UP in the center by 45dp, exactly like Joyride)
+// White Scoop Clipper (Dips DOWN in the center, matching Joyride Image 2)
 // ---------------------------------------------------------------------------
-class _JoyrideWhiteDomeClipper extends CustomClipper<Path> {
-  const _JoyrideWhiteDomeClipper();
+class _JoyrideWhiteScoopClipper extends CustomClipper<Path> {
+  const _JoyrideWhiteScoopClipper();
 
   @override
   Path getClip(Size size) {
     final path = Path();
-    const archRise = 42.0;
+    // Boundary curve dips down in the center by ~30dp
+    const curveDip = 30.0;
 
-    // Start on the left edge at y = archRise
-    path.moveTo(0, archRise);
-    // Smooth convex quadratic curve reaching UP to y = 0 at the center
+    // Top-left starts at y = 0
+    path.moveTo(0, 0);
+    // Smooth concave curve dipping down to (width/2, curveDip) at the center
     path.quadraticBezierTo(
       size.width / 2,
-      0,
+      curveDip * 2,
       size.width,
-      archRise,
+      0,
     );
     // Complete the bottom rectangle
     path.lineTo(size.width, size.height);
@@ -319,7 +321,7 @@ class _JoyrideWhiteDomeClipper extends CustomClipper<Path> {
 }
 
 // ---------------------------------------------------------------------------
-// Immersive Phone Chassis (Full-Bleed Screen Content inside iPhone Frame)
+// Immersive Phone Chassis (Pure UI edge-to-edge inside iPhone Frame)
 // ---------------------------------------------------------------------------
 class _ImmersiveJoyridePhone extends StatelessWidget {
   final int currentPage;
@@ -330,28 +332,27 @@ class _ImmersiveJoyridePhone extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF141416), // Sleek black chassis
-        borderRadius: BorderRadius.circular(42),
-        border: Border.all(color: const Color(0xFF27272A), width: 3.8),
+        color: const Color(0xFF18181B), // Dark chassis
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(38)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
+            color: Colors.black.withValues(alpha: 0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(4.5),
+      padding: const EdgeInsets.fromLTRB(4.5, 4.5, 4.5, 0),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(38),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
         child: Container(
           color: Colors.white,
           child: Stack(
             children: [
-              // 1. Full-Bleed App Screen Image (NO phone inside phone, 100% clean UI)
+              // 1. Full-Bleed App Screen Image (Clean UI, no outer phone chassis)
               Positioned.fill(
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 280),
+                  duration: const Duration(milliseconds: 250),
                   child: _buildScreenContent(currentPage),
                 ),
               ),
@@ -363,8 +364,8 @@ class _ImmersiveJoyridePhone extends StatelessWidget {
                 right: 0,
                 child: Center(
                   child: Container(
-                    width: 72,
-                    height: 16,
+                    width: 66,
+                    height: 15,
                     decoration: BoxDecoration(
                       color: Colors.black,
                       borderRadius: BorderRadius.circular(8),
@@ -373,7 +374,7 @@ class _ImmersiveJoyridePhone extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         Container(
-                          margin: const EdgeInsets.only(right: 8),
+                          margin: const EdgeInsets.only(right: 6),
                           width: 5,
                           height: 5,
                           decoration: const BoxDecoration(
