@@ -99,10 +99,11 @@ class _SchedulePasaDeliverSheetState extends State<SchedulePasaDeliverSheet> {
     );
 
     ActivityRepository.addTrip(newTrip);
-    widget.onScheduled();
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
+    widget.onScheduled();
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       const SnackBar(
         content: Text('PasaDeliver errand scheduled successfully!'),
         backgroundColor: AppTheme.accentEmerald,
@@ -156,22 +157,24 @@ class _SchedulePasaDeliverSheetState extends State<SchedulePasaDeliverSheet> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Schedule PasaDeliver',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.primarySlate,
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Schedule PasaDeliver',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.primarySlate,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'On-demand parcel & errand booking across Laoag',
-                          style: TextStyle(fontSize: 11.5, color: Colors.grey),
-                        ),
-                      ],
+                          Text(
+                            'On-demand parcel & errand booking across Laoag',
+                            style: TextStyle(fontSize: 11.5, color: Colors.grey),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

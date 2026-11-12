@@ -4,6 +4,7 @@ import 'package:mobile_client/features/fare/services/fare_calculator_service.dar
 import 'package:mobile_client/features/rider/views/passenger_activity_screen.dart';
 import 'package:mobile_client/features/rider/views/passenger_service_hub_screen.dart';
 import 'package:mobile_client/features/rider/views/ride_details_screen.dart';
+import 'package:mobile_client/features/rider/views/schedule_pasadeliver_sheet.dart';
 import 'package:mobile_client/features/rider/views/share_receipt_sheet.dart';
 
 void main() {
@@ -42,7 +43,7 @@ void main() {
     // Verify Activity screen rendered
     expect(find.byType(PassengerActivityScreen), findsOneWidget);
     expect(find.text('Ongoing'), findsOneWidget);
-    expect(find.text('PasaDeliver'), findsOneWidget);
+    expect(find.text('Scheduled'), findsOneWidget);
     expect(find.text('Completed'), findsOneWidget);
     expect(find.text('Canceled'), findsOneWidget);
 
@@ -169,16 +170,92 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Robinsons Place Ilocos Norte'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('PasaDeliver'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('PasaDeliver'));
+    await tester.tap(find.text('Scheduled'));
     await tester.pumpAndSettle();
     expect(find.text('PasaDeliver: Public Market Padala'), findsOneWidget);
+    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Ongoing'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Ongoing'));
     await tester.pumpAndSettle();
     expect(find.text('STI College Laoag'), findsOneWidget);
+  });
+
+  testWidgets('Switching between Scheduled and other tabs (Ongoing, Completed, Canceled) never throws hit-test exceptions',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: PassengerActivityScreen(fullName: 'Juan Dela Cruz'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Start on Ongoing, switch to Scheduled
+    await tester.tap(find.text('Scheduled'));
+    await tester.pumpAndSettle();
+    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
+
+    // 2. From Scheduled, switch to Ongoing
+    await tester.tap(find.text('Ongoing'));
+    await tester.pumpAndSettle();
+    expect(find.text('STI College Laoag'), findsOneWidget);
+
+    // 3. Switch back to Scheduled
+    await tester.tap(find.text('Scheduled'));
+    await tester.pumpAndSettle();
+    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
+
+    // 4. From Scheduled, switch to Completed
+    await tester.tap(find.text('Completed'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fonacier Street, Brgy. 17'), findsOneWidget);
+
+    // 5. Switch back to Scheduled
+    await tester.tap(find.text('Scheduled'));
+    await tester.pumpAndSettle();
+    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
+
+    // 6. From Scheduled, switch to Canceled
+    await tester.tap(find.text('Canceled'));
+    await tester.pumpAndSettle();
+    expect(find.text('Robinsons Place Ilocos Norte'), findsOneWidget);
+
+    // 7. Switch back to Scheduled and open schedule sheet
+    await tester.tap(find.text('Scheduled'));
+    await tester.pumpAndSettle();
+    expect(find.text('Schedule'), findsWidgets);
+
+    // Tap Schedule button
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Schedule'));
+    await tester.pumpAndSettle();
+
+    // Modal bottom sheet should be open
+    expect(find.byType(SchedulePasaDeliverSheet), findsOneWidget);
+    expect(find.text('Schedule PasaDeliver'), findsOneWidget);
+
+    // Submit schedule form
+    await tester.tap(find.text('Confirm & Schedule PasaDeliver'));
+    await tester.pumpAndSettle();
+
+    // Verify returning to Scheduled tab with updated list
+    expect(find.byType(SchedulePasaDeliverSheet), findsNothing);
+    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
+
+    // From Scheduled, seamlessly switch back to Ongoing, Completed, Canceled
+    await tester.tap(find.text('Ongoing'));
+    await tester.pumpAndSettle();
+    expect(find.text('STI College Laoag'), findsOneWidget);
+
+    await tester.tap(find.text('Completed'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fonacier Street, Brgy. 17'), findsOneWidget);
+
+    await tester.tap(find.text('Canceled'));
+    await tester.pumpAndSettle();
+    expect(find.text('Robinsons Place Ilocos Norte'), findsOneWidget);
   });
 }
