@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/services/android_permissions_service.dart';
@@ -13,33 +12,32 @@ class WelcomeOnboardingScreen extends StatefulWidget {
 }
 
 class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
+  static const _screenAssets = <String>[
+    'assets/screens/walkthrough_1.png',
+    'assets/screens/walkthrough_2.png',
+    'assets/screens/walkthrough_3.png',
+  ];
 
-  // PasadaNorte Emerald & Joyride Color Palette
-  static const Color _primaryGreen = Color(0xFF00C466);
-  static const Color _mintBackground = Color(0xFFE8F8EF);
-  static const Color _darkHeading = Color(0xFF212121);
-  static const Color _subtitleGrey = Color(0xFF757575);
-  static const Color _dotInactive = Color(0xFFE0E0E0);
-
-  final List<Map<String, String>> _slides = [
+  static const _screenSemantics = <Map<String, String>>[
     {
-      'title': 'Welcome to PasadaNorte - Your\nJourney, Your Way',
+      'title': 'Welcome to PasadaNorte - Your Journey, Your Way',
       'subtitle':
           "Get ready to experience hassle-free transportation. We've got everything you need to travel with ease. Let's get started!",
     },
     {
-      'title': 'Choose Your Ride -\nTailored to Your Needs',
+      'title': 'Choose Your Ride - Tailored to Your Needs',
       'subtitle':
           'Select your preferred mode of transportation - motorbike / scooter, or car - and order a ride with just a few taps.',
     },
     {
-      'title': 'Secure Payments &\nSeamless Transactions',
+      'title': 'Secure Payments & Seamless Transactions',
       'subtitle':
-          'Say hello to convenience payments. Pay for your rides securely using GoRide Wallet, PayPal, Google Pay, Apple Pay, card, and or cash.',
+          'Say hello to convenience payments. Pay for your rides securely using Cash, Maya, GCash QR Ph, or TODA terminal digital dispatch.',
     },
   ];
+
+  final PageController _controller = PageController();
+  int _page = 0;
 
   @override
   void initState() {
@@ -50,7 +48,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -67,19 +65,19 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
     );
   }
 
+  void _next() {
+    if (_page == _screenAssets.length - 1) {
+      _handleNavigation(startInRegisterMode: true);
+      return;
+    }
+    _controller.nextPage(
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final screenHeight = mediaQuery.size.height;
-    final screenWidth = mediaQuery.size.width;
-
-    // White bottom sheet takes ~50% of the screen height
-    final bottomSheetHeight = math.min(screenHeight * 0.50, 450.0);
-    // Phone mockup width is ~76% of screen width (matching Joyride 1:1)
-    final phoneWidth = math.min(screenWidth * 0.76, 320.0);
-    // Phone mockup extends downward behind the white scooped curve
-    final phoneHeight = math.min(screenHeight * 0.58, 510.0);
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -87,200 +85,55 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: _primaryGreen,
+        backgroundColor: const Color(0xFF08C76A),
         body: Stack(
+          fit: StackFit.expand,
           children: [
-            // 1. Phone Mockup Layer (Top hero, submerged into the white container)
-            Positioned(
-              top: mediaQuery.padding.top + 8,
-              left: (screenWidth - phoneWidth) / 2,
-              width: phoneWidth,
-              height: phoneHeight,
-              child: _ImmersiveJoyridePhone(
-                currentPage: _currentPage,
-              ),
+            // PageView displaying high-fidelity PasadaNorte Figma artboards
+            PageView.builder(
+              controller: _controller,
+              itemCount: _screenAssets.length,
+              onPageChanged: (page) => setState(() => _page = page),
+              itemBuilder: (context, index) {
+                final semantics = _screenSemantics[index];
+                return Semantics(
+                  container: true,
+                  label: '${semantics['title']!}. ${semantics['subtitle']!}',
+                  child: _DesignScreen(assetName: _screenAssets[index]),
+                );
+              },
             ),
 
-            // 2. White Container with Downward Dipping Scoop Curve (Joyride Image 2)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: bottomSheetHeight,
-              child: ClipPath(
-                clipper: const _JoyrideWhiteScoopClipper(),
-                child: Container(
-                  color: Colors.white,
-                  child: SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(28, 48, 28, 24),
-                      child: Column(
-                        children: [
-                          // PageView Content (Centered Title & Subtitle)
-                          Expanded(
-                            child: PageView.builder(
-                              controller: _pageController,
-                              itemCount: _slides.length,
-                              onPageChanged: (idx) =>
-                                  setState(() => _currentPage = idx),
-                              itemBuilder: (context, index) {
-                                final slide = _slides[index];
-                                return Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      slide['title']!,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 23,
-                                        fontWeight: FontWeight.w800,
-                                        color: _darkHeading,
-                                        letterSpacing: -0.5,
-                                        height: 1.25,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      slide['subtitle']!,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                        color: _subtitleGrey,
-                                        height: 1.45,
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ),
-
-                          // Indicator Dots (32dp wide active pill + 8dp circles)
-                          Semantics(
-                            label:
-                                'Page ${_currentPage + 1} of ${_slides.length}',
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(_slides.length, (idx) {
-                                final isActive = _currentPage == idx;
-                                return AnimatedContainer(
-                                  duration: const Duration(milliseconds: 250),
-                                  margin:
-                                      const EdgeInsets.symmetric(horizontal: 4),
-                                  width: isActive ? 32 : 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: isActive
-                                        ? _primaryGreen
-                                        : _dotInactive,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Bottom Action Buttons (Skip & Continue on slides 1 & 2, Let's Get Started on slide 3)
-                          if (_currentPage < _slides.length - 1)
-                            Row(
-                              children: [
-                                // Skip Button (Soft Mint Capsule)
-                                Expanded(
-                                  child: SizedBox(
-                                    height: 54,
-                                    child: ElevatedButton(
-                                      onPressed: () => _handleNavigation(
-                                        startInRegisterMode: false,
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: _mintBackground,
-                                        foregroundColor: _primaryGreen,
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(27),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Skip',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                // Continue Button (Vibrant Emerald Capsule)
-                                Expanded(
-                                  child: SizedBox(
-                                    height: 54,
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        _pageController.nextPage(
-                                          duration:
-                                              const Duration(milliseconds: 300),
-                                          curve: Curves.easeOutCubic,
-                                        );
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: _primaryGreen,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(27),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Continue',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          else
-                            // Full-width "Let's Get Started"
-                            SizedBox(
-                              width: double.infinity,
-                              height: 54,
-                              child: ElevatedButton(
-                                onPressed: () => _handleNavigation(
-                                  startInRegisterMode: true,
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _primaryGreen,
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(27),
-                                  ),
-                                ),
-                                child: const Text(
-                                  "Let's Get Started",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+            // Responsive Action Regions mapped to the 430x932 Figma artboard
+            if (_page < _screenAssets.length - 1) ...[
+              // Skip Button Region (Left Pill)
+              _ActionRegion(
+                semanticsLabel: 'Skip onboarding',
+                left: 24 / 430,
+                bottom: 37 / 932,
+                width: 183 / 430,
+                height: 56 / 932,
+                onTap: () => _handleNavigation(startInRegisterMode: false),
               ),
-            ),
+              // Continue Button Region (Right Pill)
+              _ActionRegion(
+                semanticsLabel: 'Continue',
+                left: 223 / 430,
+                bottom: 37 / 932,
+                width: 183 / 430,
+                height: 56 / 932,
+                onTap: _next,
+              ),
+            ] else
+              // Full-Width "Let's Get Started" Button Region
+              _ActionRegion(
+                semanticsLabel: "Let's get started",
+                left: 24 / 430,
+                bottom: 37 / 932,
+                width: 382 / 430,
+                height: 56 / 932,
+                onTap: () => _handleNavigation(startInRegisterMode: true),
+              ),
           ],
         ),
       ),
@@ -288,124 +141,71 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// White Scoop Clipper (Dips DOWN in the center, matching Joyride Image 2)
-// ---------------------------------------------------------------------------
-class _JoyrideWhiteScoopClipper extends CustomClipper<Path> {
-  const _JoyrideWhiteScoopClipper();
+class _DesignScreen extends StatelessWidget {
+  const _DesignScreen({required this.assetName});
 
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    // Boundary curve dips down in the center by ~30dp
-    const curveDip = 30.0;
-
-    // Top-left starts at y = 0
-    path.moveTo(0, 0);
-    // Smooth concave curve dipping down to (width/2, curveDip) at the center
-    path.quadraticBezierTo(
-      size.width / 2,
-      curveDip * 2,
-      size.width,
-      0,
-    );
-    // Complete the bottom rectangle
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-// ---------------------------------------------------------------------------
-// Immersive Phone Chassis (Pure UI edge-to-edge inside iPhone Frame)
-// ---------------------------------------------------------------------------
-class _ImmersiveJoyridePhone extends StatelessWidget {
-  final int currentPage;
-
-  const _ImmersiveJoyridePhone({required this.currentPage});
+  final String assetName;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF18181B), // Dark chassis
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(38)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
+    return ColoredBox(
+      color: Colors.white,
+      child: Image.asset(
+        assetName,
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
+        filterQuality: FilterQuality.high,
+        excludeFromSemantics: true,
       ),
-      padding: const EdgeInsets.fromLTRB(4.5, 4.5, 4.5, 0),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
-        child: Container(
-          color: Colors.white,
-          child: Stack(
-            children: [
-              // 1. Full-Bleed App Screen Image (Clean UI, no outer phone chassis)
-              Positioned.fill(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: _buildScreenContent(currentPage),
-                ),
-              ),
+    );
+  }
+}
 
-              // 2. Joyride iPhone Dynamic Island at Top
+class _ActionRegion extends StatelessWidget {
+  const _ActionRegion({
+    required this.semanticsLabel,
+    required this.left,
+    required this.bottom,
+    required this.width,
+    required this.height,
+    required this.onTap,
+  });
+
+  final String semanticsLabel;
+  final double left;
+  final double bottom;
+  final double width;
+  final double height;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            children: [
               Positioned(
-                top: 10,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    width: 66,
-                    height: 15,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          width: 5,
-                          height: 5,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF1E293B),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
+                left: constraints.maxWidth * left,
+                bottom: constraints.maxHeight * bottom,
+                width: constraints.maxWidth * width,
+                height: constraints.maxHeight * height,
+                child: Semantics(
+                  button: true,
+                  label: semanticsLabel,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onTap,
+                      borderRadius: BorderRadius.circular(30),
                     ),
                   ),
                 ),
               ),
             ],
-          ),
-        ),
+          );
+        },
       ),
-    );
-  }
-
-  Widget _buildScreenContent(int index) {
-    final assetNames = [
-      'assets/images/walkthrough_1.png',
-      'assets/images/walkthrough_2.png',
-      'assets/images/walkthrough_3.png',
-    ];
-
-    return Image.asset(
-      assetNames[index],
-      key: ValueKey(assetNames[index]),
-      fit: BoxFit.cover,
-      alignment: Alignment.topCenter,
     );
   }
 }
