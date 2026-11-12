@@ -32,6 +32,9 @@ void main() {
       findsOneWidget,
     );
 
+    // Verify phone mockup renders image asset
+    expect(find.byType(Image), findsWidgets);
+
     // Verify Bottom Action Buttons (50/50 Split Skip and Continue)
     expect(find.text('Skip'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
@@ -61,12 +64,10 @@ void main() {
       find.text('Choose Your Ride -\nTailored to Your Needs'),
       findsOneWidget,
     );
-    expect(find.text('Laoag Central Terminal'), findsOneWidget);
-    expect(find.text('MMSU Laoag Campus'), findsOneWidget);
-    expect(find.text('Pasada Regular'), findsOneWidget);
-    expect(find.text('₱20.00'), findsOneWidget);
-    expect(find.text('Pasada Discounted'), findsOneWidget);
-    expect(find.text('₱16.00'), findsOneWidget);
+    expect(
+      find.textContaining('Select your preferred tricycle ride tier'),
+      findsOneWidget,
+    );
 
     // Slide 2 -> Slide 3 (Payment Methods - Matching Joyride Page 19)
     await tester.tap(find.text('Continue'));
@@ -76,11 +77,10 @@ void main() {
       find.text('Secure Payments &\nSeamless Transactions'),
       findsOneWidget,
     );
-    expect(find.text('Choose Payment Method'), findsOneWidget);
-    expect(find.text('Pasada Wallet'), findsOneWidget);
-    expect(find.text('Cash'), findsOneWidget);
-    expect(find.text('Maya / GCash (QR Ph)'), findsOneWidget);
-    expect(find.text('TODA Digital Pila Guarantee'), findsOneWidget);
+    expect(
+      find.textContaining('Pay for your rides securely using Cash, Maya, GCash QR Ph'),
+      findsOneWidget,
+    );
 
     // Final Action on Slide 3: Full-width "Let's Get Started"
     expect(find.text("Let's Get Started"), findsOneWidget);
