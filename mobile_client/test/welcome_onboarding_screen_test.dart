@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_client/features/auth/views/welcome_onboarding_screen.dart';
 
 void main() {
-  testWidgets('WelcomeOnboardingScreen renders clean Joyride hero and semantic action regions',
+  testWidgets('WelcomeOnboardingScreen renders clean Joyride hero, phone mockup, and bottom sheet',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
@@ -20,17 +20,27 @@ void main() {
     // Verify top bar with [4/4] and [Skip] is REMOVED
     expect(find.text('4/4'), findsNothing);
     expect(find.text('Perms'), findsNothing);
+    expect(find.text('LAOAG CITY COMMUTE'), findsNothing);
 
-    // Verify design screen images are rendered
+    // Verify First Slide Walkthrough Elements (Matching Joyride Page 17)
+    expect(
+      find.text('Welcome to PasadaNorte - Your\nJourney, Your Way'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Get ready to experience hassle-free transportation'),
+      findsOneWidget,
+    );
+
+    // Verify phone mockup renders image asset
     expect(find.byType(Image), findsWidgets);
 
-    // Verify semantic action buttons on Slide 1
-    expect(find.bySemanticsLabel('Skip onboarding'), findsOneWidget);
-    expect(find.bySemanticsLabel('Continue'), findsOneWidget);
-    expect(find.bySemanticsLabel("Let's get started"), findsNothing);
+    // Verify Bottom Action Buttons (50/50 Split Skip and Continue)
+    expect(find.text('Skip'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
   });
 
-  testWidgets('WelcomeOnboardingScreen advances through all 3 walkthrough slides',
+  testWidgets('WelcomeOnboardingScreen advances through all 3 Joyride walkthrough slides',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
@@ -44,19 +54,37 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Slide 1 -> Slide 2
-    final continueBtn = find.bySemanticsLabel('Continue');
+    // Slide 1 -> Slide 2 (Route & Choose Ride - Matching Joyride Page 18)
+    final continueBtn = find.text('Continue');
     expect(continueBtn, findsOneWidget);
     await tester.tap(continueBtn);
     await tester.pumpAndSettle();
 
-    // Slide 2 -> Slide 3
-    await tester.tap(find.bySemanticsLabel('Continue'));
+    expect(
+      find.text('Choose Your Ride -\nTailored to Your Needs'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Select your preferred mode of transportation'),
+      findsOneWidget,
+    );
+
+    // Slide 2 -> Slide 3 (Payment Methods - Matching Joyride Page 19)
+    await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
-    // Final Action on Slide 3: Full-width "Let's get started"
-    expect(find.bySemanticsLabel("Let's get started"), findsOneWidget);
-    expect(find.bySemanticsLabel('Skip onboarding'), findsNothing);
+    expect(
+      find.text('Secure Payments &\nSeamless Transactions'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Say hello to convenience payments'),
+      findsOneWidget,
+    );
+
+    // Final Action on Slide 3: Full-width "Let's Get Started"
+    expect(find.text("Let's Get Started"), findsOneWidget);
+    expect(find.text('Skip'), findsNothing);
   });
 
   testWidgets('WelcomeOnboardingScreen meets accessibility tap target guidelines',
