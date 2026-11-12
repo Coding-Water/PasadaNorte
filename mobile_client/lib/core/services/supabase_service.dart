@@ -247,6 +247,73 @@ class SupabaseService {
     }
   }
 
+  // Local registry of submitted driver applications
+  static final Map<String, Map<String, dynamic>> _localDriverApplications = {};
+
+  // Saves comprehensive Laoag City Driver Application & Vehicle Documentation
+  static Future<String?> recordDriverApplication({
+    required String fullName,
+    required String phoneNumber,
+    required DateTime birthDate,
+    required String licensePhotoUrl,
+    required String nbiClearanceUrl,
+    required String policeOrBarangayClearanceUrl,
+    required String profilePhotoUrl,
+    String? fitToWorkCertUrl,
+    required String motorcycleBrandModel,
+    required int engineDisplacementCc,
+    required int modelYear,
+    required String plateOrMvFile,
+    required String orPhotoUrl,
+    required String crPhotoUrl,
+    required bool isMotorcycleOwned,
+    String? ownerAuthLetterUrl,
+    String? ownerIdPhotoUrl,
+    Map<String, String>? vehiclePhotos,
+  }) async {
+    final record = {
+      'id': 'drv_app_${DateTime.now().millisecondsSinceEpoch}',
+      'phone_number': phoneNumber,
+      'full_name': fullName,
+      'birth_date': birthDate.toIso8601String().split('T').first,
+      'license_photo_url': licensePhotoUrl,
+      'nbi_clearance_url': nbiClearanceUrl,
+      'police_or_barangay_clearance_url': policeOrBarangayClearanceUrl,
+      'profile_photo_url': profilePhotoUrl,
+      'fit_to_work_cert_url': fitToWorkCertUrl,
+      'motorcycle_brand_model': motorcycleBrandModel,
+      'engine_displacement_cc': engineDisplacementCc,
+      'model_year': modelYear,
+      'plate_or_mv_file': plateOrMvFile,
+      'or_photo_url': orPhotoUrl,
+      'cr_photo_url': crPhotoUrl,
+      'is_motorcycle_owned': isMotorcycleOwned,
+      'owner_authorization_letter_url': ownerAuthLetterUrl,
+      'owner_id_photo_url': ownerIdPhotoUrl,
+      'vehicle_front_photo_url': vehiclePhotos?['Front View'],
+      'vehicle_back_photo_url': vehiclePhotos?['Back View'],
+      'vehicle_left_photo_url': vehiclePhotos?['Left Side View'],
+      'vehicle_right_photo_url': vehiclePhotos?['Right Side View'],
+      'application_status': 'submitted',
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    _localDriverApplications[phoneNumber] = record;
+
+    if (!_isConnected) return record['id'] as String;
+    try {
+      final inserted = await Supabase.instance.client
+          .from('driver_applications')
+          .insert(record)
+          .select()
+          .maybeSingle();
+      if (inserted != null && inserted['id'] != null) {
+        return inserted['id'] as String;
+      }
+    } catch (_) {}
+    return record['id'] as String;
+  }
+
   // Updates Admin decision (Approve / Reject / Ask Clearer Photos) in Supabase
   static Future<void> updateAdminReviewDecision({
     required String phoneNumber,

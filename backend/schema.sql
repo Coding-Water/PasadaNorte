@@ -76,3 +76,61 @@ CREATE TABLE zone_hourly_demand (
     seasonal_baseline_count INT,
     k_anonymity_displayed BOOLEAN GENERATED ALWAYS AS (COALESCE(predicted_trip_count, actual_trip_count) >= 5) STORED
 );
+
+-- 6. Driver Applications & Vehicle Compliance Records
+CREATE TABLE driver_applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    phone_number VARCHAR(20) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+
+    -- Personal & Age Eligibility (Ages 20 to 55)
+    birth_date DATE NOT NULL,
+    age INT GENERATED ALWAYS AS (
+        EXTRACT(YEAR FROM age(CURRENT_DATE, birth_date))::INT
+    ) STORED,
+    fit_to_work_cert_url TEXT,
+    profile_photo_url TEXT NOT NULL,
+
+    -- Personal & Government Clearance Documents
+    license_photo_url TEXT NOT NULL,
+    license_number VARCHAR(30),
+    license_expiry_date DATE,
+    nbi_clearance_url TEXT NOT NULL,
+    police_or_barangay_clearance_url TEXT NOT NULL,
+
+    -- Motorcycle Specifications (110cc–200cc, Model Year >= 2016)
+    motorcycle_brand_model VARCHAR(80) NOT NULL,
+    engine_displacement_cc INT NOT NULL CHECK (engine_displacement_cc BETWEEN 110 AND 200),
+    model_year INT NOT NULL CHECK (model_year >= 2016),
+    plate_or_mv_file VARCHAR(30) NOT NULL,
+
+    -- Vehicle Ownership & Documentation (OR / CR)
+    or_photo_url TEXT NOT NULL,
+    cr_photo_url TEXT NOT NULL,
+    is_motorcycle_owned BOOLEAN NOT NULL DEFAULT TRUE,
+    owner_authorization_letter_url TEXT,
+    owner_id_photo_url TEXT,
+
+    -- 4-Angle Tricycle Vehicle Documentation
+    vehicle_front_photo_url TEXT,
+    vehicle_back_photo_url TEXT,
+    vehicle_left_photo_url TEXT,
+    vehicle_right_photo_url TEXT,
+
+    -- Terminal / TODA Affiliation
+    toda_code VARCHAR(30) REFERENCES toda_terminals(toda_code),
+
+    -- Review Lifecycle
+    application_status VARCHAR(30) NOT NULL DEFAULT 'submitted'
+        CHECK (application_status IN ('draft', 'submitted', 'under_review', 'approved', 'rejected', 'resubmission_requested')),
+    admin_notes TEXT,
+    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT chk_driver_age_range CHECK (
+        EXTRACT(YEAR FROM age(CURRENT_DATE, birth_date)) BETWEEN 20 AND 55
+    )
+);

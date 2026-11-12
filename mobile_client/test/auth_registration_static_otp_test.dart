@@ -154,19 +154,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(IdUploadScreen), findsOneWidget);
-      expect(find.text('Step 1: Driver ID & Tricycle Photos'), findsOneWidget);
+      expect(find.text('Step 1: Driver & Vehicle Compliance'), findsOneWidget);
 
       // Verify Driver's License is the exclusive credential
-      expect(find.text("Professional Driver's License"), findsOneWidget);
+      expect(find.text("Professional Driver's License (Valid)"), findsOneWidget);
 
       // Auto-fill demo ID & consents
       await tester.tap(find.text('Auto-Fill'));
-      await tester.pumpAndSettle();
-
-      // Tap Skip Tricycle Photos
-      final skipTricycleBtn = find.text('Skip Tricycle Photos for now (Testing)');
-      await tester.scrollUntilVisible(skipTricycleBtn, 300, scrollable: find.byType(Scrollable).first);
-      await tester.tap(skipTricycleBtn);
       await tester.pumpAndSettle();
 
       // Scroll and Tap Next to Face Verification
