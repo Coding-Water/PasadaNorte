@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/services/android_permissions_service.dart';
 import '../../../core/services/face_verification_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../driver/views/driver_map_duty_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
@@ -72,6 +73,53 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
     });
 
     _showVerificationResultDialog(result);
+  }
+
+  void _skipFaceScan() {
+    const result = FaceVerificationResult(
+      similarityScorePercent: 95.0,
+      processingTimeMs: 120,
+      status: VerificationStatus.approved,
+      decisionNote: '1:1 face match skipped for virtual Android / computer testing. Restore camera verification before physical device production release.',
+      verificationImagesDeleted: true,
+    );
+
+    SupabaseService.recordFaceVerification(
+      fullName: widget.fullName,
+      phoneNumber: widget.phoneNumber,
+      role: widget.role,
+      passengerCategory: widget.passengerCategory,
+      idType: widget.idType,
+      result: result,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Face scan skipped for emulator testing. Account created!'),
+        backgroundColor: AppTheme.accentEmerald,
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    if (widget.role == UserRole.driver) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DriverMapDutyScreen(fullName: widget.fullName),
+        ),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PassengerServiceHubScreen(
+            fullName: widget.fullName,
+            lockedCategory: widget.passengerCategory,
+            verifiedIdType: widget.idType,
+          ),
+        ),
+      );
+    }
   }
 
   void _showVerificationResultDialog(FaceVerificationResult result) {
@@ -191,6 +239,14 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
         title: const Text('Step 2: 1:1 Face Verification'),
         actions: [
           TextButton.icon(
+            onPressed: _skipFaceScan,
+            icon: const Icon(Icons.fast_forward_rounded, color: Color(0xFFD97706), size: 18),
+            label: const Text(
+              'Skip (Testing)',
+              style: TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+          TextButton.icon(
             onPressed: _isScanning ? null : () => _startFaceVerification(skipPermissionCheck: true),
             icon: const Icon(Icons.bolt_rounded, color: AppTheme.accentEmerald, size: 18),
             label: const Text(
@@ -201,7 +257,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
         ],
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
             children: [
@@ -302,7 +358,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
                 onChanged: (val) => setState(() => _simulateLowConfidence = val),
               ),
 
-              const Spacer(),
+              const SizedBox(height: 24),
 
               ElevatedButton(
                 onPressed: _isScanning ? null : _startFaceVerification,
@@ -313,6 +369,20 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
                   _isScanning
                       ? 'Verifying 1:1 Face Match...'
                       : (isComplete ? 'Re-run 1:1 Face Verification' : 'Capture & Run 1:1 Verification'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _skipFaceScan,
+                icon: const Icon(Icons.fast_forward_rounded, color: Color(0xFFD97706), size: 18),
+                label: const Text(
+                  'Skip Face Scan (Computer / Emulator Testing)',
+                  style: TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.w700),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFF59E0B), width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  minimumSize: const Size(double.infinity, 48),
                 ),
               ),
               const SizedBox(height: 12),

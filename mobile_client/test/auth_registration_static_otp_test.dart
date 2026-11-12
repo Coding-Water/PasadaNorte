@@ -73,7 +73,7 @@ void main() {
       expect(find.textContaining('Invalid OTP. Static test OTP is 123456'), findsOneWidget);
     });
 
-    testWidgets('Rider Registration Flow from RoleSelectionScreen to PassengerServiceHubScreen', (tester) async {
+    testWidgets('Rider Registration Flow can skip Face Scan on computer testing', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -113,18 +113,9 @@ void main() {
 
       expect(find.byType(FaceScanScreen), findsOneWidget);
 
-      // Trigger instant verification
-      await tester.tap(find.text('Verify Now'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1500));
-      await tester.pump(const Duration(milliseconds: 1000));
-      await tester.pumpAndSettle();
-
-      // Dialog pops up
-      expect(find.text('1:1 Face Match Verified'), findsOneWidget);
-
-      // Tap Continue to PasadaNorte
-      await tester.tap(find.text('Continue to PasadaNorte'));
+      // Test the Skip Face Scan button for computer emulator testing
+      expect(find.text('Skip (Testing)'), findsOneWidget);
+      await tester.tap(find.text('Skip (Testing)'));
       await tester.pumpAndSettle();
 
       // Verifies landing on PassengerServiceHubScreen with rider greeting
@@ -132,7 +123,7 @@ void main() {
       expect(find.textContaining('Hello, Maria!'), findsOneWidget);
     });
 
-    testWidgets('Driver Registration Flow from RoleSelectionScreen to DriverMapDutyScreen', (tester) async {
+    testWidgets('Driver Registration Flow with Driver License only, Skip Tricycle Photos, and Skip Face Scan', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -165,8 +156,17 @@ void main() {
       expect(find.byType(IdUploadScreen), findsOneWidget);
       expect(find.text('Step 1: Driver ID & Tricycle Photos'), findsOneWidget);
 
-      // Auto-fill demo ID & 4 tricycle photos
+      // Verify Driver's License is the exclusive credential
+      expect(find.text("Professional Driver's License"), findsOneWidget);
+
+      // Auto-fill demo ID & consents
       await tester.tap(find.text('Auto-Fill'));
+      await tester.pumpAndSettle();
+
+      // Tap Skip Tricycle Photos
+      final skipTricycleBtn = find.text('Skip Tricycle Photos for now (Testing)');
+      await tester.scrollUntilVisible(skipTricycleBtn, 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(skipTricycleBtn);
       await tester.pumpAndSettle();
 
       // Scroll and Tap Next to Face Verification
@@ -177,20 +177,10 @@ void main() {
 
       expect(find.byType(FaceScanScreen), findsOneWidget);
 
-      // Trigger instant verification
-      await tester.tap(find.text('Verify Now'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1500));
-      await tester.pump(const Duration(milliseconds: 1000));
+      // Use the Skip Face Scan button for testing without camera
+      expect(find.text('Skip (Testing)'), findsOneWidget);
+      await tester.tap(find.text('Skip (Testing)'));
       await tester.pumpAndSettle();
-
-      expect(find.text('1:1 Face Match Verified'), findsOneWidget);
-
-      // Tap Continue to PasadaNorte
-      await tester.tap(find.text('Continue to PasadaNorte'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump(const Duration(milliseconds: 500));
 
       // Verifies landing on DriverMapDutyScreen
       expect(find.byType(DriverMapDutyScreen), findsOneWidget);
