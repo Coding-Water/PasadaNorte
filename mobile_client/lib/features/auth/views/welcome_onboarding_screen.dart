@@ -441,15 +441,27 @@ class _JoyridePhoneMockup extends StatelessWidget {
   }
 
   Widget _buildScreenContent(int index) {
-    switch (index) {
-      case 0:
-        return const _Walkthrough1MapScreen(key: ValueKey('walkthrough_1'));
-      case 1:
-        return const _Walkthrough2RouteScreen(key: ValueKey('walkthrough_2'));
-      case 2:
-      default:
-        return const _Walkthrough3PaymentScreen(key: ValueKey('walkthrough_3'));
-    }
+    final assetNames = [
+      'assets/images/walkthrough_1.png',
+      'assets/images/walkthrough_2.png',
+      'assets/images/walkthrough_3.png',
+    ];
+
+    return Image.asset(
+      assetNames[index],
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) {
+        switch (index) {
+          case 0:
+            return const _Walkthrough1MapScreen(key: ValueKey('walkthrough_1'));
+          case 1:
+            return const _Walkthrough2RouteScreen(key: ValueKey('walkthrough_2'));
+          case 2:
+          default:
+            return const _Walkthrough3PaymentScreen(key: ValueKey('walkthrough_3'));
+        }
+      },
+    );
   }
 }
 
