@@ -86,9 +86,7 @@ CREATE TABLE driver_applications (
 
     -- Personal & Age Eligibility (Ages 20 to 55)
     birth_date DATE NOT NULL,
-    age INT GENERATED ALWAYS AS (
-        EXTRACT(YEAR FROM age(CURRENT_DATE, birth_date))::INT
-    ) STORED,
+    age INT, -- Populated & validated (20-55) via trigger
     fit_to_work_cert_url TEXT,
     profile_photo_url TEXT NOT NULL,
 
@@ -131,6 +129,6 @@ CREATE TABLE driver_applications (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
     CONSTRAINT chk_driver_age_range CHECK (
-        EXTRACT(YEAR FROM age(CURRENT_DATE, birth_date)) BETWEEN 20 AND 55
+        age IS NULL OR (age BETWEEN 20 AND 55)
     )
 );

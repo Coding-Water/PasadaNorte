@@ -15,9 +15,7 @@ CREATE TABLE IF NOT EXISTS public.driver_applications (
 
     -- Personal & Age Eligibility (Ages 20 to 55)
     birth_date DATE NOT NULL,
-    age INT GENERATED ALWAYS AS (
-        EXTRACT(YEAR FROM age(CURRENT_DATE, birth_date))::INT
-    ) STORED,
+    age INT, -- Populated and validated via trigger at insert/update
     fit_to_work_cert_url TEXT, -- Required only if age is between 50 and 55
     profile_photo_url TEXT NOT NULL, -- White background selfie, no caps/masks/sunglasses
 
@@ -62,7 +60,7 @@ CREATE TABLE IF NOT EXISTS public.driver_applications (
 
     -- Constraints enforcing Laoag City PasadaNorte Driver Standards
     CONSTRAINT chk_driver_age_range CHECK (
-        EXTRACT(YEAR FROM age(CURRENT_DATE, birth_date)) BETWEEN 20 AND 55
+        age IS NULL OR (age BETWEEN 20 AND 55)
     ),
     CONSTRAINT chk_engine_displacement CHECK (
         engine_displacement_cc BETWEEN 110 AND 200
@@ -72,24 +70,47 @@ CREATE TABLE IF NOT EXISTS public.driver_applications (
     )
 );
 
--- Indexing for fast search and admin queue processing
+-- ----------------------------------------------------------------------------
+-- 2. TRIGGER TO DYNAMICALLY COMPUTE & ENFORCE AGE ELIGIBILITY (20 to 55)
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.calculate_driver_application_age()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.birth_date IS NOT NULL THEN
+        NEW.age := EXTRACT(YEAR FROM age(CURRENT_DATE, NEW.birth_date))::INT;
+        IF NEW.age < 20 OR NEW.age > 55 THEN
+            RAISE EXCEPTION 'Driver age must be between 20 and 55 years old (calculated age: %)', NEW.age;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_set_driver_application_age ON public.driver_applications;
+CREATE TRIGGER trg_set_driver_application_age
+BEFORE INSERT OR UPDATE ON public.driver_applications
+FOR EACH ROW EXECUTE FUNCTION public.calculate_driver_application_age();
+
+-- ----------------------------------------------------------------------------
+-- 3. INDEXING FOR FAST SEARCH AND QUEUE PROCESSING
+-- ----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_driver_applications_phone ON public.driver_applications (phone_number);
 CREATE INDEX IF NOT EXISTS idx_driver_applications_status ON public.driver_applications (application_status);
 CREATE INDEX IF NOT EXISTS idx_driver_applications_toda ON public.driver_applications (toda_code);
 
 -- ----------------------------------------------------------------------------
--- 2. SUPABASE STORAGE BUCKET FOR DRIVER DOCUMENTS
+-- 4. SUPABASE STORAGE BUCKET FOR DRIVER DOCUMENTS
 -- ----------------------------------------------------------------------------
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('driver-documents', 'driver-documents', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
--- 3. ROW LEVEL SECURITY (RLS) POLICIES
+-- 5. ROW LEVEL SECURITY (RLS) POLICIES
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.driver_applications ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated users to view/manage their own applications
+DROP POLICY IF EXISTS "driver_applications_owner_policy" ON public.driver_applications;
 CREATE POLICY "driver_applications_owner_policy"
 ON public.driver_applications FOR ALL
 USING (true)

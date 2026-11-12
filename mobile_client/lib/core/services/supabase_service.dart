@@ -276,6 +276,7 @@ class SupabaseService {
       'phone_number': phoneNumber,
       'full_name': fullName,
       'birth_date': birthDate.toIso8601String().split('T').first,
+      'age': (DateTime.now().difference(birthDate).inDays / 365.25).floor(),
       'license_photo_url': licensePhotoUrl,
       'nbi_clearance_url': nbiClearanceUrl,
       'police_or_barangay_clearance_url': policeOrBarangayClearanceUrl,
