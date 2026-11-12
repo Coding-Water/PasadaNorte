@@ -170,6 +170,9 @@ void main() {
     await tester.tap(find.text('Activity'));
     await tester.pumpAndSettle();
 
+    // Verify Activity AppBar has NO top-left logo and NO top-right 3-dots
+    expect(find.byIcon(Icons.more_vert_rounded), findsNothing);
+
     // Rapidly switch across all filter tabs to ensure zero hit-test size exceptions
     await tester.tap(find.text('Completed'));
     await tester.pumpAndSettle();
@@ -184,7 +187,6 @@ void main() {
     await tester.tap(find.text('Scheduled'));
     await tester.pumpAndSettle();
     expect(find.text('PasaDeliver: Public Market Padala'), findsOneWidget);
-    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
 
     await tester.tap(find.text('Ongoing'));
     await tester.pumpAndSettle();
@@ -205,10 +207,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // Verify Activity AppBar has NO leading rickshaw icon and NO trailing 3 dots
+    expect(find.byIcon(Icons.more_vert_rounded), findsNothing);
+
     // 1. Start on Ongoing, switch to Scheduled
     await tester.tap(find.text('Scheduled'));
     await tester.pumpAndSettle();
-    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
+    expect(find.text('PasaDeliver: Public Market Padala'), findsOneWidget);
 
     // 2. From Scheduled, switch to Ongoing
     await tester.tap(find.text('Ongoing'));
@@ -218,7 +223,7 @@ void main() {
     // 3. Switch back to Scheduled
     await tester.tap(find.text('Scheduled'));
     await tester.pumpAndSettle();
-    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
+    expect(find.text('PasaDeliver: Public Market Padala'), findsOneWidget);
 
     // 4. From Scheduled, switch to Completed
     await tester.tap(find.text('Completed'));
@@ -228,20 +233,20 @@ void main() {
     // 5. Switch back to Scheduled
     await tester.tap(find.text('Scheduled'));
     await tester.pumpAndSettle();
-    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
+    expect(find.text('PasaDeliver: Public Market Padala'), findsOneWidget);
 
     // 6. From Scheduled, switch to Canceled
     await tester.tap(find.text('Canceled'));
     await tester.pumpAndSettle();
     expect(find.text('Robinsons Place Ilocos Norte'), findsOneWidget);
 
-    // 7. Switch back to Scheduled and open schedule sheet
+    // 7. Switch back to Scheduled and open schedule sheet via FAB
     await tester.tap(find.text('Scheduled'));
     await tester.pumpAndSettle();
-    expect(find.text('Schedule'), findsWidgets);
+    expect(find.byType(FloatingActionButton), findsOneWidget);
 
-    // Tap Schedule button
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Schedule'));
+    // Tap Schedule FAB
+    await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
 
     // Modal bottom sheet should be open
@@ -254,7 +259,6 @@ void main() {
 
     // Verify returning to Scheduled tab with updated list
     expect(find.byType(SchedulePasaDeliverSheet), findsNothing);
-    expect(find.text('Schedule a TODA delivery rider anytime.'), findsOneWidget);
 
     // From Scheduled, seamlessly switch back to Ongoing, Completed, Canceled
     await tester.tap(find.text('Ongoing'));

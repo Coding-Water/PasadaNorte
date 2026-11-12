@@ -58,41 +58,30 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        titleSpacing: 16,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Center(
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F8EF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.electric_rickshaw_rounded,
-                color: AppTheme.accentEmerald,
-                size: 22,
-              ),
-            ),
-          ),
-        ),
+        automaticallyImplyLeading: false,
+        centerTitle: true,
         title: const Text(
           'Activity',
           style: TextStyle(
-            fontSize: 20,
+            fontSize: 19,
             fontWeight: FontWeight.w800,
             color: AppTheme.primarySlate,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded, color: AppTheme.primarySlate),
-            tooltip: 'Options',
-            onPressed: () {},
-          ),
-        ],
       ),
+      floatingActionButton: _selectedFilter == ActivityStatus.pasaDeliver
+          ? FloatingActionButton.extended(
+              onPressed: _openSchedulePasaDeliver,
+              backgroundColor: AppTheme.accentEmerald,
+              foregroundColor: Colors.white,
+              elevation: 2,
+              icon: const Icon(Icons.add, size: 20),
+              label: const Text(
+                'Schedule',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            )
+          : null,
       body: Column(
         children: [
           // Fixed-height, fully-bounded 4-tab filter bar (Ongoing, Scheduled, Completed, Canceled)
@@ -127,92 +116,24 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen> {
             ),
           ),
 
-          // Activity Trip List with integrated Scheduled header
+          // Activity Trip List
           Expanded(
             child: trips.isEmpty
                 ? ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      if (_selectedFilter == ActivityStatus.pasaDeliver) ...[
-                        _buildScheduledPasaDeliverBanner(),
-                        const SizedBox(height: 16),
-                      ],
                       _buildEmptyState(),
                     ],
                   )
-                : ListView(
+                : ListView.separated(
                     padding: const EdgeInsets.all(16),
-                    children: [
-                      if (_selectedFilter == ActivityStatus.pasaDeliver) ...[
-                        _buildScheduledPasaDeliverBanner(),
-                        const SizedBox(height: 14),
-                      ],
-                      ...trips.map((trip) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _buildActivityCard(trip),
-                          )),
-                    ],
+                    itemCount: trips.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final trip = trips[index];
+                      return _buildActivityCard(trip);
+                    },
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScheduledPasaDeliverBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBEB),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFDE68A)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF59E0B),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.add_shopping_cart_rounded, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Need to send or pick up a parcel?',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF92400E),
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Schedule a TODA delivery rider anytime.',
-                  style: TextStyle(fontSize: 11.5, color: Color(0xFFB45309)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: _openSchedulePasaDeliver,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFD97706),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            child: const Text('Schedule', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
           ),
         ],
       ),
