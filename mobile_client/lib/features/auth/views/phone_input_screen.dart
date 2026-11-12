@@ -328,60 +328,6 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
 
                 const SizedBox(height: 24),
 
-                // Informational Notice: SMS Verification
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.accentEmeraldLight,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.mark_email_read_rounded,
-                          color: AppTheme.accentEmerald,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'SMS Verification (OTP)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.primarySlate,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              'We will send a 6-digit one-time PIN to verify ownership of your mobile number before proceeding.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
                 // Bottom Mode Switcher
                 Center(
                   child: TextButton(
@@ -418,28 +364,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 16),
-
-                // Data Privacy Trust Badge (RA 10173 Compliance)
-                Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.shield_outlined, size: 15, color: Colors.grey.shade500),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Secured under RA 10173 • Data Privacy Act of 2012',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
               ],
             ),
           ),
