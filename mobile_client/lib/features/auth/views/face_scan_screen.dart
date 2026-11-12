@@ -36,16 +36,18 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
   bool _simulateLowConfidence = false;
   FaceVerificationResult? _result;
 
-  Future<void> _startFaceVerification() async {
-    final camAllowed = await AndroidPermissionsService.ensureCameraPermission(context);
-    if (!camAllowed) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Camera permission is required for 1:1 live face verification.'),
-        ),
-      );
-      return;
+  Future<void> _startFaceVerification({bool skipPermissionCheck = false}) async {
+    if (!skipPermissionCheck) {
+      final camAllowed = await AndroidPermissionsService.ensureCameraPermission(context);
+      if (!camAllowed && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Camera unavailable: Proceeding with simulated 1:1 face verification.'),
+            backgroundColor: AppTheme.accentEmerald,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
 
     setState(() {
@@ -187,6 +189,16 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Step 2: 1:1 Face Verification'),
+        actions: [
+          TextButton.icon(
+            onPressed: _isScanning ? null : () => _startFaceVerification(skipPermissionCheck: true),
+            icon: const Icon(Icons.bolt_rounded, color: AppTheme.accentEmerald, size: 18),
+            label: const Text(
+              'Verify Now',
+              style: TextStyle(color: AppTheme.accentEmerald, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(

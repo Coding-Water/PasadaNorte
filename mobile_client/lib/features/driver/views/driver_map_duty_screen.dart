@@ -1160,47 +1160,50 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                                 ),
                               ),
                             ),
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primarySlate,
-                                    borderRadius: BorderRadius.circular(6),
-                                    boxShadow: const [
-                                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
-                                    ],
-                                  ),
-                                  child: const Text(
-                                    'YOU (#0042)',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.3,
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primarySlate,
+                                      borderRadius: BorderRadius.circular(6),
+                                      boxShadow: const [
+                                        BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
+                                      ],
+                                    ),
+                                    child: const Text(
+                                      'YOU (#0042)',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.3,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: AppTheme.accentEmerald,
-                                    border: Border.all(color: Colors.white, width: 2.5),
-                                    boxShadow: const [
-                                      BoxShadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2)),
-                                    ],
+                                  const SizedBox(height: 2),
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: AppTheme.accentEmerald,
+                                      border: Border.all(color: Colors.white, width: 2.5),
+                                      boxShadow: const [
+                                        BoxShadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2)),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.two_wheeler_rounded,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
                                   ),
-                                  child: const Icon(
-                                    Icons.two_wheeler_rounded,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -1220,21 +1223,24 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                               BoxShadow(color: Colors.black12, blurRadius: 4),
                             ],
                           ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.local_taxi_rounded, size: 12, color: AppTheme.accentEmerald),
-                              SizedBox(width: 3),
-                              Text(
-                                'TODA PILA',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppTheme.primarySlate,
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.local_taxi_rounded, size: 12, color: AppTheme.accentEmerald),
+                                SizedBox(width: 3),
+                                Text(
+                                  'TODA PILA',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.primarySlate,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),

@@ -126,7 +126,7 @@ class FaceVerificationService {
               'simulate_low_confidence': simulateLowConfidenceCase,
             }),
           )
-          .timeout(const Duration(seconds: 2));
+          .timeout(const Duration(milliseconds: 500));
 
       if (response.statusCode == 200) {
         stopwatch.stop();
@@ -144,10 +144,10 @@ class FaceVerificationService {
         );
       }
     } catch (_) {
-      // Fallback to local 1:1 embedding comparison simulation within < 3.0s target
+      // Fallback to local 1:1 embedding comparison simulation within target
     }
 
-    await Future.delayed(const Duration(milliseconds: 1350));
+    await Future.delayed(const Duration(milliseconds: 400));
     stopwatch.stop();
 
     final double computedScore = simulateLowConfidenceCase ? 74.8 : 93.6;

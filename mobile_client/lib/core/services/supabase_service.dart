@@ -145,6 +145,26 @@ class SupabaseService {
     } catch (_) {}
   }
 
+  // Local in-memory registry for rapid registration & login testing
+  static final Map<String, Map<String, dynamic>> _localRegisteredUsers = {
+    '+639171234567': {
+      'id': 'mock_rider_001',
+      'phone_number': '+639171234567',
+      'full_name': 'Maria Santos',
+      'role': 'rider',
+      'id_type': '[REGULAR] National ID (PhilID)',
+      'verification_status': 'approved',
+    },
+    '+639189876543': {
+      'id': 'mock_driver_001',
+      'phone_number': '+639189876543',
+      'full_name': 'Danilo Ramos',
+      'role': 'driver',
+      'id_type': "Professional Driver's License",
+      'verification_status': 'approved',
+    },
+  };
+
   // Saves 1:1 Face Verification result to Supabase users + biometric_access_logs tables
   static Future<String?> recordFaceVerification({
     required String fullName,
@@ -154,12 +174,24 @@ class SupabaseService {
     required String idType,
     required FaceVerificationResult result,
   }) async {
-    if (!_isConnected) return null;
-    try {
-      final tagIdType = role == UserRole.rider
-          ? '[${passengerCategory.name.toUpperCase()}] $idType'
-          : idType;
+    final tagIdType = role == UserRole.rider
+        ? '[${passengerCategory.name.toUpperCase()}] $idType'
+        : idType;
 
+    // Cache locally so instant login works immediately even if Supabase is offline
+    _localRegisteredUsers[phoneNumber] = {
+      'id': 'local_${DateTime.now().millisecondsSinceEpoch}',
+      'phone_number': phoneNumber,
+      'full_name': fullName,
+      'role': role.name,
+      'id_type': tagIdType,
+      'verification_status': result.status == VerificationStatus.reUploadRequested
+          ? 're_upload_requested'
+          : result.status.name,
+    };
+
+    if (!_isConnected) return _localRegisteredUsers[phoneNumber]!['id'] as String;
+    try {
       final inserted = await Supabase.instance.client
           .from('users')
           .upsert({
@@ -191,11 +223,14 @@ class SupabaseService {
         return userId;
       }
     } catch (_) {}
-    return null;
+    return _localRegisteredUsers[phoneNumber]!['id'] as String;
   }
 
   // Checks if a user account already exists by phone number for instant Login
   static Future<Map<String, dynamic>?> findUserByPhone(String phoneNumber) async {
+    if (_localRegisteredUsers.containsKey(phoneNumber)) {
+      return _localRegisteredUsers[phoneNumber];
+    }
     if (!_isConnected) return null;
     try {
       final row = await Supabase.instance.client
@@ -203,9 +238,12 @@ class SupabaseService {
           .select()
           .eq('phone_number', phoneNumber)
           .maybeSingle();
+      if (row != null) {
+        _localRegisteredUsers[phoneNumber] = row;
+      }
       return row;
     } catch (_) {
-      return null;
+      return _localRegisteredUsers[phoneNumber];
     }
   }
 

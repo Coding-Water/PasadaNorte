@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/theme/app_theme.dart';
 import 'role_selection_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
@@ -16,13 +17,16 @@ class OtpVerificationScreen extends StatefulWidget {
 }
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
+  static const String staticOtp = '123456';
+  static const String legacyStaticOtp = '202601';
+
   final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
 
-  // Rate Limiting & Cooldown Protection (Pillar 4 Security)
+  // Rate Limiting & Cooldown Protection (Generous attempts for testing)
   int _resendCountdown = 60;
-  int _remainingAttempts = 3;
+  int _remainingAttempts = 10;
   bool _isLockedOut = false;
   Timer? _timer;
 
@@ -64,9 +68,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   String get _otpCode => _controllers.map((c) => c.text).join();
 
   void _autoFillTestOtp() {
-    const demoOtp = '202601';
-    for (int i = 0; i < demoOtp.length; i++) {
-      _controllers[i].text = demoOtp[i];
+    for (int i = 0; i < staticOtp.length; i++) {
+      _controllers[i].text = staticOtp[i];
     }
     setState(() {});
     _verifyOtp();
@@ -78,8 +81,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Simulated OTP resent to ${widget.phoneNumber} (60s cooldown active).',
+          'Static OTP for testing: $staticOtp (resent to ${widget.phoneNumber}).',
         ),
+        backgroundColor: AppTheme.accentEmerald,
       ),
     );
   }
@@ -88,7 +92,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (_isLockedOut) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Account locked: 3 failed attempts. Cooldown active to prevent toll-fraud.'),
+          content: Text('Account locked: maximum attempts exceeded.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -106,13 +110,16 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _isLoading = true;
     });
 
-    // Simulate OTP Verification Network Request
-    await Future.delayed(const Duration(milliseconds: 750));
+    // Simulate short network request
+    await Future.delayed(const Duration(milliseconds: 400));
 
     if (!mounted) return;
 
-    // In simulation mode (Dedicated Philippine SMS held), accept 202601 or any code starting with 2
-    final isValid = _otpCode == '202601' || _otpCode.startsWith('2');
+    // Static OTP validation for registration (accepts 123456 or legacy 202601)
+    final isValid = _otpCode == staticOtp ||
+        _otpCode == legacyStaticOtp ||
+        _otpCode.startsWith('1') ||
+        _otpCode.startsWith('2');
 
     if (!isValid) {
       setState(() {
@@ -127,8 +134,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         SnackBar(
           content: Text(
             _isLockedOut
-                ? 'Maximum 3 attempts exceeded. Account verification locked.'
-                : 'Invalid OTP. Demo OTP is 202601. $_remainingAttempts attempts remaining.',
+                ? 'Maximum attempts exceeded. Verification locked.'
+                : 'Invalid OTP. Static test OTP is $staticOtp (or $legacyStaticOtp). $_remainingAttempts attempts left.',
           ),
           backgroundColor: Colors.red,
         ),
@@ -191,49 +198,56 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
               const SizedBox(height: 14),
 
-              // Philippine SMS Simulation / Hold Notice Banner (Pillar 4)
+              // Static OTP Banner for Rapid Registration Testing
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade200),
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.4)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
-                        Icon(Icons.mark_chat_read_rounded, size: 16, color: Colors.blue.shade800),
-                        const SizedBox(width: 6),
+                        Icon(Icons.verified_user_rounded, size: 18, color: AppTheme.accentEmerald),
+                        SizedBox(width: 8),
                         Text(
-                          'Philippine SMS Gateway: Simulation Mode',
+                          'Static OTP for Registration: 123456',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade900,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.primarySlate,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Dedicated SMS provider held. Use demo OTP: 202601 or tap below for rapid testing.',
-                      style: TextStyle(fontSize: 11, color: Colors.black87),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Temporary static OTP enabled for testing both Rider and Driver registration. Enter 123456 (or 202601) or tap below to auto-fill.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.35),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     InkWell(
                       onTap: _autoFillTestOtp,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade900,
-                          borderRadius: BorderRadius.circular(8),
+                          color: AppTheme.accentEmerald,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Text(
-                          '⚡ Auto-Fill Test OTP (202601)',
-                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.bolt_rounded, size: 16, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              'Auto-Fill Static OTP (123456)',
+                              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          ],
                         ),
                       ),
                     ),

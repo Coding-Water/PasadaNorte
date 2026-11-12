@@ -100,14 +100,14 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         ? await AndroidPermissionsService.ensureCameraPermission(context)
         : await AndroidPermissionsService.ensureGalleryPermission(context);
     if (!allowed) {
+      setState(() {
+        _capturedIdPath = 'sample_${_selectedIdType.toLowerCase().replaceAll(' ', '_')}.jpg';
+      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            source == ImageSource.camera
-                ? 'Camera permission is required to photograph your ID card.'
-                : 'Photos & media permission is required to select your ID image.',
-          ),
+          content: Text('Sample $_selectedIdType loaded for preview/testing.'),
+          backgroundColor: AppTheme.accentEmerald,
         ),
       );
       return;
@@ -145,14 +145,15 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         ? await AndroidPermissionsService.ensureCameraPermission(context)
         : await AndroidPermissionsService.ensureGalleryPermission(context);
     if (!allowed) {
+      setState(() {
+        _vehiclePhotos[angleKey] =
+            'sample_tricycle_${angleKey.toLowerCase().replaceAll(' ', '_')}.jpg';
+      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            source == ImageSource.camera
-                ? 'Camera permission is required to capture your tricycle $angleKey.'
-                : 'Photos & media permission is required to upload your tricycle $angleKey.',
-          ),
+          content: Text('Sample tricycle $angleKey loaded for preview/testing.'),
+          backgroundColor: AppTheme.accentEmerald,
         ),
       );
       return;
@@ -184,6 +185,26 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Tricycle $angleKey photo captured for MINC/TODA documentation.'),
+        backgroundColor: AppTheme.accentEmerald,
+      ),
+    );
+  }
+
+  void _autoFillDemoData() {
+    setState(() {
+      _capturedIdPath = 'demo_${_selectedIdType.toLowerCase().replaceAll(' ', '_')}.jpg';
+      if (widget.role == UserRole.driver) {
+        _vehiclePhotos['Front View'] = 'demo_tricycle_front.jpg';
+        _vehiclePhotos['Back View'] = 'demo_tricycle_back.jpg';
+        _vehiclePhotos['Left Side View'] = 'demo_tricycle_left.jpg';
+        _vehiclePhotos['Right Side View'] = 'demo_tricycle_right.jpg';
+      }
+      _biometricConsentGiven = true;
+      _locationTelemetryConsentGiven = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Test identification & consents auto-filled for rapid registration testing.'),
         backgroundColor: AppTheme.accentEmerald,
       ),
     );
@@ -245,6 +266,16 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(isDriver ? 'Step 1: Driver ID & Tricycle Photos' : 'Step 1: Identification Card'),
+        actions: [
+          TextButton.icon(
+            onPressed: _autoFillDemoData,
+            icon: const Icon(Icons.bolt_rounded, color: AppTheme.accentEmerald, size: 18),
+            label: const Text(
+              'Auto-Fill',
+              style: TextStyle(color: AppTheme.accentEmerald, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -275,6 +306,36 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              const SizedBox(height: 10),
+              // Rapid Testing Auto-fill pill
+              InkWell(
+                onTap: _autoFillDemoData,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.amber.shade400),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.bolt_rounded, size: 16, color: Colors.amber.shade900),
+                      const SizedBox(width: 6),
+                      Text(
+                        '⚡ Auto-Fill Demo ID & Photos (Rapid Testing)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.amber.shade900,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
@@ -490,40 +551,43 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: Column(
-                  children: [
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      activeColor: AppTheme.accentEmerald,
-                      value: _biometricConsentGiven,
-                      onChanged: (val) => setState(() => _biometricConsentGiven = val ?? false),
-                      title: const Text(
-                        '1. Sensitive Biometric & ID Processing Consent (RA 10173 Sec. 13 & NPC Circular No. 2023-03)',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Column(
+                    children: [
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: AppTheme.accentEmerald,
+                        value: _biometricConsentGiven,
+                        onChanged: (val) => setState(() => _biometricConsentGiven = val ?? false),
+                        title: const Text(
+                          '1. Sensitive Biometric & ID Processing Consent (RA 10173 Sec. 13 & NPC Circular No. 2023-03)',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                        ),
+                        subtitle: const Text(
+                          'I freely consent to 1:1 facial comparison between my live selfie and submitted ID photo. Auto-approved raw images are purged immediately; manual-review images are retained <= 72h in encrypted staging and purged upon decision; segregated 128-D AES-256 templates are deleted <= 24h after account closure/consent withdrawal or 12 months inactivity.',
+                          style: TextStyle(fontSize: 11, color: Colors.black87, height: 1.35),
+                        ),
                       ),
-                      subtitle: const Text(
-                        'I freely consent to 1:1 facial comparison between my live selfie and submitted ID photo. Auto-approved raw images are purged immediately; manual-review images are retained <= 72h in encrypted staging and purged upon decision; segregated 128-D AES-256 templates are deleted <= 24h after account closure/consent withdrawal or 12 months inactivity.',
-                        style: TextStyle(fontSize: 11, color: Colors.black87, height: 1.35),
+                      const Divider(height: 12),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: AppTheme.accentEmerald,
+                        value: _locationTelemetryConsentGiven,
+                        onChanged: (val) => setState(() => _locationTelemetryConsentGiven = val ?? false),
+                        title: const Text(
+                          '2. GPS Location Telemetry & Dispatch Notification Consent',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                        ),
+                        subtitle: const Text(
+                          'I separately consent to real-time GPS pickup pinpointing, road-route ordinance fare computation, and FIFO TODA terminal queue ("Digital Pila") telemetry while using PasadaNorte.',
+                          style: TextStyle(fontSize: 11, color: Colors.black87, height: 1.35),
+                        ),
                       ),
-                    ),
-                    const Divider(height: 12),
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      activeColor: AppTheme.accentEmerald,
-                      value: _locationTelemetryConsentGiven,
-                      onChanged: (val) => setState(() => _locationTelemetryConsentGiven = val ?? false),
-                      title: const Text(
-                        '2. GPS Location Telemetry & Dispatch Notification Consent',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                      ),
-                      subtitle: const Text(
-                        'I separately consent to real-time GPS pickup pinpointing, road-route ordinance fare computation, and FIFO TODA terminal queue ("Digital Pila") telemetry while using PasadaNorte.',
-                        style: TextStyle(fontSize: 11, color: Colors.black87, height: 1.35),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
