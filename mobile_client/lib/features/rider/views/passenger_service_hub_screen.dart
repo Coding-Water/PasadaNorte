@@ -1,8 +1,5 @@
-﻿import 'dart:async';
-import 'package:flutter/material.dart';
-import '../../../core/services/session_cache_service.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../auth/views/welcome_onboarding_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import 'passenger_account_screen.dart';
 import 'passenger_activity_screen.dart';
@@ -38,26 +35,13 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
   }
 
 
-  void _returnToHome(BuildContext context) {
-    unawaited(SessionCacheService.clearSession());
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const WelcomeOnboardingScreen()),
-      (route) => false,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
+      canPop: _currentIndex == 0,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          if (_currentIndex != 0) {
-            setState(() => _currentIndex = 0);
-          } else {
-            _returnToHome(context);
-          }
+        if (!didPop && _currentIndex != 0) {
+          setState(() => _currentIndex = 0);
         }
       },
       child: Scaffold(

@@ -74,7 +74,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           if (!mounted) return;
 
           if (isPendingReview) {
-            Navigator.push(
+            Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(
                 builder: (_) => DriverApplicationStatusScreen(
@@ -82,13 +82,15 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                   fullName: fullName,
                 ),
               ),
+              (route) => false,
             );
           } else {
-            Navigator.push(
+            Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(
                 builder: (_) => DriverMapDutyScreen(fullName: fullName),
               ),
+              (route) => false,
             );
           }
         } else {
@@ -114,7 +116,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           if (!mounted) return;
 
           if (isRiderPending) {
-            Navigator.push(
+            Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(
                 builder: (_) => PassengerApplicationStatusScreen(
@@ -124,9 +126,10 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                   idType: idTypeStr,
                 ),
               ),
+              (route) => false,
             );
           } else {
-            Navigator.push(
+            Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(
                 builder: (_) => PassengerServiceHubScreen(
@@ -135,6 +138,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                   verifiedIdType: idTypeStr,
                 ),
               ),
+              (route) => false,
             );
           }
         }

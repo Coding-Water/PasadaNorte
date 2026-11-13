@@ -1074,12 +1074,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     final visibleZones = _zoneForecasts.where((z) => z.isVisibleOnHeatmap).toList();
 
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          _returnToPasadaNorteHome();
-        }
-      },
+      canPop: true,
       child: Scaffold(
         body: Stack(
           children: [
@@ -1607,36 +1602,6 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
               icon: Icons.my_location_rounded,
               onTap: () {
                 _mapController.move(_driverLocation, 17.5);
-              },
-            ),
-          ),
-
-          // 5. Edge Swipe Detector (Swipe Left or Right at Screen Edges -> PasadaNorte Home)
-          Positioned(
-            left: 0,
-            top: 80,
-            bottom: 115,
-            width: 26,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragEnd: (details) {
-                if ((details.primaryVelocity ?? 0).abs() > 250) {
-                  _returnToPasadaNorteHome();
-                }
-              },
-            ),
-          ),
-          Positioned(
-            right: 0,
-            top: 80,
-            bottom: 115,
-            width: 26,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragEnd: (details) {
-                if ((details.primaryVelocity ?? 0).abs() > 250) {
-                  _returnToPasadaNorteHome();
-                }
               },
             ),
           ),
