@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
@@ -682,23 +684,124 @@ class _LocationSearchSheet extends StatefulWidget {
 }
 
 class _LocationSearchSheetState extends State<_LocationSearchSheet> {
+  static const String _recentPrefsKey = 'pasada_recent_destinations_v1';
+  static const String _bookmarksPrefsKey = 'pasada_bookmarked_destinations_v1';
+
+  static const List<LocationPoint> _suggestedLaoagPlaces = [
+    LocationPoint(
+      name: 'Laoag City Public Market, Brgy. 11 Sta. Balbina, Laoag',
+      latitude: 18.1972,
+      longitude: 120.5925,
+    ),
+    LocationPoint(
+      name: 'MMSU CIT / CTE Campus, P. Gomez St, Laoag City',
+      latitude: 18.1950,
+      longitude: 120.5970,
+    ),
+    LocationPoint(
+      name: 'Robinsons Place Ilocos, San Nicolas, Ilocos Norte',
+      latitude: 18.1845,
+      longitude: 120.5912,
+    ),
+    LocationPoint(
+      name: 'Laoag Sinking Bell Tower & Plaza, J.P. Rizal St, Laoag',
+      latitude: 18.1965,
+      longitude: 120.5938,
+    ),
+    LocationPoint(
+      name: 'Provincial Capitol & Aurora Park, Laoag City',
+      latitude: 18.1960,
+      longitude: 120.5920,
+    ),
+    LocationPoint(
+      name: 'Northwestern University (NWU), Airport Rd, Laoag',
+      latitude: 18.2020,
+      longitude: 120.5870,
+    ),
+  ];
+
   late final TextEditingController _searchController;
+  final FocusNode _searchFocusNode = FocusNode();
   Timer? _debounce;
   bool _isSearching = false;
+  int _activeTabIndex = 0; // 0 = Recent, 1 = Suggested
   List<LocationPoint> _results = const [];
+  List<LocationPoint> _recentPlaces = const [];
+  Set<String> _bookmarkedNames = {};
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController(text: widget.initialQuery ?? '');
+    _loadSavedPlaces();
     if (_searchController.text.trim().isNotEmpty) {
       _searchController.selection = TextSelection(
         baseOffset: 0,
         extentOffset: _searchController.text.length,
       );
-      // Run initial search so the pinned address places are displayed immediately
       _performSearch(_searchController.text);
     }
+  }
+
+  Future<void> _loadSavedPlaces() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final recentRaw = prefs.getStringList(_recentPrefsKey) ?? const [];
+      final bookmarksRaw = prefs.getStringList(_bookmarksPrefsKey) ?? const [];
+      final parsedRecent = <LocationPoint>[];
+      for (final item in recentRaw) {
+        final decoded = jsonDecode(item) as Map<String, dynamic>;
+        parsedRecent.add(LocationPoint(
+          name: decoded['name'].toString(),
+          latitude: (decoded['lat'] as num).toDouble(),
+          longitude: (decoded['lng'] as num).toDouble(),
+        ));
+      }
+      if (!mounted) return;
+      setState(() {
+        _recentPlaces = parsedRecent;
+        _bookmarkedNames = bookmarksRaw.toSet();
+        if (_recentPlaces.isEmpty) {
+          _activeTabIndex = 1; // Show Suggested by default if no recent yet
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _selectPlace(LocationPoint place) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final updated = [
+        place,
+        ..._recentPlaces.where((p) => p.name != place.name),
+      ].take(8).toList();
+      await prefs.setStringList(
+        _recentPrefsKey,
+        updated
+            .map((p) => jsonEncode({
+                  'name': p.name,
+                  'lat': p.latitude,
+                  'lng': p.longitude,
+                }))
+            .toList(),
+      );
+    } catch (_) {}
+    if (!mounted) return;
+    Navigator.pop(context, place);
+  }
+
+  Future<void> _toggleBookmark(LocationPoint place) async {
+    setState(() {
+      if (_bookmarkedNames.contains(place.name)) {
+        _bookmarkedNames.remove(place.name);
+      } else {
+        _bookmarkedNames.add(place.name);
+      }
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_bookmarksPrefsKey, _bookmarkedNames.toList());
+    } catch (_) {}
   }
 
   void _performSearch(String val) async {
@@ -716,6 +819,7 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -734,13 +838,126 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
     });
   }
 
+  Widget _buildQuickShortcutPill({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    Color iconColor = const Color(0xFF0F172A),
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: iconColor),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceTile(LocationPoint place) {
+    final distKm = LocationService.calculateDistanceInKm(
+      LocationService.cachedUserHomeLocation.latitude,
+      LocationService.cachedUserHomeLocation.longitude,
+      place.latitude,
+      place.longitude,
+    );
+    final parts = place.name.split(', ');
+    final title = parts.first;
+    final subtitle =
+        parts.length > 1 ? parts.sublist(1).join(', ') : place.name;
+    final isBookmarked = _bookmarkedNames.contains(place.name);
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        ),
+        child: const Icon(
+          Icons.location_on_outlined,
+          color: AppTheme.primarySlate,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 14.5,
+          color: AppTheme.primarySlate,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${distKm.toStringAsFixed(1)} km',
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF334155),
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            padding: EdgeInsets.zero,
+            icon: Icon(
+              isBookmarked
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
+              size: 20,
+              color: isBookmarked
+                  ? AppTheme.accentEmerald
+                  : const Color(0xFF475569),
+            ),
+            onPressed: () => _toggleBookmark(place),
+          ),
+        ],
+      ),
+      onTap: () => _selectPlace(place),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool hasQuery = _searchController.text.trim().isNotEmpty;
+    final List<LocationPoint> activeList =
+        _activeTabIndex == 0 ? _recentPlaces : _suggestedLaoagPlaces;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+      height: MediaQuery.of(context).size.height * 0.88,
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -770,7 +987,7 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Row(
             children: [
               IconButton(
@@ -782,7 +999,7 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
                 child: Text(
                   'Where do you want to go?',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 19,
                     fontWeight: FontWeight.w800,
                     color: AppTheme.primarySlate,
                   ),
@@ -790,32 +1007,40 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // Dual Input Card (Your current location + Destination search field)
+          // Top Dual Input Card + Quick Pills (Image 2 style)
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFEEEEEE), width: 1.5),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0A0F172A),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFAFAFA),
-                    borderRadius: BorderRadius.circular(14),
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
                       const Icon(
                         Icons.location_on_rounded,
                         color: AppTheme.accentEmerald,
-                        size: 20,
+                        size: 19,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           (widget.currentLocationName != null &&
@@ -825,8 +1050,8 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.primarySlate,
                           ),
                         ),
@@ -834,79 +1059,187 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
                     ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Divider(height: 1, color: Colors.grey.shade200),
-                ),
-                TextField(
-                  controller: _searchController,
-                  autofocus: true,
-                  onChanged: _onQueryChanged,
-                  style: const TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primarySlate,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Where to?',
-                    fillColor: const Color(0xFFFAFAFA),
-                    prefixIcon: const Icon(
-                      Icons.location_on_rounded,
-                      color: AppTheme.cancelRed,
-                      size: 20,
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        autofocus: true,
+                        onChanged: _onQueryChanged,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primarySlate,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Where to?',
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.location_on_rounded,
+                            color: AppTheme.cancelRed,
+                            size: 19,
+                          ),
+                          suffixIcon: _isSearching
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12.0),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  ),
+                                )
+                              : (hasQuery
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _onQueryChanged('');
+                                      },
+                                    )
+                                  : null),
+                        ),
+                      ),
                     ),
-                    suffixIcon: _isSearching
-                        ? const Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : (hasQuery
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, size: 18),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _onQueryChanged('');
-                                },
-                              )
-                            : null),
+                    const SizedBox(width: 10),
+                    InkWell(
+                      onTap: () {
+                        _searchController.clear();
+                        _onQueryChanged('');
+                        _searchFocusNode.requestFocus();
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppTheme.accentEmerald,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.add_rounded,
+                          color: AppTheme.accentEmerald,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildQuickShortcutPill(
+                        icon: Icons.map_outlined,
+                        iconColor: AppTheme.accentEmerald,
+                        label: 'Select from map',
+                        onTap: () => Navigator.pop(context),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildQuickShortcutPill(
+                        icon: Icons.home_outlined,
+                        label: 'Home',
+                        onTap: () => _selectPlace(_suggestedLaoagPlaces.first),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildQuickShortcutPill(
+                        icon: Icons.work_outline_rounded,
+                        label: 'Office',
+                        onTap: () => _selectPlace(_suggestedLaoagPlaces[4]),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: !hasQuery
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.travel_explore_rounded,
-                          size: 46,
-                          color: Colors.grey.shade400,
+
+          if (!hasQuery) ...[
+            const SizedBox(height: 14),
+            // Recent / Suggested Segmented Pill Bar
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _activeTabIndex = 0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        decoration: BoxDecoration(
+                          color: _activeTabIndex == 0
+                              ? AppTheme.accentEmerald
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Type your destination above or close and tap directly on the map.',
-                          textAlign: TextAlign.center,
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Recent',
                           style: TextStyle(
                             fontSize: 13.5,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w700,
+                            color: _activeTabIndex == 0
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  )
-                : (_results.isEmpty && !_isSearching
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _activeTabIndex = 1),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        decoration: BoxDecoration(
+                          color: _activeTabIndex == 1
+                              ? AppTheme.accentEmerald
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Suggested',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: _activeTabIndex == 1
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 10),
+          Expanded(
+            child: hasQuery
+                ? (_results.isEmpty && !_isSearching
                     ? Center(
                         child: Text(
-                          'No matching places found. Try another street name or tap directly on the map.',
+                          'No matching places found. Try another street name or tap "Select from map".',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13.5,
@@ -918,69 +1251,26 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
                         itemCount: _results.length,
                         separatorBuilder: (_, __) =>
                             Divider(height: 1, color: Colors.grey.shade200),
-                        itemBuilder: (context, index) {
-                          final place = _results[index];
-                          final distKm = LocationService.calculateDistanceInKm(
-                            LocationService.cachedUserHomeLocation.latitude,
-                            LocationService.cachedUserHomeLocation.longitude,
-                            place.latitude,
-                            place.longitude,
-                          );
-                          final parts = place.name.split(', ');
-                          final title = parts.first;
-                          final subtitle = parts.length > 1
-                              ? parts.sublist(1).join(', ')
-                              : place.name;
-
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 6,
-                              horizontal: 4,
-                            ),
-                            leading: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.grey.shade200,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.location_on_outlined,
-                                color: AppTheme.primarySlate,
-                                size: 22,
-                              ),
-                            ),
-                            title: Text(
-                              title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                                color: AppTheme.primarySlate,
-                              ),
-                            ),
-                            subtitle: Text(
-                              subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            trailing: Text(
-                              '${distKm.toStringAsFixed(1)} km',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.primarySlate,
-                              ),
-                            ),
-                            onTap: () => Navigator.pop(context, place),
-                          );
-                        },
+                        itemBuilder: (context, index) =>
+                            _buildPlaceTile(_results[index]),
+                      ))
+                : (activeList.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No recent destinations yet. Switch to Suggested or type a place above.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: activeList.length,
+                        separatorBuilder: (_, __) =>
+                            Divider(height: 1, color: Colors.grey.shade200),
+                        itemBuilder: (context, index) =>
+                            _buildPlaceTile(activeList[index]),
                       )),
           ),
         ],
