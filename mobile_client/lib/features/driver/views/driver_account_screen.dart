@@ -273,11 +273,10 @@ class _DriverAccountScreenState extends State<DriverAccountScreen> {
           const SizedBox(height: 16),
 
           // Menu Card
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
                 _menuTile(
@@ -538,11 +537,10 @@ class _DriverNotificationsScreenState
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-            ),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
             child: Column(
               children: _prefs.entries
                   .map(
@@ -589,11 +587,10 @@ class _DriverPayoutMethodsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-            ),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
             child: const Column(
               children: [
                 ListTile(
@@ -636,11 +633,10 @@ class _DriverSecurityScreen extends StatelessWidget {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-          ),
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
           child: ListTile(
             leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
             title: const Text(
@@ -711,11 +707,10 @@ class _DriverHelpScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-            ),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
                 ListTile(
