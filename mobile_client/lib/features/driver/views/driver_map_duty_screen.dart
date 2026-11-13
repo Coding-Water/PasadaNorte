@@ -47,6 +47,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
 
   StreamSubscription<Map<String, dynamic>>? _rideRequestedSubscription;
   StreamSubscription<List<Map<String, dynamic>>>? _todaTerminalsSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _driverAppSub;
   bool _isDispatchDialogOpen = false;
 
   @override
@@ -55,6 +56,61 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     _loadForecast();
     _listenToRealtimeDispatches();
     _listenToTodaTerminals();
+    _listenToDriverApplication();
+  }
+
+  Future<void> _listenToDriverApplication() async {
+    try {
+      final session = await SessionCacheService.getSavedSession();
+      final savedPhone = session?.phoneNumber.trim() ?? '';
+      final targetName = widget.fullName.trim().toLowerCase();
+
+      _driverAppSub = Supabase.instance.client
+          .from('driver_applications')
+          .stream(primaryKey: ['id']).listen((rows) {
+        Map<String, dynamic>? matched;
+        for (final row in rows) {
+          final rowPhone = (row['phone_number'] ?? '').toString().trim();
+          final rowName = (row['full_name'] ?? '').toString().trim().toLowerCase();
+          if (savedPhone.isNotEmpty && rowPhone == savedPhone) {
+            matched = row;
+            break;
+          }
+          if (targetName.isNotEmpty && rowName == targetName) {
+            matched = row;
+          }
+        }
+        if (matched == null) return;
+
+        final todaCode = (matched['toda_code'] ?? '').toString().trim();
+        final plateNo = (matched['plate_or_mv_file'] ?? '').toString().trim();
+        final appStatus =
+            (matched['application_status'] ?? '').toString().trim().toLowerCase();
+        final adminNotes = (matched['admin_notes'] ?? '').toString();
+
+        String pilaSlot = '';
+        final match = RegExp(r'Assigned TODA Pila:\s*[^\(]+\(([^\)]+)\)')
+            .firstMatch(adminNotes);
+        if (match != null) {
+          pilaSlot = match.group(1)?.trim() ?? '';
+        }
+
+        if (plateNo.isNotEmpty) {
+          DriverStatsService.plateNumber = plateNo;
+        }
+        if (todaCode.isNotEmpty && todaCode.toLowerCase() != 'unassigned') {
+          DriverStatsService.todaAssociation = todaCode;
+          DriverStatsService.bodyNumber =
+              pilaSlot.isNotEmpty ? pilaSlot : todaCode;
+          DriverStatsService.mincFranchiseNumber = 'Franchise Active ($todaCode)';
+        }
+        if (appStatus == 'approved') {
+          DriverStatsService.isFranchiseActive = true;
+          DriverStatsService.lastInspectionStatus = 'Passed (MINC Verified)';
+        }
+        if (mounted) setState(() {});
+      }, onError: (_) {});
+    } catch (_) {}
   }
 
   void _listenToTodaTerminals() {
@@ -85,6 +141,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   void dispose() {
     _rideRequestedSubscription?.cancel();
     _todaTerminalsSub?.cancel();
+    _driverAppSub?.cancel();
     super.dispose();
   }
 
@@ -1462,7 +1519,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                                       Text(
                                         DriverStatsService.bodyNumber == 'Pending'
                                             ? 'Pending • ${DriverStatsService.plateNumber}'
-                                            : '#${DriverStatsService.bodyNumber} • ${DriverStatsService.plateNumber}',
+                                            : '${DriverStatsService.bodyNumber} • ${DriverStatsService.plateNumber}',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(color: AppTheme.primarySlate, fontSize: 12, fontWeight: FontWeight.w800),
@@ -1533,7 +1590,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   final isDriverInQueue = currentDynamicRank > 0;
                   final String pilaLabel = isDriverInQueue
                       ? 'Pila #$currentDynamicRank - ${DriverStatsService.todaAssociation}'
-                      : 'Pila #-- • ${DriverStatsService.todaAssociation}';
+                      : DriverStatsService.bodyNumber != 'Pending'
+                          ? '${DriverStatsService.bodyNumber} • ${DriverStatsService.todaAssociation}'
+                          : 'Pila #-- • ${DriverStatsService.todaAssociation}';
 
                   return Row(
                     children: [
