@@ -489,6 +489,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         if (mounted && data.isNotEmpty) {
           setState(() {
             for (final item in data) {
+              if (_isLegacyStaticSos(item)) continue;
               final idStr = item['id'].toString();
               final existingIndex = _sosAlerts.indexWhere((a) => a['id'] == idStr);
               final parsed = {
@@ -543,7 +544,33 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     }
   }
 
+  final bool _isPnpDispatchPaused = true;
+
+  bool _isLegacyStaticSos(Map<String, dynamic> item) {
+    return item['id'].toString() == '16699a65-2e4a-44da-b692-76a774fd003d';
+  }
+
   void _dispatchLaoagPnp(Map<String, dynamic> alert) {
+    if (_isPnpDispatchPaused) {
+      setState(() {
+        _systemAuditLogs.insert(0, {
+          'time': 'Just now',
+          'actor': 'Command Dispatcher Santos',
+          'action':
+              'SOS alert inspected for ${alert['driver_name']} (${alert['body_number']}) — PNP dispatch calling paused for testing.',
+        });
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'PNP dispatch calling is paused for testing. You can still inspect GPS/telemetry and resolve this SOS alert.',
+          ),
+          backgroundColor: Color(0xFFB45309),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
     setState(() {
       _systemAuditLogs.insert(0, {
         'time': 'Just now',
@@ -753,15 +780,23 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ),
           ),
           ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _dispatchLaoagPnp(alert);
-            },
+            onPressed: _isPnpDispatchPaused
+                ? null
+                : () {
+                    Navigator.pop(ctx);
+                    _dispatchLaoagPnp(alert);
+                  },
             icon: const Icon(Icons.local_police_rounded, size: 16),
-            label: const Text('Dispatch Laoag PNP Patrol (077-772-0256)'),
+            label: Text(
+              _isPnpDispatchPaused
+                  ? 'PNP Dispatch Paused (Testing)'
+                  : 'Dispatch Laoag PNP Patrol (077-772-0256)',
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFDC2626),
               foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.grey.shade300,
+              disabledForegroundColor: Colors.grey.shade700,
             ),
           ),
         ],
@@ -831,7 +866,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           setState(() {
             _sosAlerts
               ..clear()
-              ..addAll(sosRows.map((item) => {
+              ..addAll(sosRows.where((item) => !_isLegacyStaticSos(item)).map((item) => {
                     'id': item['id'].toString(),
                     'driver_name': item['driver_name'] ?? 'Tricycle Driver',
                     'body_number': item['body_number'] ?? 'Pending',
@@ -6789,12 +6824,20 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           children: [
                             if (isActive) ...[
                               ElevatedButton.icon(
-                                onPressed: () => _dispatchLaoagPnp(alert),
+                                onPressed: _isPnpDispatchPaused
+                                    ? null
+                                    : () => _dispatchLaoagPnp(alert),
                                 icon: const Icon(Icons.local_police_rounded, size: 15),
-                                label: const Text('Dispatch PNP'),
+                                label: Text(
+                                  _isPnpDispatchPaused
+                                      ? 'Dispatch Paused'
+                                      : 'Dispatch PNP',
+                                ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFFDC2626),
                                   foregroundColor: Colors.white,
+                                  disabledBackgroundColor: Colors.grey.shade300,
+                                  disabledForegroundColor: Colors.grey.shade700,
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 ),
                               ),
@@ -6905,7 +6948,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           ElevatedButton.icon(
             onPressed: () => _showSosIncidentModal(topAlert),
             icon: const Icon(Icons.shield_rounded, size: 16),
-            label: const Text('Inspect & Dispatch PNP'),
+            label: Text(
+              _isPnpDispatchPaused
+                  ? 'Inspect SOS (Dispatch Paused)'
+                  : 'Inspect & Dispatch PNP',
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFDC2626),
               foregroundColor: Colors.white,
