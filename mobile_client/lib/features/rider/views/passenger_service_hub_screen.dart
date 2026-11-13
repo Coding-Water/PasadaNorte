@@ -359,6 +359,7 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
                 subtitle:
                     'Point-to-point tricycle ride anywhere in Laoag City. Pick destination, review fare breakdown, and hail driver.',
                 icon: Icons.electric_rickshaw_rounded,
+                imageAsset: 'assets/images/book_ride_icon.jpg',
                 accentColor: AppTheme.accentEmerald,
                 bgColor: const Color(0xFFE8F8EF),
                 rateText: widget.lockedCategory == PassengerCategory.regular
@@ -470,6 +471,7 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
     required String title,
     required String subtitle,
     required IconData icon,
+    String? imageAsset,
     required Color accentColor,
     required Color bgColor,
     required String rateText,
@@ -498,13 +500,21 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
             Row(
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
                     color: bgColor,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: accentColor, size: 28),
+                  clipBehavior: Clip.antiAlias,
+                  child: imageAsset != null
+                      ? Image.asset(
+                          imageAsset,
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                        )
+                      : Icon(icon, color: accentColor, size: 28),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

@@ -168,7 +168,7 @@ void main() {
     // Verify Home AppBar: Only title 'PasadaNorte', no leading or history icon
     expect(find.text('PasadaNorte'), findsOneWidget);
     expect(find.byIcon(Icons.history_rounded), findsNothing);
-    expect(find.byIcon(Icons.electric_rickshaw_rounded), findsWidgets); // only in service cards
+    expect(find.byType(Image), findsWidgets); // logo + service card illustration
 
     // Switch to Activity
     await tester.tap(find.text('Activity'));
