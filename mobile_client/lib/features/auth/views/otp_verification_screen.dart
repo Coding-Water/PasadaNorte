@@ -242,12 +242,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                   filled: true,
                                   fillColor: isFocused
                                       ? AppTheme.accentEmeraldLight
-                                      : const Color(0xFFF7F8FA),
+                                      : const Color(0xFFEAEEF3),
                                   contentPadding: EdgeInsets.zero,
                                   counterText: '',
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(14),
-                                    borderSide: BorderSide.none,
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFCBD5E1),
+                                      width: 1.2,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(14),
