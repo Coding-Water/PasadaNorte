@@ -23,18 +23,18 @@
                        │  • Laoag 10-Zone Interactive FlutterMap & Heatmap      │
                        │  • Live Dispatch Audit & Anti-Overcharging Sentinel    │
                        │  • Emergency SOS Live Sentinel (Dispatch Paused: Test) │
-                       │  • ML Demand Scenario Simulator & Dataset Export       │
+                       │  • Live (1h) & Hourly GitHub ML Demand Forecasts       │
                        └───────────────────────────▲────────────────────────────┘
                                                    │
                                       Real-Time WebSocket & PostGIS
                                                    │
                        ┌───────────────────────────┴────────────────────────────┐
                        │           Supabase Cloud Backend (PostgreSQL)          │
-                       │  • Dynamic TODA Pilas (toda_terminals + Realtime)      │
+                       │  • Dynamic TODA Pilas & Configurable 10 Laoag Zones    │
                        │  • Driver & Passenger Applications + Storage Buckets   │
                        │  • Realtime Distress Beacons (emergency_sos_alerts)    │
                        │  • City Ordinance 2023-005 Fare Matrix Table           │
-                       │  • 1:1 Face Verification Biometrics (ISO/IEC 19795-1)  │
+                       │  • Zone Demand Forecasts & ML Metrics (Hourly Sync)    │
                        └───────────────────────────▲────────────────────────────┘
                                                    │
                                    Mobile Clients (Flutter Mobile)
@@ -63,11 +63,11 @@
   - Web Admin reviews each document (`Inspect`, `Resubmit` with reason selector, `Pass` persisted in `SharedPreferences`), assigns **TODA Pila** on approval, or moves to **Rejected (Trash)** with permanent delete.
 - **Passenger Applications (`PassengerApplicationStatusScreen`):**
   - Accepts either illustration avatars or real profile photos and skips driver requirements.
-  - Web Admin verifies **Submitted ID** and **1:1 Face Bio Scan** (`<= 1 hour` SLA).
+  - Uses **On-Device Google ML Kit 1:1 Face Biometrics** (`FaceDetectorMode.accurate` + cosine similarity on normalized facial landmarks, no external FastAPI server required) alongside **Submitted ID** review (`<= 1 hour` SLA).
   - Mobile app polls/streams live status and dispatches native Android Notification Center alerts for **Approved**, **Resubmission Required** (with inline ID re-upload and 1:1 Face Bio Scan redo), or **Rejected**.
 
 ### 2. TODA Stations & Digital Pila Map Builder (Live Driver Sync)
-- **Interactive Map Pin-Picker (`web_client`):** Administrators click anywhere on the Laoag City `FlutterMap` (Streets or Satellite) or use **Create TODA Pila** to name a station, set its TODA code, pin its coordinates, and calibrate individual geofence radius (`10m–150m`), join speed (`2–15 km/h`), and dwell time (`10–120s`).
+- **Interactive Map Pin-Picker (`web_client`):** Administrators click anywhere on the zoomable Laoag City `FlutterMap` (`maxZoom: 21.0`, `+`/`-`/Center controls, Streets or Satellite) or use **Create TODA Pila** to name a station, set its TODA code, pin its coordinates, and calibrate individual geofence radius (`10m–150m`), join speed (`2–15 km/h`), and dwell time (`10–120s`).
 - **Live Driver Map Sync (`mobile_client`):** `DriverMapDutyScreen` streams `toda_terminals` in real time from Supabase, rendering every admin-pinned Pila name, marker, and calibrated geofence circle directly on the driver's map.
 - **Academic Benchmark Validation (Objective 4):**
   - **Recall (TPR):** `95.0%` (Target $\ge 90\%$)
@@ -87,11 +87,12 @@
   $$\text{Expected Fare} = \text{Base} + (\text{Distance} - 1.0\text{ km}) \times \text{Rate} - \text{Discounts}$$
 - **Anti-Overcharging Discrepancy Flag:** Highlights any transaction where collected cash exceeds Ordinance limits with an immediate `OVERCHARGED` badge and one-click MINC Summons Notice.
 
-### 5. Interactive Laoag 10-Zone Spatial Map & ML Demand Radar
-- **Real Interactive `FlutterMap` (`web_client`):** Replaces static schematics with live Google Streets/Satellite map tiles, zoom controls, geofence demand circles, and clickable `Z01`–`Z10` markers across Laoag City.
-- **Interactive Scenarios:** Morning Rush (07:30), University Dismissal (17:00), Monsoon Rain Surge (+40% demand), and Night Shift.
-- **$k \ge 5$ Privacy Impact Assessment (PIA):** Automatically suppresses zone hours under 5 requests to prevent commuter de-anonymization (ISO/IEC 25010 / RA 10173).
-- **Dual Export:** Download training datasets in clean `.json` or Pandas/Scikit-learn `.csv`.
+### 5. Interactive Laoag 10-Zone Spatial Map & Hourly ML Demand Sync
+- **Dual-Mode Heatmap (`Live (1h)` vs. `ML Forecast`):** Defaults to **Live (1h)** reading real `completed_trips` from Supabase (displaying `0.0 req/h` in neutral slate when no live trips exist), with one-click toggle to **ML Forecast**.
+- **Configurable 10 Zones (`laoag_zones`):** Admins can rename, edit drop-off match keywords, and re-pin any of `Z01`–`Z10` on a zoomable `21x` map synced to Supabase.
+- **Hourly GitHub Actions ML Sync:** [`.github/workflows/ml_demand_refresh.yml`](file:///c:/Users/MSI/Desktop/Flutter/PasadaNorte/.github/workflows/ml_demand_refresh.yml) runs `ml_forecasting/sync_ml_to_supabase.py` every hour, pulling live `completed_trips`, `laoag_zones`, and Laoag City weather (Open-Meteo) to update `zone_demand_forecasts` and `ml_model_metrics` (`MASE`, `RMSE`, `WMAPE %`, `Non-Zero MAPE`).
+- **$k \ge 5$ Privacy Impact Assessment (PIA):** Automatically flags/suppresses zone hours under 5 requests to prevent commuter de-anonymization (ISO/IEC 25010 / RA 10173).
+- **Dual Export:** Download zone demand datasets in `.json` or `.csv`.
 
 ### 6. Real-Time Emergency SOS Sentinel (Testing Mode)
 - **Live SOS Telemetry:** Real user accounts can trigger SOS distress beacons (`emergency_sos_alerts`), appearing in the Web Command Center's red sentinel banner with GPS coordinates and incident inspection modal.
@@ -115,7 +116,8 @@ PasadaNorte/
 │   ├── lib/
 │   │   └── main.dart                 # Analytics, Laoag FlutterMap, TODA Pila Map Builder, Driver/Passenger Applications, SOS Sentinel
 │   └── pubspec.yaml
-├── ml_forecasting/                   # Python demand forecasting scripts & experiments
+├── ml_forecasting/                   # Hourly Supabase ML sync (sync_ml_to_supabase.py) & 6,720 zone-hour calibration CSV
+├── .github/workflows/                # Hourly GitHub Actions ML forecast refresh (ml_demand_refresh.yml)
 ├── DEPLOYMENT_CHECKLIST.md           # Pre-production bypass removal & hardening checklist
 ├── DEPLOYMENT_AND_PRODUCTION_READINESS_GUIDE.md
 ├── SECURITY_AND_BACKEND_HARDENING_ARCHITECTURE.md
