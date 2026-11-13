@@ -18,6 +18,8 @@ class IdUploadScreen extends StatefulWidget {
   final String fullName;
   final UserRole role;
   final PassengerCategory passengerCategory;
+  final DateTime? initialBirthDate;
+  final String? initialProfilePhotoPath;
 
   const IdUploadScreen({
     super.key,
@@ -25,6 +27,8 @@ class IdUploadScreen extends StatefulWidget {
     required this.fullName,
     required this.role,
     this.passengerCategory = PassengerCategory.regular,
+    this.initialBirthDate,
+    this.initialProfilePhotoPath,
   });
 
   @override
@@ -129,6 +133,8 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
   void initState() {
     super.initState();
     _selectedIdType = _currentIdTypes.first;
+    _birthDate = widget.initialBirthDate;
+    _profilePhotoPath = widget.initialProfilePhotoPath;
   }
 
   @override
@@ -678,20 +684,49 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
                         style: TextStyle(color: Colors.black54, fontSize: 11.5),
                       ),
                       const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: _selectBirthDate,
-                        icon: const Icon(Icons.calendar_today_rounded, size: 16),
-                        label: Text(
-                          _birthDate == null
-                              ? 'Tap to Select Date of Birth'
-                              : 'Birth Date: ${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')} (Age: $_computedAge)',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                      if (widget.initialBirthDate != null && _birthDate != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _isAgeEligible ? AppTheme.accentEmerald : AppTheme.cancelRed,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today_rounded,
+                                size: 16,
+                                color: _isAgeEligible ? AppTheme.accentEmerald : AppTheme.cancelRed,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Birth Date: ${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')} (Age: $_computedAge)',
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        OutlinedButton.icon(
+                          onPressed: _selectBirthDate,
+                          icon: const Icon(Icons.calendar_today_rounded, size: 16),
+                          label: Text(
+                            _birthDate == null
+                                ? 'Tap to Select Date of Birth'
+                                : 'Birth Date: ${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')} (Age: $_computedAge)',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 44),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
                         ),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 44),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
                     ],
                   ),
                 ),

@@ -231,4 +231,25 @@ class SystemNotificationService {
       payload: 'dispatch_offer',
     );
   }
+
+  // ===============================================
+  // 3. DRIVER APPLICATION REVIEW NOTIFICATIONS
+  // ===============================================
+  // NOTIFICATION CHECKLIST:
+  // [x] Native Android Notification Center alerts (Approved / Resubmission / Rejected)
+  // [ ] TODO: Add SMS notification later for Approved, Resubmission, and Rejected decisions
+
+  /// Fires a native Android/iOS notification when MINC updates a driver's application status.
+  static Future<void> showDriverApplicationNotification({
+    required String title,
+    required String body,
+    String payload = 'driver_application_status',
+  }) async {
+    await showNotification(
+      customId: 301,
+      title: title,
+      body: body,
+      payload: payload,
+    );
+  }
 }

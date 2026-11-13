@@ -394,6 +394,70 @@ class SupabaseService {
     return localId;
   }
 
+  /// Fetches the latest driver application row for [phoneNumber] from Supabase (or local cache).
+  static Future<Map<String, dynamic>?> getDriverApplicationByPhone(
+    String phoneNumber,
+  ) async {
+    if (_isConnected) {
+      try {
+        final row = await Supabase.instance.client
+            .from('driver_applications')
+            .select()
+            .eq('phone_number', phoneNumber)
+            .order('created_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        if (row != null) {
+          _localDriverApplications[phoneNumber] = row;
+          return row;
+        }
+      } catch (e) {
+        debugPrint('Supabase getDriverApplicationByPhone error: $e');
+      }
+    }
+    return _localDriverApplications[phoneNumber];
+  }
+
+  /// Uploads any updated document files and resets application_status to 'submitted'.
+  static Future<bool> resubmitDriverDocuments({
+    required String phoneNumber,
+    required Map<String, String> updatedLocalFilesByColumn,
+  }) async {
+    if (updatedLocalFilesByColumn.isEmpty) return false;
+
+    final Map<String, dynamic> updates = {
+      'application_status': 'submitted',
+      'admin_notes': 'Driver resubmitted updated documents for MINC review.',
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    for (final entry in updatedLocalFilesByColumn.entries) {
+      final uploaded = await _uploadDriverDocument(
+        phoneNumber: phoneNumber,
+        docType: entry.key,
+        localPathOrName: entry.value,
+      );
+      updates[entry.key] = uploaded ?? entry.value;
+    }
+
+    final cached = _localDriverApplications[phoneNumber];
+    if (cached != null) {
+      _localDriverApplications[phoneNumber] = {...cached, ...updates};
+    }
+
+    if (!_isConnected) return true;
+    try {
+      await Supabase.instance.client
+          .from('driver_applications')
+          .update(updates)
+          .eq('phone_number', phoneNumber);
+      return true;
+    } catch (e) {
+      debugPrint('Supabase resubmitDriverDocuments error: $e');
+      return false;
+    }
+  }
+
   // Updates Admin decision (Approve / Reject / Ask Clearer Photos) in Supabase
   static Future<void> updateAdminReviewDecision({
     required String phoneNumber,

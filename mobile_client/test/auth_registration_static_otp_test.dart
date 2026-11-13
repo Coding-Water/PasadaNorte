@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_client/core/services/supabase_service.dart';
 import 'package:mobile_client/core/theme/app_theme.dart';
 import 'package:mobile_client/features/auth/models/user_model.dart';
+import 'package:mobile_client/features/auth/views/driver_application_status_screen.dart';
+import 'package:mobile_client/features/auth/views/driver_requirements_checklist_screen.dart';
 import 'package:mobile_client/features/auth/views/face_scan_screen.dart';
 import 'package:mobile_client/features/auth/views/id_upload_screen.dart';
 import 'package:mobile_client/features/auth/views/otp_verification_screen.dart';
@@ -11,7 +13,6 @@ import 'package:mobile_client/features/auth/views/role_selection_screen.dart';
 import 'package:mobile_client/features/auth/views/student_check_screen.dart';
 import 'package:mobile_client/features/auth/views/senior_pwd_check_screen.dart';
 import 'package:mobile_client/features/auth/views/user_details_input_screen.dart';
-import 'package:mobile_client/features/driver/views/driver_map_duty_screen.dart';
 import 'package:mobile_client/features/fare/services/fare_calculator_service.dart';
 import 'package:mobile_client/features/legal/views/privacy_policy_screen.dart';
 import 'package:mobile_client/features/legal/views/terms_of_service_screen.dart';
@@ -153,12 +154,13 @@ void main() {
       // Verify Screen 3: User Details Input
       expect(find.byType(UserDetailsInputScreen), findsOneWidget);
 
-      // Test Profile Picture avatar picker sheet
+      // Test Profile Picture real-photo picker sheet (no illustration avatars)
       await tester.tap(find.bySemanticsLabel('Choose or upload profile picture'));
       await tester.pumpAndSettle();
       expect(find.text('Profile Picture'), findsOneWidget);
-      expect(find.text('Or choose an avatar'), findsOneWidget);
-      await tester.tap(find.bySemanticsLabel('PasadaNorte avatar 1'));
+      expect(find.text('Photo Requirements:'), findsOneWidget);
+      expect(find.text('Or choose an avatar'), findsNothing);
+      await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
 
       await fillPersonalInfoAndContinue(
@@ -223,9 +225,17 @@ void main() {
         gender: 'Male',
       );
 
-      // Verify Individual Screen: Driver ID & Vehicle Compliance
+      // Verify Driver Requirements Checklist screen appears before IdUploadScreen
+      expect(find.byType(DriverRequirementsChecklistScreen), findsOneWidget);
+      expect(find.text('Back'), findsOneWidget);
+      expect(find.text('I Have Complete Requirements'), findsOneWidget);
+      await tester.tap(find.text('I Have Complete Requirements'));
+      await tester.pumpAndSettle();
+
+      // Verify Individual Screen: Driver ID & Vehicle Compliance (DOB auto-filled)
       expect(find.byType(IdUploadScreen), findsOneWidget);
       expect(find.text('Driver & Vehicle Compliance'), findsOneWidget);
+      expect(find.text('Tap to Select Date of Birth'), findsNothing);
 
       // Verify Driver's License is the exclusive credential
       expect(find.text("Professional Driver's License (Valid)"), findsOneWidget);
@@ -247,8 +257,10 @@ void main() {
       await tester.tap(find.text('Skip (Testing)'));
       await tester.pumpAndSettle();
 
-      // Verifies landing on DriverMapDutyScreen
-      expect(find.byType(DriverMapDutyScreen), findsOneWidget);
+      // Verifies landing on DriverApplicationStatusScreen (24-hour review)
+      expect(find.byType(DriverApplicationStatusScreen), findsOneWidget);
+      expect(find.text('Your documents are currently being reviewed'), findsOneWidget);
+      expect(find.textContaining('24 hours'), findsOneWidget);
     });
 
     testWidgets('Passenger Branching Flow: Not Student -> Not Senior/PWD -> Automatic Regular Passenger', (tester) async {

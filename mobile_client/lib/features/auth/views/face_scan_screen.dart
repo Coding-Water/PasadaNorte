@@ -10,10 +10,10 @@ import '../../../core/services/android_permissions_service.dart';
 import '../../../core/services/face_verification_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../driver/views/driver_map_duty_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../../rider/views/passenger_service_hub_screen.dart';
 import '../models/user_model.dart';
+import 'driver_application_status_screen.dart';
 
 enum _LivenessStep {
   tiltLeft,
@@ -502,7 +502,10 @@ class _FaceScanScreenState extends State<FaceScanScreen>
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => DriverMapDutyScreen(fullName: widget.fullName),
+          builder: (context) => DriverApplicationStatusScreen(
+            phoneNumber: widget.phoneNumber,
+            fullName: widget.fullName,
+          ),
         ),
       );
     } else {
@@ -603,7 +606,10 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => DriverMapDutyScreen(fullName: widget.fullName),
+                    builder: (context) => DriverApplicationStatusScreen(
+                      phoneNumber: widget.phoneNumber,
+                      fullName: widget.fullName,
+                    ),
                   ),
                 );
               } else {

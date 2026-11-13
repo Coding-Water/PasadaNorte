@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../models/user_model.dart';
+import 'driver_requirements_checklist_screen.dart';
 import 'id_upload_screen.dart';
 
 class UserDetailsInputScreen extends StatefulWidget {
@@ -35,8 +36,7 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
   String? _selectedGender;
   DateTime? _selectedDob;
 
-  // Profile picture: either an asset avatar path or a user-picked file path
-  String? _selectedAvatarAsset;
+  // Profile picture: user-picked real photo file path
   String? _pickedPhotoPath;
   final ImagePicker _picker = ImagePicker();
 
@@ -53,11 +53,6 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
     'Prefer not to say',
     'Other',
   ];
-
-  static final List<String> _avatarAssets = List.generate(
-    24,
-    (index) => 'assets/images/avatars/avatar_${(index + 1).toString().padLeft(2, '0')}.png',
-  );
 
   @override
   void initState() {
@@ -123,7 +118,6 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
       if (file != null && mounted) {
         setState(() {
           _pickedPhotoPath = file.path;
-          _selectedAvatarAsset = null;
         });
         Navigator.pop(context);
       }
@@ -145,132 +139,107 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetContext) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.72,
-          minChildSize: 0.45,
-          maxChildSize: 0.9,
-          builder: (context, scrollController) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Profile Picture',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.primarySlate,
-                    ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Profile Picture',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primarySlate,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Upload your own photo or pick a PasadaNorte avatar.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Take or upload a real photo of your face (no illustrations or avatars).',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
-                  const SizedBox(height: 16),
-
-                  // Upload / Camera buttons
-                  Row(
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _pickCustomPhoto(ImageSource.gallery),
-                          icon: const Icon(Icons.photo_library_rounded, size: 18),
-                          label: const Text('Upload Photo'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.accentEmerald,
-                            side: const BorderSide(color: AppTheme.accentEmeraldDark, width: 1.5),
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
+                      Text(
+                        'Photo Requirements:',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primarySlate,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _pickCustomPhoto(ImageSource.camera),
-                          icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                          label: const Text('Take Photo'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.accentEmerald,
-                            side: const BorderSide(color: AppTheme.accentEmeraldDark, width: 1.5),
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
+                      SizedBox(height: 6),
+                      Text(
+                        '• Plain white background\n'
+                        '• Well-lit area, facing forward\n'
+                        '• No accessories (no caps, face masks, or sunglasses)\n'
+                        '• Must clearly show your real face for passenger & driver safety',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.45,
+                          color: Colors.black87,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
-
-                  const Text(
-                    'Or choose an avatar',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primarySlate,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  Expanded(
-                    child: GridView.builder(
-                      controller: scrollController,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 4,
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 14,
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _pickCustomPhoto(ImageSource.gallery),
+                        icon: const Icon(Icons.photo_library_rounded, size: 18),
+                        label: const Text('Upload Photo'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.accentEmerald,
+                          side: const BorderSide(color: AppTheme.accentEmeraldDark, width: 1.5),
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
                       ),
-                      itemCount: _avatarAssets.length,
-                      itemBuilder: (context, index) {
-                        final asset = _avatarAssets[index];
-                        final isSelected = _selectedAvatarAsset == asset;
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedAvatarAsset = asset;
-                              _pickedPhotoPath = null;
-                            });
-                            Navigator.pop(sheetContext);
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isSelected ? AppTheme.accentEmerald : Colors.transparent,
-                                width: 3,
-                              ),
-                            ),
-                            padding: const EdgeInsets.all(2),
-                            child: ClipOval(
-                              child: Image.asset(
-                                asset,
-                                fit: BoxFit.cover,
-                                semanticLabel: 'PasadaNorte avatar ${index + 1}',
-                              ),
-                            ),
-                          ),
-                        );
-                      },
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _pickCustomPhoto(ImageSource.camera),
+                        icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                        label: const Text('Take Photo'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentEmerald,
+                          foregroundColor: Colors.white,
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -278,17 +247,34 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
 
   void _onContinue() {
     if (_formKey.currentState!.validate()) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => IdUploadScreen(
-            phoneNumber: widget.phoneNumber,
-            fullName: _composeFullName(),
-            role: widget.role,
-            passengerCategory: widget.passengerCategory,
+      if (widget.role == UserRole.driver) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DriverRequirementsChecklistScreen(
+              phoneNumber: widget.phoneNumber,
+              fullName: _composeFullName(),
+              passengerCategory: widget.passengerCategory,
+              birthDate: _selectedDob,
+              profilePhotoPath: _pickedPhotoPath,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => IdUploadScreen(
+              phoneNumber: widget.phoneNumber,
+              fullName: _composeFullName(),
+              role: widget.role,
+              passengerCategory: widget.passengerCategory,
+              initialBirthDate: _selectedDob,
+              initialProfilePhotoPath: _pickedPhotoPath,
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -368,15 +354,6 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
           fit: BoxFit.cover,
         ),
       );
-    } else if (_selectedAvatarAsset != null) {
-      avatarContent = ClipOval(
-        child: Image.asset(
-          _selectedAvatarAsset!,
-          width: 96,
-          height: 96,
-          fit: BoxFit.cover,
-        ),
-      );
     } else {
       avatarContent = CircleAvatar(
         radius: 48,
@@ -404,7 +381,7 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: (_pickedPhotoPath != null || _selectedAvatarAsset != null)
+                    color: _pickedPhotoPath != null
                         ? AppTheme.accentEmerald
                         : Colors.transparent,
                     width: 2.5,
@@ -474,8 +451,9 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
                       const SizedBox(height: 8),
                       Center(
                         child: Text(
-                          'Tap to add photo or choose avatar (Optional)',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                          'Tap to take or upload your real photo\n(White background, no caps, masks, or sunglasses)',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                         ),
                       ),
                       const SizedBox(height: 22),
