@@ -3529,14 +3529,17 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           (app['plate_or_mv_file']?.toString().toLowerCase().contains(query) ?? false) ||
           (app['motorcycle_brand_model']?.toString().toLowerCase().contains(query) ?? false);
 
-      if (_driverAppFilter == 'All') return matchesSearch;
+      if (_driverAppFilter == 'All') {
+        return matchesSearch && app['application_status'] != 'rejected';
+      }
       return matchesSearch && (app['application_status'] == _driverAppFilter);
     }).toList();
 
-    final totalCount = _driverApplications.length;
+    final totalCount =
+        _driverApplications.where((a) => a['application_status'] != 'rejected').length;
     final pendingCount = _driverApplications.where((a) => a['application_status'] == 'submitted' || a['application_status'] == 'under_review').length;
     final approvedCount = _driverApplications.where((a) => a['application_status'] == 'approved').length;
-    final attentionCount = _driverApplications.where((a) => a['application_status'] == 'resubmission_requested' || a['application_status'] == 'rejected').length;
+    final rejectedCount = _driverApplications.where((a) => a['application_status'] == 'rejected').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3584,15 +3587,58 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildMetricTile(
-                title: 'Needs Attention',
-                value: '$attentionCount',
-                icon: Icons.error_outline_rounded,
-                color: const Color(0xFFDC2626),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => setState(() {
+                  _driverAppFilter =
+                      _driverAppFilter == 'rejected' ? 'All' : 'rejected';
+                }),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: _driverAppFilter == 'rejected'
+                        ? Border.all(color: const Color(0xFFDC2626), width: 1.8)
+                        : null,
+                  ),
+                  child: _buildMetricTile(
+                    title: 'Rejected (Trash)',
+                    value: '$rejectedCount',
+                    icon: Icons.delete_outline_rounded,
+                    color: const Color(0xFFDC2626),
+                  ),
+                ),
               ),
             ),
           ],
         ),
+        if (_driverAppFilter == 'rejected') ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFCA5A5)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Rejected Trash — Rejected applications are stored here for future reference. You can permanently delete them or leave them here.',
+                    style: TextStyle(fontSize: 12.5, color: Color(0xFF991B1B), fontWeight: FontWeight.w600),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => _driverAppFilter = 'All'),
+                  child: const Text('Back to Active Queue'),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
 
         // Search & Filter Toolbar
@@ -3629,7 +3675,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   _buildAppFilterChip('submitted', 'Pending ($pendingCount)'),
                   _buildAppFilterChip('approved', 'Approved ($approvedCount)'),
                   _buildAppFilterChip('resubmission_requested', 'Resubmit'),
-                  _buildAppFilterChip('rejected', 'Rejected'),
+                  _buildAppFilterChip('rejected', 'Rejected ($rejectedCount)'),
                 ],
               ),
             ],
@@ -3799,19 +3845,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: isApproved ? const Color(0xFFDCFCE7) : const Color(0xFFE2E8F0),
-                  child: Text(
-                    app['full_name']?.toString().isNotEmpty == true
-                        ? app['full_name'].toString().substring(0, 1).toUpperCase()
-                        : 'D',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: isApproved ? const Color(0xFF059669) : const Color(0xFF0F172A),
-                    ),
-                  ),
-                ),
+                _buildDriverAvatar(app, isApproved),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -4186,7 +4220,24 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     Wrap(
                       spacing: 8,
                       children: [
-                        if (!isApproved) ...[
+                        if (isRejected) ...[
+                          OutlinedButton.icon(
+                            onPressed: () => _permanentlyDeleteDriverApp(app),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFEF2F2),
+                              side: const BorderSide(color: Color(0xFFDC2626)),
+                            ),
+                            icon: const Icon(Icons.delete_forever_rounded, size: 15, color: Color(0xFFDC2626)),
+                            label: const Text(
+                              'Delete Permanently',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFFDC2626),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ] else if (!isApproved) ...[
                           OutlinedButton.icon(
                             onPressed: flaggedResubmitCount > 0
                                 ? () => _requestResubmissionDriverApp(app)
@@ -4273,6 +4324,128 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDriverAvatar(Map<String, dynamic> app, bool isApproved) {
+    final initial = app['full_name']?.toString().isNotEmpty == true
+        ? app['full_name'].toString().substring(0, 1).toUpperCase()
+        : 'D';
+    final fallback = CircleAvatar(
+      radius: 22,
+      backgroundColor: isApproved ? const Color(0xFFDCFCE7) : const Color(0xFFE2E8F0),
+      child: Text(
+        initial,
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          color: isApproved ? const Color(0xFF059669) : const Color(0xFF0F172A),
+        ),
+      ),
+    );
+
+    final rawPhoto = app['profile_photo_url']?.toString().trim() ?? '';
+    if (rawPhoto.isEmpty) return fallback;
+
+    return FutureBuilder<String?>(
+      future: _resolveDriverDocUrl(rawPhoto),
+      builder: (context, snapshot) {
+        final resolvedUrl = snapshot.data;
+        if (resolvedUrl == null || resolvedUrl.isEmpty) {
+          return fallback;
+        }
+        return CircleAvatar(
+          radius: 22,
+          backgroundColor: isApproved ? const Color(0xFFDCFCE7) : const Color(0xFFE2E8F0),
+          child: ClipOval(
+            child: Image.network(
+              resolvedUrl,
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => fallback,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _permanentlyDeleteDriverApp(Map<String, dynamic> app) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          'Permanently Delete Rejected Application',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+        ),
+        content: Text(
+          'Delete ${app['full_name']} permanently from Rejected Trash? This cannot be undone.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep for Reference'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    final appKey = _getAppKey(app);
+    final rawId = app['id']?.toString() ?? '';
+    final phone = app['phone_number']?.toString() ?? '';
+
+    try {
+      if (rawId.isNotEmpty && !rawId.startsWith('drv_app_')) {
+        await Supabase.instance.client
+            .from('driver_applications')
+            .delete()
+            .eq('id', rawId);
+      } else if (phone.isNotEmpty) {
+        await Supabase.instance.client
+            .from('driver_applications')
+            .delete()
+            .eq('phone_number', phone);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not delete from Supabase: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _driverApplications.removeWhere((a) => _getAppKey(a) == appKey);
+      _docReviewStatus.remove(appKey);
+      _docReviewReasons.remove(appKey);
+      _systemAuditLogs.insert(0, {
+        'time': 'Just now',
+        'actor': 'MINC Officer Santos',
+        'action': 'Permanently deleted rejected application for ${app['full_name']}',
+      });
+    });
+    unawaited(_saveDocReviewCache());
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Permanently deleted ${app['full_name']} from Rejected Trash.'),
+        backgroundColor: const Color(0xFFDC2626),
       ),
     );
   }
