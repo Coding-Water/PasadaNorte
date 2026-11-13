@@ -2213,111 +2213,170 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                       userAgentPackageName: 'com.pasadanorte.web_admin',
                     ),
+                    // Dual-layer soft concentric demand heatmap (matches mobile app)
                     CircleLayer(
                       circles: _mlZones.map((z) {
                         final demand = _getDynamicZoneDemand(z);
                         final isSelected = z['code'] == _selectedZoneCode;
-                        Color haloColor = const Color(0xFF10B981);
+                        Color heatColor = const Color(0xFF10B981);
                         if (demand >= 25) {
-                          haloColor = const Color(0xFFEF4444);
+                          heatColor = const Color(0xFFEF4444);
                         } else if (demand >= 15) {
-                          haloColor = const Color(0xFFF59E0B);
+                          heatColor = const Color(0xFFF59E0B);
                         } else if (demand < 5) {
-                          haloColor = const Color(0xFF94A3B8);
+                          heatColor = const Color(0xFF94A3B8);
                         }
+                        final double baseRadius =
+                            (110.0 + (demand.clamp(5, 60) * 3.5)) *
+                                (isSelected ? 1.2 : 1.0);
                         return CircleMarker(
                           point: LatLng(
                             (z['lat'] as num).toDouble(),
                             (z['lng'] as num).toDouble(),
                           ),
-                          radius: isSelected ? 220 : 150,
+                          radius: baseRadius * 1.25,
                           useRadiusInMeter: true,
-                          color: haloColor.withValues(
-                            alpha: isSelected ? 0.30 : 0.16,
+                          color: heatColor.withValues(
+                            alpha: isSelected ? 0.24 : 0.18,
                           ),
-                          borderColor: haloColor.withValues(alpha: 0.65),
-                          borderStrokeWidth: isSelected ? 2 : 1,
+                          borderStrokeWidth: 0,
                         );
                       }).toList(),
                     ),
-                    MarkerLayer(
-                      markers: _mlZones.map((z) {
+                    CircleLayer(
+                      circles: _mlZones.map((z) {
                         final demand = _getDynamicZoneDemand(z);
                         final isSelected = z['code'] == _selectedZoneCode;
-                        final point = LatLng(
-                          (z['lat'] as num).toDouble(),
-                          (z['lng'] as num).toDouble(),
+                        Color heatColor = const Color(0xFF10B981);
+                        if (demand >= 25) {
+                          heatColor = const Color(0xFFEF4444);
+                        } else if (demand >= 15) {
+                          heatColor = const Color(0xFFF59E0B);
+                        } else if (demand < 5) {
+                          heatColor = const Color(0xFF94A3B8);
+                        }
+                        final double baseRadius =
+                            (110.0 + (demand.clamp(5, 60) * 3.5)) *
+                                (isSelected ? 1.2 : 1.0);
+                        return CircleMarker(
+                          point: LatLng(
+                            (z['lat'] as num).toDouble(),
+                            (z['lng'] as num).toDouble(),
+                          ),
+                          radius: baseRadius * 0.72,
+                          useRadiusInMeter: true,
+                          color: heatColor.withValues(
+                            alpha: isSelected ? 0.45 : 0.35,
+                          ),
+                          borderColor: heatColor.withValues(
+                            alpha: isSelected ? 0.95 : 0.75,
+                          ),
+                          borderStrokeWidth: isSelected ? 2.0 : 1.4,
                         );
+                      }).toList(),
+                    ),
+                    // Compact non-overlapping zone pills + live TODA Pila pins
+                    MarkerLayer(
+                      markers: [
+                        ..._mlZones.map((z) {
+                          final demand = _getDynamicZoneDemand(z);
+                          final isSelected = z['code'] == _selectedZoneCode;
+                          final point = LatLng(
+                            (z['lat'] as num).toDouble(),
+                            (z['lng'] as num).toDouble(),
+                          );
+                          Color pillBorder = const Color(0xFF10B981);
+                          if (demand >= 25) {
+                            pillBorder = const Color(0xFFEF4444);
+                          } else if (demand >= 15) {
+                            pillBorder = const Color(0xFFF59E0B);
+                          } else if (demand < 5) {
+                            pillBorder = const Color(0xFF94A3B8);
+                          }
 
-                        return Marker(
-                          point: point,
-                          width: 58,
-                          height: 58,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() => _selectedZoneCode = z['code']);
-                              _laoagMapController.move(
-                                point,
-                                _laoagMapController.camera.zoom,
-                              );
-                            },
-                            child: Tooltip(
-                              message: '${z['code']} — ${z['name']}',
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(0xFF059669)
-                                      : Colors.white.withValues(alpha: 0.94),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.2),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : (z['color'] as Color),
-                                    width: isSelected ? 3 : 2,
+                          return Marker(
+                            point: point,
+                            width: 64,
+                            height: 24,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() => _selectedZoneCode = z['code']);
+                                _laoagMapController.move(
+                                  point,
+                                  _laoagMapController.camera.zoom,
+                                );
+                              },
+                              child: Tooltip(
+                                message: '${z['code']} — ${z['name']} (${demand < 5 ? '<5' : demand.toInt()} req/hr)',
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
                                   ),
-                                ),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        z['code'],
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 11,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : const Color(0xFF0F172A),
-                                        ),
-                                      ),
-                                      Text(
-                                        demand < 5 ? '<5' : '${demand.toInt()}',
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w700,
-                                          color: isSelected
-                                              ? Colors.white70
-                                              : (demand < 5
-                                                  ? Colors.orange.shade800
-                                                  : Colors.grey.shade700),
-                                        ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFF059669)
+                                        : Colors.white.withValues(alpha: 0.92),
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.18),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1.5),
                                       ),
                                     ],
+                                    border: Border.all(
+                                      color: isSelected ? Colors.white : pillBorder,
+                                      width: isSelected ? 1.8 : 1.3,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${z['code']} · ${demand < 5 ? '<5' : demand.toInt()}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 9.5,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : const Color(0xFF0F172A),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
+                          );
+                        }),
+                        ..._terminals.map(
+                          (t) => Marker(
+                            point: LatLng(
+                              (t['lat'] as num).toDouble(),
+                              (t['lng'] as num).toDouble(),
+                            ),
+                            width: 28,
+                            height: 28,
+                            child: Tooltip(
+                              message: 'TODA Pila: ${t['name']} (${t['code']})',
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0F172A),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.local_taxi_rounded,
+                                  color: Color(0xFF34D399),
+                                  size: 14,
+                                ),
+                              ),
+                            ),
                           ),
-                        );
-                      }).toList(),
+                        ),
+                      ],
                     ),
                   ],
                 ),
