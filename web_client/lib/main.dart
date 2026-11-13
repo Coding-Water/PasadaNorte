@@ -4025,43 +4025,41 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 8,
-                        children: [
-                          _buildAnglePhotoPill(
-                            context,
-                            app: app,
-                            appKey: appKey,
-                            columnKey: 'vehicle_front_photo_url',
-                            angle: 'Front View',
-                            url: app['vehicle_front_photo_url'],
-                          ),
-                          _buildAnglePhotoPill(
-                            context,
-                            app: app,
-                            appKey: appKey,
-                            columnKey: 'vehicle_back_photo_url',
-                            angle: 'Back View',
-                            url: app['vehicle_back_photo_url'],
-                          ),
-                          _buildAnglePhotoPill(
-                            context,
-                            app: app,
-                            appKey: appKey,
-                            columnKey: 'vehicle_left_photo_url',
-                            angle: 'Left Side',
-                            url: app['vehicle_left_photo_url'],
-                          ),
-                          _buildAnglePhotoPill(
-                            context,
-                            app: app,
-                            appKey: appKey,
-                            columnKey: 'vehicle_right_photo_url',
-                            angle: 'Right Side',
-                            url: app['vehicle_right_photo_url'],
-                          ),
-                        ],
+                      _buildDocStatusRow(
+                        app: app,
+                        appKey: appKey,
+                        columnKey: 'vehicle_front_photo_url',
+                        title: 'Front View',
+                        detail: 'Front view with visible plate number & headlight',
+                        isAvailable: (app['vehicle_front_photo_url']?.toString().trim() ?? '').isNotEmpty,
+                        onView: () => _showDriverAppDocDialog(context, 'Tricycle Front View', app['vehicle_front_photo_url']),
+                      ),
+                      _buildDocStatusRow(
+                        app: app,
+                        appKey: appKey,
+                        columnKey: 'vehicle_back_photo_url',
+                        title: 'Back View',
+                        detail: 'Rear view with visible plate / TODA markings',
+                        isAvailable: (app['vehicle_back_photo_url']?.toString().trim() ?? '').isNotEmpty,
+                        onView: () => _showDriverAppDocDialog(context, 'Tricycle Back View', app['vehicle_back_photo_url']),
+                      ),
+                      _buildDocStatusRow(
+                        app: app,
+                        appKey: appKey,
+                        columnKey: 'vehicle_left_photo_url',
+                        title: 'Left Side',
+                        detail: 'Full left side profile of motorcycle & sidecar',
+                        isAvailable: (app['vehicle_left_photo_url']?.toString().trim() ?? '').isNotEmpty,
+                        onView: () => _showDriverAppDocDialog(context, 'Tricycle Left Side', app['vehicle_left_photo_url']),
+                      ),
+                      _buildDocStatusRow(
+                        app: app,
+                        appKey: appKey,
+                        columnKey: 'vehicle_right_photo_url',
+                        title: 'Right Side',
+                        detail: 'Full right side profile of motorcycle & sidecar',
+                        isAvailable: (app['vehicle_right_photo_url']?.toString().trim() ?? '').isNotEmpty,
+                        onView: () => _showDriverAppDocDialog(context, 'Tricycle Right Side', app['vehicle_right_photo_url']),
                       ),
                     ],
                   ),
@@ -4464,135 +4462,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   fontWeight: FontWeight.w700,
                   color: isCompliant ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
                 ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnglePhotoPill(
-    BuildContext context, {
-    required Map<String, dynamic> app,
-    required String appKey,
-    required String columnKey,
-    required String angle,
-    required String? url,
-  }) {
-    final hasPhoto = url != null && url.isNotEmpty;
-    final reviewState = _getDocReviewState(appKey, columnKey);
-    final isPassed = reviewState == 'pass';
-    final isResubmit = reviewState == 'resubmit';
-    final resubmitReason = _docReviewReasons[appKey]?[columnKey];
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: isPassed
-            ? const Color(0xFFDCFCE7)
-            : isResubmit
-                ? const Color(0xFFFEF3C7)
-                : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isPassed
-              ? const Color(0xFF86EFAC)
-              : isResubmit
-                  ? const Color(0xFFFCD34D)
-                  : Colors.grey.shade300,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isPassed
-                    ? Icons.check_circle_rounded
-                    : isResubmit
-                        ? Icons.warning_amber_rounded
-                        : (hasPhoto
-                            ? Icons.photo_camera_outlined
-                            : Icons.hide_image_outlined),
-                size: 13,
-                color: isPassed
-                    ? const Color(0xFF15803D)
-                    : isResubmit
-                        ? const Color(0xFFB45309)
-                        : Colors.grey.shade700,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                angle,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: isPassed
-                      ? const Color(0xFF15803D)
-                      : isResubmit
-                          ? const Color(0xFFB45309)
-                          : Colors.grey.shade800,
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: () => _showDriverAppDocDialog(context, 'Tricycle $angle', url),
-                child: const Text(
-                  'Inspect',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    color: Color(0xFF0284C7),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              InkWell(
-                onTap: () => _openItemResubmitReasonDialog(
-                  app,
-                  appKey,
-                  columnKey,
-                  'Tricycle $angle',
-                ),
-                child: const Text(
-                  'Resubmit',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    color: Color(0xFFD97706),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              InkWell(
-                onTap: hasPhoto ? () => _markDocPassed(appKey, columnKey) : null,
-                child: Text(
-                  isPassed ? '✓ Pass' : 'Pass',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    color: hasPhoto
-                        ? (isPassed
-                            ? const Color(0xFF15803D)
-                            : const Color(0xFF059669))
-                        : Colors.grey.shade400,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (isResubmit && resubmitReason != null && resubmitReason.isNotEmpty) ...[
-            const SizedBox(height: 3),
-            Text(
-              'Reason: $resubmitReason',
-              style: const TextStyle(
-                fontSize: 10,
-                color: Color(0xFFB45309),
-                fontWeight: FontWeight.w600,
               ),
             ),
           ],
