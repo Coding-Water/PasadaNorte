@@ -363,6 +363,7 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
                 subtitle:
                     'Send or receive documents, food, or public market packages with verified TODA dispatch and live GPS tracking.',
                 icon: Icons.local_shipping_rounded,
+                imageAsset: 'assets/images/pasadeliver_icon.jpg',
                 accentColor: const Color(0xFFD97706),
                 bgColor: const Color(0xFFFEF3C7),
                 rateText: 'Ordinance Distance Rate + Handling Fee',
