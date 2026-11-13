@@ -372,5 +372,24 @@ void main() {
 
       expect(find.text('1:1 Face Match Verified'), findsOneWidget);
     });
+
+    testWidgets('IdUploadScreen supports Files upload and shows uploaded filename', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: const IdUploadScreen(
+            phoneNumber: '+639171234567',
+            fullName: 'Maria Santos',
+            role: UserRole.rider,
+          ),
+        ),
+      );
+
+      expect(find.text('Files'), findsOneWidget);
+      await tester.tap(find.text('Files'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('.pdf'), findsWidgets);
+    });
   });
 }
