@@ -102,14 +102,14 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   final List<Map<String, dynamic>> _mlZones = [
     {
       'code': 'Z01',
-      'name': 'Public Market & Commercial Complex',
+      'name': 'Public Market',
       'trips': 1420,
       'baseForecast': 38.0,
       'color': const Color(0xFFEF4444),
       'x': 0.48,
       'y': 0.44,
-      'lat': 18.1972,
-      'lng': 120.5925,
+      'lat': 18.19454,
+      'lng': 120.59597,
     },
     {
       'code': 'Z02',
@@ -119,19 +119,19 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'color': const Color(0xFFF59E0B),
       'x': 0.58,
       'y': 0.52,
-      'lat': 18.1925,
-      'lng': 120.5960,
+      'lat': 18.20754,
+      'lng': 120.59425,
     },
     {
       'code': 'Z03',
-      'name': 'Laoag Sinking Bell Tower & Plaza',
+      'name': 'Ilocos Norte National Highschool',
       'trips': 510,
       'baseForecast': 18.0,
       'color': const Color(0xFF10B981),
       'x': 0.51,
       'y': 0.40,
-      'lat': 18.1965,
-      'lng': 120.5938,
+      'lat': 18.20422,
+      'lng': 120.59175,
     },
     {
       'code': 'Z04',
@@ -141,8 +141,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'color': const Color(0xFF10B981),
       'x': 0.42,
       'y': 0.62,
-      'lat': 18.1880,
-      'lng': 120.5890,
+      'lat': 18.18838,
+      'lng': 120.57720,
     },
     {
       'code': 'Z05',
@@ -152,8 +152,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'color': const Color(0xFF10B981),
       'x': 0.64,
       'y': 0.38,
-      'lat': 18.1990,
-      'lng': 120.5980,
+      'lat': 18.19971,
+      'lng': 120.60168,
     },
     {
       'code': 'Z06',
@@ -163,52 +163,52 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'color': const Color(0xFF10B981),
       'x': 0.46,
       'y': 0.38,
-      'lat': 18.1960,
-      'lng': 120.5920,
+      'lat': 18.19574,
+      'lng': 120.59356,
     },
     {
       'code': 'Z07',
-      'name': 'Northwestern University (NWU Corridor)',
+      'name': 'Northwestern University',
       'trips': 310,
       'baseForecast': 11.0,
       'color': const Color(0xFF10B981),
       'x': 0.38,
       'y': 0.30,
-      'lat': 18.2040,
-      'lng': 120.5885,
+      'lat': 18.18529,
+      'lng': 120.56619,
     },
     {
       'code': 'Z08',
-      'name': 'Robinsons Place / San Nicolas Boundary',
+      'name': 'SM City Laoag',
       'trips': 220,
       'baseForecast': 9.0,
       'color': const Color(0xFF6B7280),
       'x': 0.50,
       'y': 0.76,
-      'lat': 18.1845,
-      'lng': 120.5912,
+      'lat': 18.18808,
+      'lng': 120.58552,
     },
     {
       'code': 'Z09',
-      'name': 'Partas Bus Terminal & Gilbert Bridge',
+      'name': 'Maharlika',
       'trips': 110,
       'baseForecast': 5.0,
       'color': const Color(0xFF6B7280),
       'x': 0.44,
       'y': 0.54,
-      'lat': 18.1910,
-      'lng': 120.5905,
+      'lat': 18.20106,
+      'lng': 120.58155,
     },
     {
       'code': 'Z10',
-      'name': 'Laoag Airport Corridor (Gabu West)',
+      'name': 'Laoag International Airport / Gabu',
       'trips': 20,
       'baseForecast': 2.0,
       'color': const Color(0xFF9CA3AF),
       'x': 0.16,
       'y': 0.70,
-      'lat': 18.1811,
-      'lng': 120.5306,
+      'lat': 18.18268,
+      'lng': 120.53405,
     },
   ];
 
@@ -3452,6 +3452,124 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // All 10 Laoag Zones Quick-Edit List
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.layers_rounded, color: Color(0xFF059669), size: 20),
+                        SizedBox(width: 10),
+                        Text(
+                          'All 10 Laoag Demand Zones — Quick Edit & Radius',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Click any zone to focus on map or edit pin/radius',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              ..._mlZones.map((z) {
+                final code = z['code']?.toString() ?? '';
+                final isSelected = code == _selectedZoneCode;
+                final lat = (z['lat'] as num?)?.toDouble() ?? 18.1972;
+                final lng = (z['lng'] as num?)?.toDouble() ?? 120.5925;
+                final radius = (z['radius'] as num?)?.toDouble() ?? 320.0;
+                final demand = _getDynamicZoneDemand(z);
+
+                return InkWell(
+                  onTap: () {
+                    setState(() => _selectedZoneCode = code);
+                    try {
+                      _laoagMapController.move(
+                        LatLng(lat, lng),
+                        _laoagMapController.camera.zoom,
+                      );
+                    } catch (_) {}
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFFECFDF5).withValues(alpha: 0.6) : Colors.white,
+                      border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF059669)
+                                : const Color(0xFF059669).withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              code,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12.5,
+                                color: isSelected ? Colors.white : const Color(0xFF059669),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                z['name']?.toString() ?? '',
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Lat: ${lat.toStringAsFixed(5)}, Lng: ${lng.toStringAsFixed(5)} • Radius: ${radius.round()} m • Demand: ${demand < 5 ? '<5 req/hr' : '${demand.toStringAsFixed(1)} req/hr'}',
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _openEditZoneDialog(z),
+                          icon: const Icon(Icons.edit_location_alt_rounded, size: 15),
+                          label: const Text('Pin & Edit'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF059669),
+                            side: BorderSide(color: Colors.grey.shade300),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
             ],
           ),
         ),

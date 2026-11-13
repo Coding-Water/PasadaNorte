@@ -35,14 +35,19 @@ END $$;
 
 INSERT INTO public.laoag_zones (zone_code, zone_name, lat, lng, keywords)
 VALUES
-  ('Z01', 'Public Market & Commercial Complex', 18.1972, 120.5925, 'market,public market,commercial'),
-  ('Z02', 'MMSU CIT / CTE P. Gomez Campus', 18.1950, 120.5970, 'mmsu,cit,cte,p. gomez,gomez'),
-  ('Z03', 'Laoag Sinking Bell Tower & Plaza', 18.1975, 120.5940, 'bell tower,plaza,aurora'),
-  ('Z04', 'Laoag City General Hospital (LCGH)', 18.1920, 120.5890, 'lcgh,general hospital'),
-  ('Z05', 'Gov. Roque B. Ablan Sr. Memorial Hospital', 18.1985, 120.6005, 'roque,ablan,memorial hospital'),
-  ('Z06', 'Provincial Capitol & Aurora Park', 18.1985, 120.5915, 'capitol,provincial'),
-  ('Z07', 'Northwestern University (NWU Corridor)', 18.2020, 120.5870, 'northwestern,nwu'),
-  ('Z08', 'Robinsons Place / San Nicolas Boundary', 18.1885, 120.5935, 'robinsons,san nicolas'),
-  ('Z09', 'Gilbert Bridge North Approach', 18.1945, 120.5905, 'gilbert,bridge'),
-  ('Z10', 'Laoag International Airport / Gabu', 18.1905, 120.5760, 'airport,gabu')
-ON CONFLICT (zone_code) DO NOTHING;
+  ('Z01', 'Public Market', 18.19454, 120.59597, 'market,public market,commercial'),
+  ('Z02', 'MMSU CIT / CTE P. Gomez Campus', 18.20754, 120.59425, 'mmsu,cit,cte,p. gomez,gomez'),
+  ('Z03', 'Ilocos Norte National Highschool', 18.20422, 120.59175, 'innhs,ilocos norte national highschool,highschool'),
+  ('Z04', 'Laoag City General Hospital (LCGH)', 18.18838, 120.57720, 'lcgh,general hospital'),
+  ('Z05', 'Gov. Roque B. Ablan Sr. Memorial Hospital', 18.19971, 120.60168, 'roque,ablan,memorial hospital'),
+  ('Z06', 'Provincial Capitol & Aurora Park', 18.19574, 120.59356, 'capitol,provincial,aurora park'),
+  ('Z07', 'Northwestern University', 18.18529, 120.56619, 'northwestern,nwu'),
+  ('Z08', 'SM City Laoag', 18.18808, 120.58552, 'sm,sm city laoag,robinsons,san nicolas'),
+  ('Z09', 'Maharlika', 18.20106, 120.58155, 'maharlika,gilbert,bridge'),
+  ('Z10', 'Laoag International Airport / Gabu', 18.18268, 120.53405, 'airport,gabu')
+ON CONFLICT (zone_code) DO UPDATE SET
+  zone_name = EXCLUDED.zone_name,
+  lat = EXCLUDED.lat,
+  lng = EXCLUDED.lng,
+  keywords = EXCLUDED.keywords,
+  updated_at = NOW();
