@@ -30,6 +30,14 @@
 - [ ] **Reject Numbers & Special Symbols in Name Fields**: Update `Last Name`, `First Name`, and `Middle Name` inputs in `mobile_client/lib/features/auth/views/user_details_input_screen.dart` to reject numeric digits (`0-9`) and invalid symbols (`!`, `>`, `?`, `@`, `#`, `$`, `%`, etc.) using `FilteringTextInputFormatter` and form `validator` rules (allowing only letters including `ñ`/`Ñ`, spaces, hyphens `-`, and apostrophes `'`).
 - [ ] **Add Name Validation Tests**: Add widget tests verifying that numeric and symbol inputs in name fields are blocked or trigger clear validation errors.
 
+### 6. Automated 1:1 Face Bio Scan Pass & Passenger Reuse
+- [ ] **Auto-Pass `1:1 Face Bio Scan` on High-Confidence AI/Python Match**: In `web_client/lib/main.dart`, automatically mark `1:1 Face Bio Scan` as **Pass** when the Python/AI ID-to-selfie verification achieves `>= 85.0%` similarity (while keeping manual `Inspect` / `Resubmit` override available, and requiring manual admin review if `< 85.0%` or skipped).
+- [ ] **Reuse 1:1 Face Bio Scan Review Flow for Passengers**: Apply the same `1:1 Face Bio Scan` auto-pass, manual admin review (`Inspect`, `Resubmit` with reason combo box, `Pass`), and mobile redo flow to **Passenger (Rider)** ID verification.
+
+### 7. Application Decision Notifications (Android + SMS)
+- [x] **Native Android Notification Center Alerts**: Dispatch local Android notifications for Driver Application decisions (Approved, Resubmission Requested, Rejected).
+- [ ] **Production SMS Decision Alerts**: Add SMS notifications alongside Android Notification Center alerts for Approved, Resubmission Requested, and Rejected decisions.
+
 ---
 
 ## 📋 Status Tracking Table
@@ -41,3 +49,5 @@
 | **Driver ID Type** | `id_upload_screen.dart` | Professional Driver's License only | Professional Driver's License only | 🟢 Completed |
 | **SMS OTP** | `otp_verification_screen.dart` | Static OTP `123456` enabled for testing | Live Philippine cellular SMS gateway | 🟡 Testing Enabled |
 | **Name Validation** | `user_details_input_screen.dart` | Accepts free-text input without blocking digits/symbols | Block numbers & invalid symbols (`!`, `>`, `?`, etc.) | 🔴 Pending Fix |
+| **Face Bio Auto-Pass & Passenger Reuse** | `web_client/lib/main.dart`, `face_verification_service.dart` | Manual `Pass` required for Driver `1:1 Face Bio Scan` | Auto-pass `>= 85%` Python/AI match & reuse flow for Passengers | 🔴 Pending Implementation |
+| **Decision Notifications** | `system_notification_service.dart` | Native Android Notification Center alerts active | Add SMS notifications for Approved / Resubmit / Rejected | 🟡 Android Done / SMS Pending |
