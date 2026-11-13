@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'location_service.dart';
 
 class FieldTripLogEntry {
@@ -142,40 +141,65 @@ class DemandForecastService {
     );
   }
 
-  // Fetches spatial-temporal demand forecast for the 10 Laoag City zones.
+  // Fetches live configured zones + hourly ML demand forecasts from Supabase.
   static Future<List<DemandZoneForecast>> getHourlyForecast({
     required int hourOfDay,
     bool isWeekday = true,
   }) async {
     try {
-      final uri = Uri.parse(
-        '$backendUrl/api/forecast?hour=$hourOfDay&is_weekday=$isWeekday',
-      );
-      final response = await http.get(uri).timeout(const Duration(milliseconds: 1200));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final list = data['zones'] as List<dynamic>;
-        return list.map((item) {
-          final m = item as Map<String, dynamic>;
+      final client = Supabase.instance.client;
+      final zoneRows =
+          await client.from('laoag_zones').select().order('zone_code');
+      final forecastRows = await client.from('zone_demand_forecasts').select();
+      final metricRow = await client
+          .from('ml_model_metrics')
+          .select()
+          .eq('id', 'latest')
+          .maybeSingle();
+
+      if (zoneRows.isNotEmpty) {
+        final forecastMap = <String, Map<String, dynamic>>{};
+        for (final f in forecastRows) {
+          final code = f['zone_code']?.toString() ?? '';
+          if (code.isNotEmpty) {
+            forecastMap[code] = Map<String, dynamic>.from(f);
+          }
+        }
+
+        final mase = (metricRow?['mase'] as num?)?.toDouble() ?? modelMase;
+        final rmse = (metricRow?['rmse'] as num?)?.toDouble() ?? modelRmse;
+        final wmape =
+            (metricRow?['wmape_percent'] as num?)?.toDouble() ?? modelWmapePercent;
+        final mape = (metricRow?['nonzero_mape_percent'] as num?)?.toDouble() ??
+            modelNonZeroMapePercent;
+
+        return zoneRows.map((z) {
+          final code = z['zone_code']?.toString() ?? 'Z01';
+          final f = forecastMap[code];
+          final predictedDouble =
+              (f?['predicted_demand'] as num?)?.toDouble() ?? 0.0;
+          final live1h = (f?['live_1h_requests'] as num?)?.toInt() ?? 0;
+          final predicted = predictedDouble.round();
+
           return DemandZoneForecast(
-            zoneCode: m['zone_code'] as String,
-            zoneName: m['zone_name'] as String,
+            zoneCode: code,
+            zoneName: z['zone_name']?.toString() ?? code,
             center: LatLng(
-              (m['latitude'] as num).toDouble(),
-              (m['longitude'] as num).toDouble(),
+              (z['lat'] as num).toDouble(),
+              (z['lng'] as num).toDouble(),
             ),
-            radiusMeters: (m['radius_meters'] as num?)?.toDouble() ?? 380.0,
-            predictedRequestsPerHour: (m['predicted_requests'] as num).toInt(),
-            baselineLastWeekRequests: (m['baseline_requests'] as num).toInt(),
-            mase: (m['mase'] as num?)?.toDouble() ?? modelMase,
-            rmse: (m['rmse'] as num?)?.toDouble() ?? modelRmse,
-            wmapePercent: (m['wmape_percent'] as num?)?.toDouble() ?? modelWmapePercent,
-            nonZeroMapePercent: (m['mape_percent'] as num?)?.toDouble() ?? modelNonZeroMapePercent,
+            radiusMeters: (z['radius_meters'] as num?)?.toDouble() ?? 320.0,
+            predictedRequestsPerHour: predicted,
+            baselineLastWeekRequests: live1h,
+            mase: mase,
+            rmse: rmse,
+            wmapePercent: wmape,
+            nonZeroMapePercent: mape,
           );
         }).toList();
       }
     } catch (_) {
-      // Fallback to embedded calibrated spatial-temporal model
+      // Fallback to embedded calibrated spatial-temporal model (e.g. offline/tests)
     }
 
     return _evaluateCalibratedModel(hourOfDay: hourOfDay, isWeekday: isWeekday);

@@ -913,6 +913,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     (row['lat'] as num?)?.toDouble() ?? _mlZones[idx]['lat'];
                 _mlZones[idx]['lng'] =
                     (row['lng'] as num?)?.toDouble() ?? _mlZones[idx]['lng'];
+                _mlZones[idx]['radius'] =
+                    (row['radius_meters'] as num?)?.toDouble() ?? 320.0;
                 _mlZones[idx]['keywords'] =
                     row['keywords']?.toString() ?? '';
               }
@@ -2426,7 +2428,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                       userAgentPackageName: 'com.pasadanorte.web_admin',
                     ),
-                    // Dual-layer soft concentric demand heatmap (matches mobile app)
+                    // Dual-layer soft concentric demand heatmap (uses per-zone radius)
                     CircleLayer(
                       circles: _mlZones.map((z) {
                         final demand = _getDynamicZoneDemand(z);
@@ -2437,11 +2439,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         } else if (demand >= 15) {
                           heatColor = const Color(0xFFF59E0B);
                         } else if (demand < 5) {
-                          heatColor = const Color(0xFF94A3B8);
+                          heatColor = const Color(0xFF64748B);
                         }
                         final double baseRadius =
-                            (110.0 + (demand.clamp(5, 60) * 3.5)) *
-                                (isSelected ? 1.2 : 1.0);
+                            ((z['radius'] as num?)?.toDouble() ?? 320.0) *
+                                (isSelected ? 1.08 : 1.0);
                         return CircleMarker(
                           point: LatLng(
                             (z['lat'] as num).toDouble(),
@@ -2450,7 +2452,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           radius: baseRadius * 1.25,
                           useRadiusInMeter: true,
                           color: heatColor.withValues(
-                            alpha: isSelected ? 0.24 : 0.18,
+                            alpha: isSelected ? 0.24 : 0.16,
                           ),
                           borderStrokeWidth: 0,
                         );
@@ -2466,25 +2468,25 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         } else if (demand >= 15) {
                           heatColor = const Color(0xFFF59E0B);
                         } else if (demand < 5) {
-                          heatColor = const Color(0xFF94A3B8);
+                          heatColor = const Color(0xFF64748B);
                         }
                         final double baseRadius =
-                            (110.0 + (demand.clamp(5, 60) * 3.5)) *
-                                (isSelected ? 1.2 : 1.0);
+                            ((z['radius'] as num?)?.toDouble() ?? 320.0) *
+                                (isSelected ? 1.08 : 1.0);
                         return CircleMarker(
                           point: LatLng(
                             (z['lat'] as num).toDouble(),
                             (z['lng'] as num).toDouble(),
                           ),
-                          radius: baseRadius * 0.72,
+                          radius: baseRadius * 0.78,
                           useRadiusInMeter: true,
                           color: heatColor.withValues(
-                            alpha: isSelected ? 0.45 : 0.35,
+                            alpha: isSelected ? 0.44 : 0.32,
                           ),
-                          borderColor: heatColor.withValues(
-                            alpha: isSelected ? 0.95 : 0.75,
-                          ),
-                          borderStrokeWidth: isSelected ? 2.0 : 1.4,
+                          borderColor: isSelected
+                              ? const Color(0xFF059669)
+                              : heatColor.withValues(alpha: 0.78),
+                          borderStrokeWidth: isSelected ? 2.2 : 1.4,
                         );
                       }).toList(),
                     ),
@@ -2928,6 +2930,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       (zone['lat'] as num).toDouble(),
       (zone['lng'] as num).toDouble(),
     );
+    double zoneRadius =
+        ((zone['radius'] as num?)?.toDouble() ?? 320.0).clamp(100.0, 600.0);
     bool isSatellite = false;
     final zoneMapController = MapController();
 
@@ -3015,6 +3019,19 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                     : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                                 userAgentPackageName: 'com.pasadanorte.web_admin',
                               ),
+                              CircleLayer(
+                                circles: [
+                                  CircleMarker(
+                                    point: pinnedPoint,
+                                    radius: zoneRadius,
+                                    useRadiusInMeter: true,
+                                    color: const Color(0xFF059669)
+                                        .withValues(alpha: 0.22),
+                                    borderColor: const Color(0xFF059669),
+                                    borderStrokeWidth: 2,
+                                  ),
+                                ],
+                              ),
                               MarkerLayer(
                                 markers: [
                                   Marker(
@@ -3064,6 +3081,34 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Hotzone Radius Calibration:',
+                        style: TextStyle(
+                            fontSize: 12.5, fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        '${zoneRadius.round()} meters',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    value: zoneRadius,
+                    min: 100.0,
+                    max: 600.0,
+                    divisions: 50,
+                    activeColor: const Color(0xFF059669),
+                    label: '${zoneRadius.round()} m',
+                    onChanged: (val) => setDialogState(() => zoneRadius = val),
+                  ),
                 ],
               ),
             ),
@@ -3097,6 +3142,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         zone['name'] = newName;
         zone['lat'] = double.parse(pinnedPoint.latitude.toStringAsFixed(6));
         zone['lng'] = double.parse(pinnedPoint.longitude.toStringAsFixed(6));
+        zone['radius'] = zoneRadius.roundToDouble();
         zone['keywords'] = newKeywords;
         _selectedZoneCode = code;
       });
@@ -3106,6 +3152,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           'zone_name': newName,
           'lat': double.parse(pinnedPoint.latitude.toStringAsFixed(6)),
           'lng': double.parse(pinnedPoint.longitude.toStringAsFixed(6)),
+          'radius_meters': zoneRadius.roundToDouble(),
           'keywords': newKeywords,
           'updated_at': DateTime.now().toIso8601String(),
         });
