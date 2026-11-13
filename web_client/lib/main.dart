@@ -281,6 +281,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 
   // Flagged 1:1 Face Verifications Queue (populated live from Supabase)
   final List<Map<String, dynamic>> _flaggedVerifications = [];
+  String _passengerAppFilter = 'All';
 
   // Driver Applications & Vehicle Compliance Queue (populated live from Supabase)
   String _driverAppFilter = 'All'; // 'All', 'submitted', 'under_review', 'approved', 'resubmission_requested', 'rejected'
@@ -866,6 +867,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     'latency': ((u['verification_latency_ms'] as num?)?.toDouble() ?? 0.0) / 1000.0,
                     'status': u['verification_status'] ?? 'pending',
                     'note': u['admin_review_note'] ?? 'Synced from Supabase',
+                    'id_photo_url': u['id_photo_url'] ?? '',
+                    'profile_photo_url': u['profile_photo_url'] ?? '',
+                    'created_at': u['created_at'] ?? '',
                   }));
           });
         }
@@ -1324,6 +1328,33 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       _buildSidebarSectionLabel('ORGANIZATION MANAGEMENT'),
                       _buildSidebarItem(Icons.people_outline_rounded, 'Directory & Drivers'),
                       _buildSidebarItem(Icons.how_to_reg_outlined, 'Driver Applications'),
+                      _buildSidebarItem(
+                        Icons.badge_outlined,
+                        'Passenger Applications',
+                        badge: () {
+                          final pendingCount = _flaggedVerifications
+                              .where((u) =>
+                                  (u['role'] ?? 'rider') == 'rider' &&
+                                  (u['status'] ?? 'pending') == 'pending')
+                              .length;
+                          if (pendingCount == 0) return null;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$pendingCount',
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFB45309),
+                              ),
+                            ),
+                          );
+                        }(),
+                      ),
                       _buildSidebarItem(Icons.verified_user_outlined, '1:1 Face Verifications'),
                       _buildSidebarItem(Icons.settings_outlined, 'Settings & Compliance'),
                     ],
@@ -1624,6 +1655,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return Icons.people_outline_rounded;
       case 'Driver Applications':
         return Icons.how_to_reg_outlined;
+      case 'Passenger Applications':
+        return Icons.badge_outlined;
       case '1:1 Face Verifications':
         return Icons.verified_user_outlined;
       case 'Settings & Compliance':
@@ -1660,6 +1693,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return _buildDirectoryView();
       case 'Driver Applications':
         return _buildDriverApplicationsView();
+      case 'Passenger Applications':
+        return _buildPassengerApplicationsView();
       case '1:1 Face Verifications':
         return _buildFaceVerificationsView();
       case 'Settings & Compliance':
@@ -4957,6 +4992,700 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         },
       ),
     );
+  }
+
+  // ===========================================================================
+  // 9C. PASSENGER APPLICATIONS & IDENTITY VERIFICATION VIEW
+  // ===========================================================================
+  Widget _buildPassengerApplicationsView() {
+    final allPassengers = _flaggedVerifications
+        .where((u) => (u['role'] ?? 'rider').toString() == 'rider')
+        .toList();
+
+    final filtered = allPassengers.where((p) {
+      final status = (p['status'] ?? 'pending').toString();
+      if (_passengerAppFilter == 'All') return status != 'rejected';
+      return status == _passengerAppFilter;
+    }).toList();
+
+    final pendingCount =
+        allPassengers.where((p) => (p['status'] ?? 'pending') == 'pending').length;
+    final approvedCount =
+        allPassengers.where((p) => p['status'] == 'approved').length;
+    final rejectedCount =
+        allPassengers.where((p) => p['status'] == 'rejected').length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Passenger Applications & ID Verification',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Review passenger submitted ID and 1:1 Face Bio Scan (target turnaround: 1 hour or less). Profile photos may be real photos or illustration avatars.',
+          style: TextStyle(fontSize: 13.5, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 20),
+
+        // Metrics Row
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Pending Review (<= 1 hr)',
+                value: '$pendingCount',
+                icon: Icons.hourglass_top_rounded,
+                color: Colors.amber.shade700,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Approved Passengers',
+                value: '$approvedCount',
+                icon: Icons.verified_user_rounded,
+                color: const Color(0xFF059669),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: InkWell(
+                onTap: () => setState(() => _passengerAppFilter = 'rejected'),
+                borderRadius: BorderRadius.circular(14),
+                child: _buildMetricTile(
+                  title: 'Rejected (Trash)',
+                  value: '$rejectedCount',
+                  icon: Icons.delete_outline_rounded,
+                  color: Colors.red.shade600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Filter Chips
+        Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            for (final filter in const [
+              ('All', 'All Active'),
+              ('pending', 'Pending'),
+              ('approved', 'Approved'),
+              ('re_upload_requested', 'Resubmission Requested'),
+              ('rejected', 'Rejected (Trash)'),
+            ])
+              ChoiceChip(
+                label: Text(filter.$2),
+                selected: _passengerAppFilter == filter.$1,
+                onSelected: (_) =>
+                    setState(() => _passengerAppFilter = filter.$1),
+                selectedColor: const Color(0xFF059669).withValues(alpha: 0.14),
+                labelStyle: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: _passengerAppFilter == filter.$1
+                      ? const Color(0xFF059669)
+                      : Colors.grey.shade700,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        if (filtered.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(40),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.badge_outlined, size: 48, color: Colors.grey.shade400),
+                const SizedBox(height: 12),
+                Text(
+                  'No passenger applications found for this filter.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          )
+        else
+          ...filtered.map(_buildPassengerApplicationCard),
+      ],
+    );
+  }
+
+  Widget _buildPassengerAvatar(Map<String, dynamic> pax, bool isApproved) {
+    final photoUrl = (pax['profile_photo_url'] ?? '').toString();
+    final name = (pax['name'] ?? 'P').toString();
+
+    if (photoUrl.startsWith('assets/')) {
+      return CircleAvatar(
+        radius: 22,
+        backgroundColor:
+            isApproved ? const Color(0xFFDCFCE7) : const Color(0xFFE0F2FE),
+        child: ClipOval(
+          child: Image.asset(
+            photoUrl,
+            width: 44,
+            height: 44,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.face_rounded,
+              color: Color(0xFF0284C7),
+              size: 24,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (photoUrl.isNotEmpty) {
+      return _buildDriverAvatar(
+        {
+          'profile_photo_url': photoUrl,
+          'full_name': name,
+        },
+        isApproved,
+      );
+    }
+
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor:
+          isApproved ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'P',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          color: isApproved
+              ? const Color(0xFF059669)
+              : const Color(0xFF334155),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPassengerApplicationCard(Map<String, dynamic> pax) {
+    final status = (pax['status'] ?? 'pending').toString();
+    final isApproved = status == 'approved';
+    final isResubmit =
+        status == 're_upload_requested' || status == 'resubmission_requested';
+    final isRejected = status == 'rejected';
+    final paxKey = _getAppKey({
+      'id': pax['id'],
+      'phone_number': pax['phone_number'],
+      'full_name': pax['name'],
+    });
+
+    final idPhotoUrl = (pax['id_photo_url'] ?? '').toString();
+    final profilePhotoUrl = (pax['profile_photo_url'] ?? '').toString();
+    final hasIllustrationAvatar = profilePhotoUrl.startsWith('assets/');
+    final double similarity = (pax['similarity'] as num?)?.toDouble() ?? 0.0;
+    final String faceDetail = similarity > 0
+        ? 'Match ${similarity.toStringAsFixed(1)}% • $status'
+        : 'Liveness & 1:1 Face Match ($status)';
+
+    final idState = _getDocReviewState(paxKey, 'rider_id_photo_url');
+    final faceState = _getDocReviewState(paxKey, 'face_bio_scan');
+    final bool allPassed = idState == 'pass' && faceState == 'pass';
+    final int resubmitCount =
+        (idState == 'resubmit' ? 1 : 0) + (faceState == 'resubmit' ? 1 : 0);
+
+    Color statusBg = const Color(0xFFFEF3C7);
+    Color statusColor = const Color(0xFFB45309);
+    String statusLabel = 'PENDING REVIEW (<= 1 HR)';
+    if (isApproved) {
+      statusBg = const Color(0xFFD1FAE5);
+      statusColor = const Color(0xFF059669);
+      statusLabel = 'APPROVED PASSENGER';
+    } else if (isResubmit) {
+      statusBg = const Color(0xFFFEF9C3);
+      statusColor = const Color(0xFF854D0E);
+      statusLabel = 'RESUBMISSION REQUESTED';
+    } else if (isRejected) {
+      statusBg = const Color(0xFFFEE2E2);
+      statusColor = const Color(0xFFDC2626);
+      statusLabel = 'REJECTED (TRASH)';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isApproved
+              ? const Color(0xFF86EFAC)
+              : (isRejected ? const Color(0xFFFCA5A5) : Colors.grey.shade200),
+          width: isApproved ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                _buildPassengerAvatar(pax, isApproved),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            (pax['name'] ?? 'Passenger').toString(),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              (pax['idType'] ?? 'Submitted ID').toString(),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0369A1),
+                              ),
+                            ),
+                          ),
+                          if (hasIllustrationAvatar)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF3E8FF),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Illustration Avatar Accepted',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF7E22CE),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Contact: ${pax['phone_number'] ?? ''} • Submitted: ${(pax['created_at'] ?? '').toString().split('T').first}',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Passenger Verification Checklist (ID + 1:1 Face Bio Scan)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.fact_check_outlined,
+                          size: 16, color: Color(0xFF059669)),
+                      SizedBox(width: 6),
+                      Text(
+                        'Passenger Identity Verification (2 Required Checks)',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDocStatusRow(
+                    app: pax,
+                    appKey: paxKey,
+                    columnKey: 'rider_id_photo_url',
+                    title: 'Submitted ID',
+                    detail: (pax['idType'] ?? 'Valid ID').toString(),
+                    isAvailable: idPhotoUrl.isNotEmpty || true,
+                    onView: () => _showDriverAppDocDialog(
+                      context,
+                      'Passenger Submitted ID (${pax['idType'] ?? ''})',
+                      idPhotoUrl.isNotEmpty ? idPhotoUrl : null,
+                    ),
+                  ),
+                  _buildDocStatusRow(
+                    app: pax,
+                    appKey: paxKey,
+                    columnKey: 'face_bio_scan',
+                    title: '1:1 Face Bio Scan',
+                    detail: faceDetail,
+                    isAvailable: true,
+                    onView: () => _showFaceBioScanDialog(
+                      context,
+                      {
+                        'full_name': pax['name'],
+                        'phone_number': pax['phone_number'],
+                      },
+                      pax,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            if ((pax['note'] ?? '').toString().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Admin Review Note: ${pax['note']}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+
+            // Actions
+            if (isRejected)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _permanentlyDeletePassengerApp(pax),
+                    icon: const Icon(Icons.delete_forever_rounded,
+                        size: 17, color: Colors.red),
+                    label: const Text(
+                      'Delete Permanently',
+                      style: TextStyle(
+                          color: Colors.red, fontWeight: FontWeight.bold),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.red.shade300),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              )
+            else if (!isApproved)
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _rejectPassengerApp(pax),
+                    icon: const Icon(Icons.delete_outline_rounded,
+                        size: 16, color: Colors.red),
+                    label: const Text('Reject',
+                        style: TextStyle(color: Colors.red)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.red.shade300),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: resubmitCount > 0
+                        ? () => _requestResubmissionPassengerApp(pax, paxKey)
+                        : null,
+                    icon: const Icon(Icons.assignment_late_outlined, size: 16),
+                    label: Text(
+                      resubmitCount > 0
+                          ? 'Request Resubmission ($resubmitCount)'
+                          : 'Request Resubmission',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orange.shade800,
+                      side: BorderSide(
+                        color: resubmitCount > 0
+                            ? Colors.orange.shade400
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed:
+                        allPassed ? () => _approvePassengerApp(pax) : null,
+                    icon: const Icon(Icons.check_circle_outline_rounded,
+                        size: 16),
+                    label: Text(
+                      allPassed
+                          ? 'Approve Passenger'
+                          : 'Pass ID & Face Scan First',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      disabledForegroundColor: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _approvePassengerApp(Map<String, dynamic> pax) async {
+    const note = 'Approved by Laoag MINC Officer (ID & 1:1 Face Scan verified).';
+    try {
+      await Supabase.instance.client.from('users').update({
+        'verification_status': 'approved',
+        'admin_review_note': note,
+      }).eq('phone_number', pax['phone_number']);
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        pax['status'] = 'approved';
+        pax['note'] = note;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${pax['name']} approved as PasadaNorte Passenger!'),
+          backgroundColor: const Color(0xFF059669),
+        ),
+      );
+    }
+  }
+
+  Future<void> _requestResubmissionPassengerApp(
+      Map<String, dynamic> pax, String paxKey) async {
+    final reasons = <String>[];
+    if (_getDocReviewState(paxKey, 'rider_id_photo_url') == 'resubmit') {
+      final r = _docReviewReasons[paxKey]?['rider_id_photo_url'] ??
+          'Unclear or mismatched ID';
+      reasons.add('• Submitted ID: $r');
+    }
+    if (_getDocReviewState(paxKey, 'face_bio_scan') == 'resubmit') {
+      final r = _docReviewReasons[paxKey]?['face_bio_scan'] ??
+          'Face bio scan did not match ID photo';
+      reasons.add('• 1:1 Face Bio Scan: $r');
+    }
+    final combinedNote = reasons.isNotEmpty
+        ? reasons.join('\n')
+        : 'Admin requested resubmission of ID or 1:1 Face Bio Scan.';
+
+    try {
+      await Supabase.instance.client.from('users').update({
+        'verification_status': 're_upload_requested',
+        'admin_review_note': combinedNote,
+      }).eq('phone_number', pax['phone_number']);
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        pax['status'] = 're_upload_requested';
+        pax['note'] = combinedNote;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Resubmission requested for ${pax['name']}.'),
+          backgroundColor: Colors.orange.shade700,
+        ),
+      );
+    }
+  }
+
+  Future<void> _rejectPassengerApp(Map<String, dynamic> pax) async {
+    final presets = <String>[
+      'Suspicious or tampered ID document',
+      'Fake or fabricated identity details',
+      '1:1 Face Bio Scan does not match submitted ID',
+      'Duplicate or fraudulent account activity',
+      'Other (Specify reason)',
+    ];
+    String selected = presets.first;
+    final customCtrl = TextEditingController();
+
+    final confirmedReason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Reject Passenger Application',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select rejection reason for ${pax['name']}:',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selected,
+                  isExpanded: true,
+                  items: presets
+                      .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => selected = val);
+                  },
+                ),
+                if (selected == 'Other (Specify reason)') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: customCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Specify rejection reason',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final finalReason = selected == 'Other (Specify reason)'
+                    ? (customCtrl.text.trim().isEmpty
+                        ? 'Rejected by admin'
+                        : customCtrl.text.trim())
+                    : selected;
+                Navigator.pop(ctx, finalReason);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Move to Rejected Trash'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmedReason == null) return;
+
+    try {
+      await Supabase.instance.client.from('users').update({
+        'verification_status': 'rejected',
+        'admin_review_note': confirmedReason,
+      }).eq('phone_number', pax['phone_number']);
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        pax['status'] = 'rejected';
+        pax['note'] = confirmedReason;
+      });
+    }
+  }
+
+  Future<void> _permanentlyDeletePassengerApp(Map<String, dynamic> pax) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Permanently Delete Passenger?'),
+        content: Text(
+          'This will permanently remove ${pax['name']} (${pax['phone_number']}) from Supabase.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      await Supabase.instance.client
+          .from('users')
+          .delete()
+          .eq('phone_number', pax['phone_number']);
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _flaggedVerifications.remove(pax);
+      });
+    }
   }
 
   void _showFaceBioScanDialog(

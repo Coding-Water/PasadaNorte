@@ -6,6 +6,7 @@ import 'core/services/supabase_service.dart';
 import 'core/services/system_notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/views/driver_application_status_screen.dart';
+import 'features/auth/views/passenger_application_status_screen.dart';
 import 'features/auth/views/phone_input_screen.dart';
 import 'features/auth/views/welcome_onboarding_screen.dart';
 import 'features/driver/views/driver_map_duty_screen.dart';
@@ -60,6 +61,14 @@ class PasadaNorteMobileApp extends StatelessWidget {
       } else if (idTypeStr.toUpperCase().contains('SENIOR') ||
           idTypeStr.toUpperCase().contains('PWD')) {
         lockedCat = PassengerCategory.senior;
+      }
+      if (session.isPendingReview) {
+        return PassengerApplicationStatusScreen(
+          phoneNumber: session.phoneNumber,
+          fullName: session.fullName,
+          passengerCategory: lockedCat,
+          idType: idTypeStr,
+        );
       }
       return PassengerServiceHubScreen(
         fullName: session.fullName,

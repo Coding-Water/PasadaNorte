@@ -47,13 +47,14 @@ class SessionCacheService {
     required String phoneNumber,
     required String fullName,
     String? idType,
+    bool isPendingReview = false,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kPhone, phoneNumber);
       await prefs.setString(_kFullName, fullName);
       await prefs.setString(_kRole, 'rider');
-      await prefs.setBool(_kPendingReview, false);
+      await prefs.setBool(_kPendingReview, isPendingReview);
       if (idType != null && idType.isNotEmpty) {
         await prefs.setString(_kIdType, idType);
       } else {

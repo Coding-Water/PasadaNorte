@@ -36,9 +36,16 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
   String? _selectedGender;
   DateTime? _selectedDob;
 
-  // Profile picture: user-picked real photo file path
+  // Profile picture: user-picked real photo file path or (for riders) illustration avatar asset
   String? _pickedPhotoPath;
+  String? _selectedAvatarAsset;
   final ImagePicker _picker = ImagePicker();
+
+  static final List<String> _avatarAssets = List.generate(
+    12,
+    (index) =>
+        'assets/images/avatars/avatar_${(index + 1).toString().padLeft(2, '0')}.png',
+  );
 
   static const List<String> _genderOptions = [
     'Male',
@@ -118,6 +125,7 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
       if (file != null && mounted) {
         setState(() {
           _pickedPhotoPath = file.path;
+          _selectedAvatarAsset = null;
         });
         Navigator.pop(context);
       }
@@ -167,44 +175,100 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Take or upload a real photo of your face (no illustrations or avatars).',
+                  widget.role == UserRole.rider
+                      ? 'Choose an illustration avatar or upload a clear photo of yourself.'
+                      : 'Take or upload a real photo of your face (no illustrations or avatars).',
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
                 ),
                 const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                if (widget.role == UserRole.rider) ...[
+                  const Text(
+                    'Illustration Avatars',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.primarySlate,
+                    ),
                   ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Photo Requirements:',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.primarySlate,
-                        ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 150,
+                    child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 6,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
                       ),
-                      SizedBox(height: 6),
-                      Text(
-                        '• Plain white background\n'
-                        '• Well-lit area, facing forward\n'
-                        '• No accessories (no caps, face masks, or sunglasses)\n'
-                        '• Must clearly show your real face for passenger & driver safety',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          height: 1.45,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
+                      itemCount: _avatarAssets.length,
+                      itemBuilder: (context, index) {
+                        final assetPath = _avatarAssets[index];
+                        final isSelected = _selectedAvatarAsset == assetPath;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedAvatarAsset = assetPath;
+                              _pickedPhotoPath = null;
+                            });
+                            Navigator.pop(sheetContext);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppTheme.accentEmerald
+                                    : const Color(0xFFE2E8F0),
+                                width: isSelected ? 2.5 : 1.5,
+                              ),
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                assetPath,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 14),
+                ] else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Photo Requirements:',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.primarySlate,
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          '• Plain white background\n'
+                          '• Well-lit area, facing forward\n'
+                          '• No accessories (no caps, face masks, or sunglasses)\n'
+                          '• Must clearly show your real face for passenger & driver safety',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.45,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 18),
                 Row(
                   children: [
@@ -270,7 +334,7 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
               role: widget.role,
               passengerCategory: widget.passengerCategory,
               initialBirthDate: _selectedDob,
-              initialProfilePhotoPath: _pickedPhotoPath,
+              initialProfilePhotoPath: _selectedAvatarAsset ?? _pickedPhotoPath,
             ),
           ),
         );
@@ -345,7 +409,16 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
 
   Widget _buildAvatarPreview() {
     Widget avatarContent;
-    if (_pickedPhotoPath != null && !kIsWeb) {
+    if (_selectedAvatarAsset != null) {
+      avatarContent = ClipOval(
+        child: Image.asset(
+          _selectedAvatarAsset!,
+          width: 96,
+          height: 96,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else if (_pickedPhotoPath != null && !kIsWeb) {
       avatarContent = ClipOval(
         child: Image.file(
           File(_pickedPhotoPath!),
@@ -381,7 +454,8 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: _pickedPhotoPath != null
+                    color: (_pickedPhotoPath != null ||
+                            _selectedAvatarAsset != null)
                         ? AppTheme.accentEmerald
                         : Colors.transparent,
                     width: 2.5,

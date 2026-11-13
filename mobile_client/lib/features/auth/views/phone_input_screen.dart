@@ -8,6 +8,7 @@ import '../../fare/services/fare_calculator_service.dart';
 import '../../rider/views/passenger_service_hub_screen.dart';
 import 'driver_application_status_screen.dart';
 import 'otp_verification_screen.dart';
+import 'passenger_application_status_screen.dart';
 
 class PhoneInputScreen extends StatefulWidget {
   final bool initialIsRegisterMode;
@@ -108,23 +109,42 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
             lockedCat = PassengerCategory.senior;
           }
 
+          final riderStatus =
+              (existingUser['verification_status'] as String?) ?? 'approved';
+          final isRiderPending = riderStatus != 'approved';
+
           await SessionCacheService.saveRiderSession(
             phoneNumber: fullPhoneNumber,
             fullName: fullName,
             idType: idTypeStr,
+            isPendingReview: isRiderPending,
           );
           if (!mounted) return;
 
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PassengerServiceHubScreen(
-                fullName: fullName,
-                lockedCategory: lockedCat,
-                verifiedIdType: idTypeStr,
+          if (isRiderPending) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PassengerApplicationStatusScreen(
+                  phoneNumber: fullPhoneNumber,
+                  fullName: fullName,
+                  passengerCategory: lockedCat,
+                  idType: idTypeStr,
+                ),
               ),
-            ),
-          );
+            );
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PassengerServiceHubScreen(
+                  fullName: fullName,
+                  lockedCategory: lockedCat,
+                  verifiedIdType: idTypeStr,
+                ),
+              ),
+            );
+          }
         }
         return;
       } else {

@@ -9,6 +9,7 @@ import 'package:mobile_client/features/auth/views/driver_requirements_checklist_
 import 'package:mobile_client/features/auth/views/face_scan_screen.dart';
 import 'package:mobile_client/features/auth/views/id_upload_screen.dart';
 import 'package:mobile_client/features/auth/views/otp_verification_screen.dart';
+import 'package:mobile_client/features/auth/views/passenger_application_status_screen.dart';
 import 'package:mobile_client/features/auth/views/role_selection_screen.dart';
 import 'package:mobile_client/features/auth/views/student_check_screen.dart';
 import 'package:mobile_client/features/auth/views/senior_pwd_check_screen.dart';
@@ -17,7 +18,6 @@ import 'package:mobile_client/features/fare/services/fare_calculator_service.dar
 import 'package:mobile_client/features/legal/views/privacy_policy_screen.dart';
 import 'package:mobile_client/features/legal/views/terms_of_service_screen.dart';
 import 'package:mobile_client/features/rider/views/passenger_account_screen.dart';
-import 'package:mobile_client/features/rider/views/passenger_service_hub_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -154,12 +154,12 @@ void main() {
       // Verify Screen 3: User Details Input
       expect(find.byType(UserDetailsInputScreen), findsOneWidget);
 
-      // Test Profile Picture real-photo picker sheet (no illustration avatars)
+      // Test Profile Picture picker sheet for Passengers (illustration avatars accepted)
       await tester.tap(find.bySemanticsLabel('Choose or upload profile picture'));
       await tester.pumpAndSettle();
       expect(find.text('Profile Picture'), findsOneWidget);
-      expect(find.text('Photo Requirements:'), findsOneWidget);
-      expect(find.text('Or choose an avatar'), findsNothing);
+      expect(find.text('Illustration Avatars'), findsOneWidget);
+      expect(find.text('Photo Requirements:'), findsNothing);
       await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
 
@@ -191,9 +191,9 @@ void main() {
       await tester.tap(find.text('Skip (Testing)'));
       await tester.pumpAndSettle();
 
-      // Verifies landing on PassengerServiceHubScreen with rider greeting
-      expect(find.byType(PassengerServiceHubScreen), findsOneWidget);
-      expect(find.textContaining('Hello, Maria!'), findsOneWidget);
+      // Verifies landing on PassengerApplicationStatusScreen with <= 1 hour SLA
+      expect(find.byType(PassengerApplicationStatusScreen), findsOneWidget);
+      expect(find.textContaining('1 hour or less'), findsOneWidget);
     });
 
     testWidgets('Driver Registration Flow with Driver License only, Skip Tricycle Photos, and Skip Face Scan', (tester) async {

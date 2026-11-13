@@ -175,10 +175,40 @@ class SupabaseService {
     PassengerCategory passengerCategory = PassengerCategory.regular,
     required String idType,
     required FaceVerificationResult result,
+    String? idPhotoPath,
+    String? profilePhotoPath,
   }) async {
     final tagIdType = role == UserRole.rider
         ? '[${passengerCategory.name.toUpperCase()}] $idType'
         : idType;
+
+    // For riders, passengers are reviewed by admin (target: 1 hour or less)
+    final verificationStatusStr = role == UserRole.rider
+        ? 'pending'
+        : (result.status == VerificationStatus.reUploadRequested
+            ? 're_upload_requested'
+            : result.status.name);
+
+    String? uploadedIdPhotoUrl = idPhotoPath;
+    String? uploadedProfilePhotoUrl = profilePhotoPath;
+    if (role == UserRole.rider && _isConnected) {
+      if (idPhotoPath != null && idPhotoPath.isNotEmpty) {
+        uploadedIdPhotoUrl = await _uploadDriverDocument(
+          phoneNumber: phoneNumber,
+          docType: 'rider_id',
+          localPathOrName: idPhotoPath,
+        );
+      }
+      if (profilePhotoPath != null &&
+          profilePhotoPath.isNotEmpty &&
+          !profilePhotoPath.startsWith('assets/')) {
+        uploadedProfilePhotoUrl = await _uploadDriverDocument(
+          phoneNumber: phoneNumber,
+          docType: 'rider_profile',
+          localPathOrName: profilePhotoPath,
+        );
+      }
+    }
 
     // Cache locally so instant login works immediately even if Supabase is offline
     _localRegisteredUsers[phoneNumber] = {
@@ -187,9 +217,13 @@ class SupabaseService {
       'full_name': fullName,
       'role': role.name,
       'id_type': tagIdType,
-      'verification_status': result.status == VerificationStatus.reUploadRequested
-          ? 're_upload_requested'
-          : result.status.name,
+      'ai_similarity_percent': result.similarityScorePercent,
+      'verification_latency_ms': result.processingTimeMs,
+      'verification_status': verificationStatusStr,
+      'admin_review_note': result.decisionNote,
+      if (uploadedIdPhotoUrl != null) 'id_photo_url': uploadedIdPhotoUrl,
+      if (uploadedProfilePhotoUrl != null)
+        'profile_photo_url': uploadedProfilePhotoUrl,
     };
 
     if (!_isConnected) return _localRegisteredUsers[phoneNumber]!['id'] as String;
@@ -205,27 +239,123 @@ class SupabaseService {
             'informed_consent_timestamp': DateTime.now().toIso8601String(),
             'ai_similarity_percent': result.similarityScorePercent,
             'verification_latency_ms': result.processingTimeMs,
-            'verification_status': result.status == VerificationStatus.reUploadRequested
-                ? 're_upload_requested'
-                : result.status.name,
+            'verification_status': verificationStatusStr,
             'verification_images_deleted': result.verificationImagesDeleted,
             'admin_review_note': result.decisionNote,
           }, onConflict: 'phone_number')
           .select()
           .maybeSingle();
 
+      // Best-effort update for optional passenger media columns so missing schema
+      // columns never break core registration.
+      final mediaUpdates = <String, dynamic>{};
+      if (uploadedIdPhotoUrl != null && uploadedIdPhotoUrl.isNotEmpty) {
+        mediaUpdates['id_photo_url'] = uploadedIdPhotoUrl;
+      }
+      if (uploadedProfilePhotoUrl != null &&
+          uploadedProfilePhotoUrl.isNotEmpty) {
+        mediaUpdates['profile_photo_url'] = uploadedProfilePhotoUrl;
+      }
+      if (mediaUpdates.isNotEmpty) {
+        try {
+          await Supabase.instance.client
+              .from('users')
+              .update(mediaUpdates)
+              .eq('phone_number', phoneNumber);
+        } catch (_) {}
+      }
+
       if (inserted != null && inserted['id'] != null) {
         final userId = inserted['id'] as String;
         await Supabase.instance.client.from('biometric_access_logs').insert({
           'target_user_id': userId,
-          'action_type': result.isApproved
-              ? '1_TO_1_AUTO_APPROVED_IMAGES_PURGED'
-              : 'REFERRED_TO_ADMIN_PORTAL_QUEUE',
+          'action_type': role == UserRole.rider
+              ? 'PASSENGER_SUBMITTED_FOR_ADMIN_REVIEW'
+              : (result.isApproved
+                  ? '1_TO_1_AUTO_APPROVED_IMAGES_PURGED'
+                  : 'REFERRED_TO_ADMIN_PORTAL_QUEUE'),
         });
         return userId;
       }
     } catch (_) {}
     return _localRegisteredUsers[phoneNumber]!['id'] as String;
+  }
+
+  /// Fetches the latest passenger (`users`) record from Supabase for live status polling.
+  static Future<Map<String, dynamic>?> fetchRiderApplicationByPhone(
+      String phoneNumber) async {
+    if (_isConnected) {
+      try {
+        final row = await Supabase.instance.client
+            .from('users')
+            .select()
+            .eq('phone_number', phoneNumber)
+            .maybeSingle();
+        if (row != null) {
+          _localRegisteredUsers[phoneNumber] = row;
+          return row;
+        }
+      } catch (_) {}
+    }
+    return _localRegisteredUsers[phoneNumber];
+  }
+
+  /// Re-uploads a passenger's ID document after admin requests resubmission.
+  static Future<bool> resubmitRiderIdDocument({
+    required String phoneNumber,
+    required String localPath,
+  }) async {
+    String? uploadedUrl = localPath;
+    if (_isConnected) {
+      uploadedUrl = await _uploadDriverDocument(
+        phoneNumber: phoneNumber,
+        docType: 'rider_id',
+        localPathOrName: localPath,
+      );
+      try {
+        await Supabase.instance.client.from('users').update({
+          'verification_status': 'pending',
+          'admin_review_note': 'Passenger re-uploaded ID for admin re-review.',
+        }).eq('phone_number', phoneNumber);
+        if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
+          try {
+            await Supabase.instance.client.from('users').update({
+              'id_photo_url': uploadedUrl,
+            }).eq('phone_number', phoneNumber);
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+    if (_localRegisteredUsers.containsKey(phoneNumber)) {
+      _localRegisteredUsers[phoneNumber]!['verification_status'] = 'pending';
+      if (uploadedUrl != null) {
+        _localRegisteredUsers[phoneNumber]!['id_photo_url'] = uploadedUrl;
+      }
+    }
+    return true;
+  }
+
+  /// Updates a passenger's 1:1 Face Bio Scan result after admin requests resubmission.
+  static Future<bool> resubmitRiderFaceScan({
+    required String phoneNumber,
+    required FaceVerificationResult result,
+  }) async {
+    if (_isConnected) {
+      try {
+        await Supabase.instance.client.from('users').update({
+          'ai_similarity_percent': result.similarityScorePercent,
+          'verification_latency_ms': result.processingTimeMs,
+          'verification_status': 'pending',
+          'admin_review_note': 'Passenger redid 1:1 Face Bio Scan for admin re-review.',
+        }).eq('phone_number', phoneNumber);
+      } catch (_) {}
+    }
+    if (_localRegisteredUsers.containsKey(phoneNumber)) {
+      _localRegisteredUsers[phoneNumber]!['verification_status'] = 'pending';
+      _localRegisteredUsers[phoneNumber]!['ai_similarity_percent'] =
+          result.similarityScorePercent;
+    }
+    return true;
   }
 
   // Checks if a user account already exists by phone number for instant Login

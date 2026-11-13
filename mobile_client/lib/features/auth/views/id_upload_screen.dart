@@ -564,6 +564,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
           passengerCategory: widget.passengerCategory,
           idType: _selectedIdType,
           idPhotoPath: _capturedIdPath!,
+          profilePhotoPath: _profilePhotoPath ?? widget.initialProfilePhotoPath,
           vehicleDocumentationPhotos: widget.role == UserRole.driver
               ? _vehiclePhotos.map((k, v) => MapEntry(k, v ?? ''))
               : const {},

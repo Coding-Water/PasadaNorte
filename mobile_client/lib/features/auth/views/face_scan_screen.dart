@@ -12,9 +12,9 @@ import '../../../core/services/session_cache_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
-import '../../rider/views/passenger_service_hub_screen.dart';
 import '../models/user_model.dart';
 import 'driver_application_status_screen.dart';
+import 'passenger_application_status_screen.dart';
 
 enum _LivenessStep {
   tiltLeft,
@@ -30,6 +30,7 @@ class FaceScanScreen extends StatefulWidget {
   final PassengerCategory passengerCategory;
   final String idType;
   final String idPhotoPath;
+  final String? profilePhotoPath;
   final Map<String, String> vehicleDocumentationPhotos;
   final bool isResubmissionRedo;
 
@@ -41,6 +42,7 @@ class FaceScanScreen extends StatefulWidget {
     this.passengerCategory = PassengerCategory.regular,
     required this.idType,
     required this.idPhotoPath,
+    this.profilePhotoPath,
     this.vehicleDocumentationPhotos = const {},
     this.isResubmissionRedo = false,
   });
@@ -461,6 +463,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
       idType: widget.idType,
       idPhotoPath: widget.idPhotoPath,
       liveFacePath: liveFacePath ?? 'live_capture_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      profilePhotoPath: widget.profilePhotoPath,
       simulateLowConfidenceCase: _simulateLowConfidence,
     );
 
@@ -491,6 +494,8 @@ class _FaceScanScreenState extends State<FaceScanScreen>
       passengerCategory: widget.passengerCategory,
       idType: widget.idType,
       result: result,
+      idPhotoPath: widget.idPhotoPath,
+      profilePhotoPath: widget.profilePhotoPath,
     );
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -519,20 +524,32 @@ class _FaceScanScreenState extends State<FaceScanScreen>
         ),
       );
     } else {
+      if (widget.isResubmissionRedo) {
+        unawaited(
+          SupabaseService.resubmitRiderFaceScan(
+            phoneNumber: widget.phoneNumber,
+            result: result,
+          ),
+        );
+      }
       unawaited(
         SessionCacheService.saveRiderSession(
           phoneNumber: widget.phoneNumber,
           fullName: widget.fullName,
           idType: widget.idType,
+          isPendingReview: true,
         ),
       );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => PassengerServiceHubScreen(
+          builder: (context) => PassengerApplicationStatusScreen(
+            phoneNumber: widget.phoneNumber,
             fullName: widget.fullName,
-            lockedCategory: widget.passengerCategory,
-            verifiedIdType: widget.idType,
+            passengerCategory: widget.passengerCategory,
+            idType: widget.idType,
+            idPhotoPath: widget.idPhotoPath,
+            profilePhotoPath: widget.profilePhotoPath,
           ),
         ),
       );
@@ -637,20 +654,32 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                   ),
                 );
               } else {
+                if (widget.isResubmissionRedo) {
+                  unawaited(
+                    SupabaseService.resubmitRiderFaceScan(
+                      phoneNumber: widget.phoneNumber,
+                      result: result,
+                    ),
+                  );
+                }
                 unawaited(
                   SessionCacheService.saveRiderSession(
                     phoneNumber: widget.phoneNumber,
                     fullName: widget.fullName,
                     idType: widget.idType,
+                    isPendingReview: true,
                   ),
                 );
-                Navigator.push(
+                Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => PassengerServiceHubScreen(
+                    builder: (context) => PassengerApplicationStatusScreen(
+                      phoneNumber: widget.phoneNumber,
                       fullName: widget.fullName,
-                      lockedCategory: widget.passengerCategory,
-                      verifiedIdType: widget.idType,
+                      passengerCategory: widget.passengerCategory,
+                      idType: widget.idType,
+                      idPhotoPath: widget.idPhotoPath,
+                      profilePhotoPath: widget.profilePhotoPath,
                     ),
                   ),
                 );

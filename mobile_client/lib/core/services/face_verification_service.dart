@@ -106,6 +106,7 @@ class FaceVerificationService {
     required String idType,
     required String idPhotoPath,
     required String liveFacePath,
+    String? profilePhotoPath,
     bool simulateLowConfidenceCase = false,
   }) async {
     final stopwatch = Stopwatch()..start();
@@ -141,6 +142,8 @@ class FaceVerificationService {
           idType: idType,
           score: score,
           elapsedMs: elapsed,
+          idPhotoPath: idPhotoPath,
+          profilePhotoPath: profilePhotoPath,
         );
       }
     } catch (_) {
@@ -160,6 +163,8 @@ class FaceVerificationService {
       idType: idType,
       score: computedScore,
       elapsedMs: stopwatch.elapsedMilliseconds,
+      idPhotoPath: idPhotoPath,
+      profilePhotoPath: profilePhotoPath,
     );
   }
 
@@ -171,6 +176,8 @@ class FaceVerificationService {
     required String idType,
     required double score,
     required int elapsedMs,
+    String? idPhotoPath,
+    String? profilePhotoPath,
   }) {
     final bool passed = score >= autoApprovalThresholdPercent;
     final status = passed ? VerificationStatus.approved : VerificationStatus.pending;
@@ -209,6 +216,8 @@ class FaceVerificationService {
       passengerCategory: passengerCategory,
       idType: idType,
       result: result,
+      idPhotoPath: idPhotoPath,
+      profilePhotoPath: profilePhotoPath,
     );
 
     return result;
