@@ -101,7 +101,7 @@ class RoleSelectionScreen extends StatelessWidget {
                   Expanded(
                     child: _buildRoleButton(
                       label: 'Driver',
-                      icon: Icons.electric_rickshaw_rounded,
+                      icon: Icons.person_rounded,
                       onTap: () {
                         Navigator.push(
                           context,
