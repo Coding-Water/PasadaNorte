@@ -2568,11 +2568,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Row(
+                    const Row(
                       children: [
-                        const Icon(Icons.verified_user_rounded, color: Color(0xFF059669), size: 16),
-                        const SizedBox(width: 4),
-                        Text('${driver['verification']}% Match', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF059669), fontSize: 12)),
+                        Icon(Icons.verified_user_rounded, color: Color(0xFF059669), size: 16),
+                        SizedBox(width: 4),
+                        Text('Verified', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF059669), fontSize: 12)),
                       ],
                     ),
                     const SizedBox(height: 4),
