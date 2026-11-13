@@ -10,6 +10,10 @@ import 'package:mobile_client/features/auth/views/student_check_screen.dart';
 import 'package:mobile_client/features/auth/views/senior_pwd_check_screen.dart';
 import 'package:mobile_client/features/auth/views/user_details_input_screen.dart';
 import 'package:mobile_client/features/driver/views/driver_map_duty_screen.dart';
+import 'package:mobile_client/features/fare/services/fare_calculator_service.dart';
+import 'package:mobile_client/features/legal/views/privacy_policy_screen.dart';
+import 'package:mobile_client/features/legal/views/terms_of_service_screen.dart';
+import 'package:mobile_client/features/rider/views/passenger_account_screen.dart';
 import 'package:mobile_client/features/rider/views/passenger_service_hub_screen.dart';
 
 void main() {
@@ -214,7 +218,7 @@ void main() {
 
       // Verify Individual Screen: Driver ID & Vehicle Compliance
       expect(find.byType(IdUploadScreen), findsOneWidget);
-      expect(find.text('Step 1: Driver & Vehicle Compliance'), findsOneWidget);
+      expect(find.text('Driver & Vehicle Compliance'), findsOneWidget);
 
       // Verify Driver's License is the exclusive credential
       expect(find.text("Professional Driver's License (Valid)"), findsOneWidget);
@@ -294,6 +298,38 @@ void main() {
       final existingDriver = await SupabaseService.findUserByPhone('+639189876543');
       expect(existingDriver, isNotNull);
       expect(existingDriver!['role'], 'driver');
+    });
+
+    testWidgets('Account Settings opens Privacy Policy and Terms of Service screens', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: const PassengerAccountScreen(
+            fullName: 'Maria Santos',
+            lockedCategory: PassengerCategory.regular,
+            verifiedIdType: 'National ID (PhilSys)',
+          ),
+        ),
+      );
+
+      final privacyTile = find.text('Privacy Policy');
+      await tester.scrollUntilVisible(privacyTile, 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(privacyTile);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PrivacyPolicyScreen), findsOneWidget);
+      expect(find.text('Effective Date: November 13, 2026'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await tester.pumpAndSettle();
+
+      final termsTile = find.text('Terms of Service');
+      await tester.scrollUntilVisible(termsTile, 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(termsTile);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TermsOfServiceScreen), findsOneWidget);
+      expect(find.text('Effective Date: November 13, 2026'), findsOneWidget);
     });
   });
 }

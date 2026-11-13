@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,6 +6,8 @@ import '../../../core/services/android_permissions_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
+import '../../legal/views/privacy_policy_screen.dart';
+import '../../legal/views/terms_of_service_screen.dart';
 import '../models/user_model.dart';
 import 'face_scan_screen.dart';
 
@@ -112,21 +115,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
           "Voter's / Postal / UMID ID",
           "Driver's License",
         ];
-    }
-  }
-
-  String get _categoryRequirementBanner {
-    if (widget.role == UserRole.driver) {
-      return 'Laoag Driver Application: Complete your personal, clearance, and motorcycle compliance documentation.';
-    }
-    switch (widget.passengerCategory) {
-      case PassengerCategory.student:
-        return 'Student Fare Locked (₱15.00 1st km): Please take a clear picture of your School / Student ID.';
-      case PassengerCategory.senior:
-      case PassengerCategory.pwd:
-        return 'Senior / PWD Fare Locked (₱15.00 1st km): Please take a clear picture of your Senior Citizen or PWD ID.';
-      case PassengerCategory.regular:
-        return 'Regular Fare Locked (₱20.00 1st km): Please upload a valid Government ID for 1:1 face verification.';
     }
   }
 
@@ -432,7 +420,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Please opt in to both unbundled consent toggles (RA 10173 Biometric Processing & Location Telemetry).',
+            'Please agree to the PasadaNorte Privacy Policy and Terms of Service to continue.',
           ),
         ),
       );
@@ -463,8 +451,23 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
     final isDriver = widget.role == UserRole.driver;
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(isDriver ? 'Step 1: Driver & Vehicle Compliance' : 'Step 1: Identification Card'),
+        title: Text(
+          isDriver ? 'Driver & Vehicle Compliance' : 'Identification Card',
+          style: const TextStyle(
+            color: AppTheme.primarySlate,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.primarySlate, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           TextButton.icon(
             onPressed: _autoFillDemoData,
@@ -482,65 +485,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Category Requirement Highlight Banner
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDF4),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppTheme.accentEmerald),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.verified_rounded, color: AppTheme.accentEmerald, size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _categoryRequirementBanner,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.primarySlate,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 10),
-              // Rapid Testing Auto-fill pill
-              InkWell(
-                onTap: _autoFillDemoData,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.amber.shade400),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.bolt_rounded, size: 16, color: Colors.amber.shade900),
-                      const SizedBox(width: 6),
-                      Text(
-                        isDriver
-                            ? '⚡ Auto-Fill Driver Clearances & Vehicle Specs (Testing)'
-                            : '⚡ Auto-Fill Demo ID & Photos (Rapid Testing)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.amber.shade900,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 18),
 
               // ===============================================================
               // DRIVER SPECIFIC SECTIONS
@@ -1016,19 +960,41 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
                     color: AppTheme.primarySlate,
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  '1:1 face verification compares facial similarity between your live selfie and ID portrait only.',
-                  style: TextStyle(color: Colors.black54, fontSize: 12.5),
-                ),
                 const SizedBox(height: 16),
 
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8.0),
+                  child: Text(
+                    'Required Identification Card',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primarySlate,
+                    ),
+                  ),
+                ),
                 DropdownButtonFormField<String>(
                   key: ValueKey(_selectedIdType),
                   initialValue: _selectedIdType,
-                  decoration: const InputDecoration(
-                    labelText: 'Required Identification Card',
-                    prefixIcon: Icon(Icons.badge_rounded),
+                  isExpanded: true,
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade600),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.badge_rounded, color: AppTheme.primarySlate, size: 20),
+                    filled: true,
+                    fillColor: const Color(0xFFF7F8FA),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: AppTheme.accentEmerald, width: 1.5),
+                    ),
                   ),
                   items: _currentIdTypes.map((type) {
                     return DropdownMenuItem(
@@ -1053,76 +1019,100 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
                 ),
               ],
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // ===============================================================
-              // INFORMED CONSENTS (RA 10173 & GPS TELEMETRY)
+              // PRIVACY POLICY & TERMS OF SERVICE AGREEMENT
               // ===============================================================
-              const Text(
-                'Data Privacy Act (RA 10173) Informed Consent:',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.primarySlate,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FA),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Checkbox(
+                      value: _biometricConsentGiven && _locationTelemetryConsentGiven,
+                      activeColor: AppTheme.accentEmerald,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                      onChanged: (val) {
+                        final agreed = val ?? false;
+                        setState(() {
+                          _biometricConsentGiven = agreed;
+                          _locationTelemetryConsentGiven = agreed;
+                        });
+                      },
+                    ),
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.primarySlate,
+                            height: 1.45,
+                          ),
+                          children: [
+                            const TextSpan(text: 'I agree to the PasadaNorte '),
+                            TextSpan(
+                              text: 'Privacy Policy',
+                              style: const TextStyle(
+                                color: AppTheme.accentEmerald,
+                                fontWeight: FontWeight.w700,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                                  );
+                                },
+                            ),
+                            const TextSpan(text: ' and '),
+                            TextSpan(
+                              text: 'Terms of Service',
+                              style: const TextStyle(
+                                color: AppTheme.accentEmerald,
+                                fontWeight: FontWeight.w700,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
+                                  );
+                                },
+                            ),
+                            const TextSpan(text: '.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: Column(
-                    children: [
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        activeColor: AppTheme.accentEmerald,
-                        value: _biometricConsentGiven,
-                        onChanged: (val) => setState(() => _biometricConsentGiven = val ?? false),
-                        title: const Text(
-                          '1. Sensitive Biometric & ID Processing Consent (RA 10173 Sec. 13 & NPC Circular No. 2023-03)',
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                        ),
-                        subtitle: const Text(
-                          'I freely consent to 1:1 facial comparison between my selfie and submitted ID/clearances for registration verification.',
-                          style: TextStyle(fontSize: 11, color: Colors.black87, height: 1.35),
-                        ),
-                      ),
-                      const Divider(height: 12),
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        activeColor: AppTheme.accentEmerald,
-                        value: _locationTelemetryConsentGiven,
-                        onChanged: (val) => setState(() => _locationTelemetryConsentGiven = val ?? false),
-                        title: const Text(
-                          '2. GPS Location Telemetry & Dispatch Notification Consent',
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                        ),
-                        subtitle: const Text(
-                          'I separately consent to real-time GPS pickup pinpointing, road-route ordinance fare computation, and FIFO TODA terminal queue ("Digital Pila") telemetry.',
-                          style: TextStyle(fontSize: 11, color: Colors.black87, height: 1.35),
-                        ),
-                      ),
-                    ],
+
+              const SizedBox(height: 24),
+
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: _onNext,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.accentEmerald,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: const StadiumBorder(),
+                  ),
+                  child: const Text(
+                    'Next: 1:1 Live Face Verification',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 24),
-
-              ElevatedButton(
-                onPressed: _onNext,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.accentEmerald,
-                  minimumSize: const Size(double.infinity, 50),
-                ),
-                child: const Text('Next: 1:1 Live Face Verification'),
               ),
               const SizedBox(height: 16),
             ],

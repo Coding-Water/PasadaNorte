@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
+import '../../legal/views/privacy_policy_screen.dart';
+import '../../legal/views/terms_of_service_screen.dart';
 
 class PassengerAccountScreen extends StatelessWidget {
   final String fullName;
@@ -134,6 +136,26 @@ class PassengerAccountScreen extends StatelessWidget {
                       title: 'Help & Support',
                       subtitle: 'TODA & MINC Laoag City Desk',
                     ),
+                    const Divider(height: 1, indent: 56),
+                    _buildOptionItem(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'Privacy Policy',
+                      subtitle: 'RA 10173 Data Privacy Notice',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                      ),
+                    ),
+                    const Divider(height: 1, indent: 56),
+                    _buildOptionItem(
+                      icon: Icons.description_outlined,
+                      title: 'Terms of Service',
+                      subtitle: 'PasadaNorte User Agreement',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -158,6 +180,7 @@ class PassengerAccountScreen extends StatelessWidget {
     required IconData icon,
     required String title,
     required String subtitle,
+    VoidCallback? onTap,
   }) {
     return ListTile(
       leading: Container(
@@ -181,7 +204,7 @@ class PassengerAccountScreen extends StatelessWidget {
         style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
       ),
       trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
-      onTap: () {},
+      onTap: onTap ?? () {},
     );
   }
 }
