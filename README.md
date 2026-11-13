@@ -99,18 +99,6 @@
 
 ---
 
-## 📋 Case Study & Thesis Alignment Check
-
-| Case Study / Research Objective | Current Implementation Status | Notes |
-| :--- | :--- | :--- |
-| **Obj. 1: Ordinance 2023-005 Fare Matrix & 20% Discounts** | 🟢 Aligned | Dynamic Supabase `fare_guide_table` synced to mobile & web audit. |
-| **Obj. 2: 1:1 Face Verification (ISO/IEC 19795-1 & RA 10173)** | 🟢 Aligned + Extended | Added Web Admin Driver & Passenger Application portals with resubmission loops and Android notifications. |
-| **Obj. 3: ML Demand Radar & $k \ge 5$ Privacy Masking** | 🟢 Aligned + Upgraded | Now overlaid on an interactive `FlutterMap` of Laoag City (`Z01`–`Z10`). |
-| **Obj. 4: Digital Pila Geofencing & NTP Calibration** | 🟢 Aligned + Upgraded | Expanded from static `10m–50m` presets to dynamic map-pinned TODA Pilas (`10m–150m`) synced live to Driver Maps. |
-| **Obj. 5: Emergency SOS & Dispatch Sentinel** | 🟡 Testing Mode | Live SOS beacons active; static seeded alert removed; PNP dispatch call button paused for testing. |
-
----
-
 ## 📂 Project Repository Structure
 
 ```
