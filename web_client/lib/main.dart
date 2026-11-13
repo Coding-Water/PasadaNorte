@@ -286,6 +286,27 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   String _driverAppSearchQuery = '';
   final List<Map<String, dynamic>> _driverApplications = [];
 
+  // Per-document / per-photo review state keyed by applicant key -> column key
+  final Map<String, Map<String, String>> _docReviewStatus = {};
+  final Map<String, Map<String, String>> _docReviewReasons = {};
+
+  static const List<String> _resubmitReasonOptions = [
+    'Blurry or unreadable photo/scan',
+    'Document is expired or invalid',
+    'Selfie is not on a plain white background / wearing accessories or mask',
+    'Cropped or missing document details',
+    'Wrong file or mismatched document uploaded',
+    'Vehicle plate or side view is unclear',
+    'Other (Specify reason)',
+  ];
+
+  static const List<String> _rejectReasonOptions = [
+    'Suspicious activity or tampered documents detected',
+    'Repeated submission of fake or mismatched data',
+    'Ineligible driver age or non-compliant vehicle specs',
+    'Other (Specify reason)',
+  ];
+
   // System Audit Trail
   final List<Map<String, dynamic>> _systemAuditLogs = [];
 
@@ -3627,6 +3648,19 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     final isModelYearValid = modelYear >= 2016;
     final isOwned = app['is_motorcycle_owned'] as bool? ?? true;
     final maskedPhone = _maskPhoneNumber(app['phone_number']?.toString() ?? '');
+    final appKey = _getAppKey(app);
+    final requiredDocItems = _getRequiredDocSpecs(
+      isFitToWorkMandatory: isFitToWorkMandatory,
+      isOwned: isOwned,
+    );
+    final int totalRequiredDocs = requiredDocItems.length;
+    final int passedDocsCount = requiredDocItems.where((item) {
+      final col = item.$1;
+      final hasFile = (app[col]?.toString().trim() ?? '').isNotEmpty;
+      return hasFile && _getDocReviewState(appKey, col) == 'pass';
+    }).length;
+    final bool allRequirementsFulfilled =
+        totalRequiredDocs > 0 && passedDocsCount == totalRequiredDocs;
 
     Color statusBg = const Color(0xFFFEF3C7);
     Color statusColor = const Color(0xFFB45309);
@@ -3799,18 +3833,27 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             ),
                             const SizedBox(height: 8),
                             _buildDocStatusRow(
+                              app: app,
+                              appKey: appKey,
+                              columnKey: 'license_photo_url',
                               title: 'Professional Driver\'s License',
                               detail: '${app['license_number'] ?? 'Valid'} (Exp: ${app['license_expiry_date'] ?? '2028'})',
                               isAvailable: app['license_photo_url'] != null,
                               onView: () => _showDriverAppDocDialog(context, 'Professional Driver\'s License', app['license_photo_url']),
                             ),
                             _buildDocStatusRow(
+                              app: app,
+                              appKey: appKey,
+                              columnKey: 'nbi_clearance_url',
                               title: 'NBI Clearance',
                               detail: 'Original / Valid Renewal Receipt',
                               isAvailable: app['nbi_clearance_url'] != null,
                               onView: () => _showDriverAppDocDialog(context, 'NBI Clearance', app['nbi_clearance_url']),
                             ),
                             _buildDocStatusRow(
+                              app: app,
+                              appKey: appKey,
+                              columnKey: 'police_or_barangay_clearance_url',
                               title: 'Barangay or Police Clearance',
                               detail: 'Laoag City Local Jurisdiction',
                               isAvailable: app['police_or_barangay_clearance_url'] != null,
@@ -3818,12 +3861,18 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             ),
                             if (isFitToWorkMandatory)
                               _buildDocStatusRow(
+                                app: app,
+                                appKey: appKey,
+                                columnKey: 'fit_to_work_cert_url',
                                 title: 'Fit-to-Work Medical Certificate',
                                 detail: 'Mandated for drivers aged 50 to 55',
                                 isAvailable: hasFitToWork,
                                 onView: () => _showDriverAppDocDialog(context, 'Fit-to-Work Medical Certificate', app['fit_to_work_cert_url']),
                               ),
                             _buildDocStatusRow(
+                              app: app,
+                              appKey: appKey,
+                              columnKey: 'profile_photo_url',
                               title: 'Selfie / Profile Photo',
                               detail: 'White background, well-lit, no accessories',
                               isAvailable: app['profile_photo_url'] != null,
@@ -3885,16 +3934,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             const Divider(height: 14),
                             Row(
                               children: [
-                                TextButton.icon(
-                                  onPressed: () => _showDriverAppDocDialog(context, 'LTO Official Receipt (OR)', app['or_photo_url']),
-                                  icon: const Icon(Icons.description_outlined, size: 14),
-                                  label: const Text('View OR', style: TextStyle(fontSize: 11)),
-                                ),
-                                const SizedBox(width: 6),
-                                TextButton.icon(
-                                  onPressed: () => _showDriverAppDocDialog(context, 'LTO Certificate of Registration (CR)', app['cr_photo_url']),
-                                  icon: const Icon(Icons.description_outlined, size: 14),
-                                  label: const Text('View CR', style: TextStyle(fontSize: 11)),
+                                const Text(
+                                  'Ownership & LTO Documents',
+                                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
                                 ),
                                 const Spacer(),
                                 Container(
@@ -3914,21 +3956,43 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 6),
+                            _buildDocStatusRow(
+                              app: app,
+                              appKey: appKey,
+                              columnKey: 'or_photo_url',
+                              title: 'LTO Official Receipt (OR)',
+                              detail: 'Current motorcycle registration receipt',
+                              isAvailable: app['or_photo_url'] != null,
+                              onView: () => _showDriverAppDocDialog(context, 'LTO Official Receipt (OR)', app['or_photo_url']),
+                            ),
+                            _buildDocStatusRow(
+                              app: app,
+                              appKey: appKey,
+                              columnKey: 'cr_photo_url',
+                              title: 'LTO Certificate of Registration (CR)',
+                              detail: 'Vehicle ownership certificate',
+                              isAvailable: app['cr_photo_url'] != null,
+                              onView: () => _showDriverAppDocDialog(context, 'LTO Certificate of Registration (CR)', app['cr_photo_url']),
+                            ),
                             if (!isOwned) ...[
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  TextButton.icon(
-                                    onPressed: () => _showDriverAppDocDialog(context, 'Owner Authorization Letter', app['owner_authorization_letter_url']),
-                                    icon: const Icon(Icons.forward_to_inbox_rounded, size: 14),
-                                    label: const Text('Auth Letter', style: TextStyle(fontSize: 11)),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: () => _showDriverAppDocDialog(context, 'Owner Valid ID', app['owner_id_photo_url']),
-                                    icon: const Icon(Icons.contact_mail_outlined, size: 14),
-                                    label: const Text('Owner ID', style: TextStyle(fontSize: 11)),
-                                  ),
-                                ],
+                              _buildDocStatusRow(
+                                app: app,
+                                appKey: appKey,
+                                columnKey: 'owner_authorization_letter_url',
+                                title: 'Owner Authorization Letter',
+                                detail: 'Signed permission from registered owner',
+                                isAvailable: app['owner_authorization_letter_url'] != null,
+                                onView: () => _showDriverAppDocDialog(context, 'Owner Authorization Letter', app['owner_authorization_letter_url']),
+                              ),
+                              _buildDocStatusRow(
+                                app: app,
+                                appKey: appKey,
+                                columnKey: 'owner_id_photo_url',
+                                title: 'Owner Valid ID',
+                                detail: 'Government-issued ID of registered owner',
+                                isAvailable: app['owner_id_photo_url'] != null,
+                                onView: () => _showDriverAppDocDialog(context, 'Owner Valid ID', app['owner_id_photo_url']),
                               ),
                             ],
                           ],
@@ -3947,22 +4011,58 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.grey.shade200),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.camera_alt_outlined, size: 16, color: Color(0xFF0F172A)),
-                      const SizedBox(width: 8),
-                      const Text(
-                        '4-Angle Tricycle Views:',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                      const Row(
+                        children: [
+                          Icon(Icons.camera_alt_outlined, size: 16, color: Color(0xFF0F172A)),
+                          SizedBox(width: 8),
+                          Text(
+                            '4-Angle Tricycle Views:',
+                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 14),
-                      _buildAnglePhotoPill(context, 'Front View', app['vehicle_front_photo_url']),
-                      const SizedBox(width: 8),
-                      _buildAnglePhotoPill(context, 'Back View', app['vehicle_back_photo_url']),
-                      const SizedBox(width: 8),
-                      _buildAnglePhotoPill(context, 'Left Side', app['vehicle_left_photo_url']),
-                      const SizedBox(width: 8),
-                      _buildAnglePhotoPill(context, 'Right Side', app['vehicle_right_photo_url']),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 8,
+                        children: [
+                          _buildAnglePhotoPill(
+                            context,
+                            app: app,
+                            appKey: appKey,
+                            columnKey: 'vehicle_front_photo_url',
+                            angle: 'Front View',
+                            url: app['vehicle_front_photo_url'],
+                          ),
+                          _buildAnglePhotoPill(
+                            context,
+                            app: app,
+                            appKey: appKey,
+                            columnKey: 'vehicle_back_photo_url',
+                            angle: 'Back View',
+                            url: app['vehicle_back_photo_url'],
+                          ),
+                          _buildAnglePhotoPill(
+                            context,
+                            app: app,
+                            appKey: appKey,
+                            columnKey: 'vehicle_left_photo_url',
+                            angle: 'Left Side',
+                            url: app['vehicle_left_photo_url'],
+                          ),
+                          _buildAnglePhotoPill(
+                            context,
+                            app: app,
+                            appKey: appKey,
+                            columnKey: 'vehicle_right_photo_url',
+                            angle: 'Right Side',
+                            url: app['vehicle_right_photo_url'],
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -4001,14 +4101,27 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             label: const Text('Reject', style: TextStyle(fontSize: 11.5, color: Color(0xFFDC2626))),
                           ),
                           ElevatedButton.icon(
-                            onPressed: () => _approveDriverApp(app),
+                            onPressed: allRequirementsFulfilled
+                                ? () => _approveDriverApp(app)
+                                : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF059669),
-                              foregroundColor: Colors.white,
+                              backgroundColor: allRequirementsFulfilled
+                                  ? const Color(0xFF059669)
+                                  : Colors.grey.shade300,
+                              foregroundColor: allRequirementsFulfilled
+                                  ? Colors.white
+                                  : Colors.grey.shade600,
+                              disabledBackgroundColor: Colors.grey.shade200,
+                              disabledForegroundColor: Colors.grey.shade500,
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             ),
                             icon: const Icon(Icons.check_circle_rounded, size: 15),
-                            label: const Text('Approve & Assign Body #', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                            label: Text(
+                              allRequirementsFulfilled
+                                  ? 'Approve & Assign TODA Pila'
+                                  : 'Approve & Assign TODA Pila ($passedDocsCount/$totalRequiredDocs Passed)',
+                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ] else
                           Container(
@@ -4040,36 +4153,285 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     );
   }
 
+  String _getAppKey(Map<String, dynamic> app) {
+    return (app['id'] ?? app['phone_number'] ?? app['full_name'] ?? 'driver')
+        .toString();
+  }
+
+  String _getDocReviewState(String appKey, String columnKey) {
+    return _docReviewStatus[appKey]?[columnKey] ?? 'pending';
+  }
+
+  List<(String, String)> _getRequiredDocSpecs({
+    required bool isFitToWorkMandatory,
+    required bool isOwned,
+  }) {
+    return [
+      ('license_photo_url', "Professional Driver's License"),
+      ('nbi_clearance_url', 'NBI Clearance'),
+      ('police_or_barangay_clearance_url', 'Barangay or Police Clearance'),
+      if (isFitToWorkMandatory)
+        ('fit_to_work_cert_url', 'Fit-to-Work Medical Certificate'),
+      ('profile_photo_url', 'Selfie / Profile Photo'),
+      ('or_photo_url', 'LTO Official Receipt (OR)'),
+      ('cr_photo_url', 'LTO Certificate of Registration (CR)'),
+      if (!isOwned) ...[
+        ('owner_authorization_letter_url', 'Owner Authorization Letter'),
+        ('owner_id_photo_url', 'Owner Valid ID'),
+      ],
+      ('vehicle_front_photo_url', 'Tricycle Front View'),
+      ('vehicle_back_photo_url', 'Tricycle Back View'),
+      ('vehicle_left_photo_url', 'Tricycle Left Side'),
+      ('vehicle_right_photo_url', 'Tricycle Right Side'),
+    ];
+  }
+
+  void _markDocPassed(String appKey, String columnKey) {
+    setState(() {
+      _docReviewStatus.putIfAbsent(appKey, () => {})[columnKey] = 'pass';
+      _docReviewReasons[appKey]?.remove(columnKey);
+    });
+  }
+
+  Future<void> _openItemResubmitReasonDialog(
+    Map<String, dynamic> app,
+    String appKey,
+    String columnKey,
+    String itemLabel,
+  ) async {
+    String selectedReason = _resubmitReasonOptions.first;
+    final customController = TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final isOther = selectedReason == 'Other (Specify reason)';
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            title: Text(
+              'Resubmit: $itemLabel',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Select the reason to show in the driver\'s mobile app:',
+                    style: TextStyle(fontSize: 12.5, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedReason,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    items: _resubmitReasonOptions
+                        .map(
+                          (r) => DropdownMenuItem(
+                            value: r,
+                            child: Text(r, style: const TextStyle(fontSize: 12.5)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedReason = val);
+                      }
+                    },
+                  ),
+                  if (isOther) ...[
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: customController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'Type custom reason for $itemLabel...',
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final finalReason = isOther
+                      ? customController.text.trim()
+                      : selectedReason;
+                  if (finalReason.isEmpty) return;
+                  Navigator.pop(ctx, finalReason);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD97706),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Mark Resubmit'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    customController.dispose();
+    if (result == null || !mounted) return;
+
+    setState(() {
+      _docReviewStatus.putIfAbsent(appKey, () => {})[columnKey] = 'resubmit';
+      _docReviewReasons.putIfAbsent(appKey, () => {})[columnKey] = result;
+    });
+  }
+
   Widget _buildDocStatusRow({
+    required Map<String, dynamic> app,
+    required String appKey,
+    required String columnKey,
     required String title,
     required String detail,
     required bool isAvailable,
     required VoidCallback onView,
   }) {
+    final reviewState = _getDocReviewState(appKey, columnKey);
+    final resubmitReason = _docReviewReasons[appKey]?[columnKey];
+    final isPassed = reviewState == 'pass';
+    final isResubmit = reviewState == 'resubmit';
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3.5),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            isAvailable ? Icons.check_circle_rounded : Icons.cancel_rounded,
-            size: 14,
-            color: isAvailable ? const Color(0xFF059669) : Colors.grey.shade400,
+          Row(
+            children: [
+              Icon(
+                isPassed
+                    ? Icons.check_circle_rounded
+                    : isResubmit
+                        ? Icons.warning_amber_rounded
+                        : (isAvailable
+                            ? Icons.radio_button_unchecked_rounded
+                            : Icons.cancel_rounded),
+                size: 14,
+                color: isPassed
+                    ? const Color(0xFF059669)
+                    : isResubmit
+                        ? const Color(0xFFD97706)
+                        : (isAvailable
+                            ? const Color(0xFF64748B)
+                            : Colors.grey.shade400),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '$title • $detail',
+                  style: const TextStyle(fontSize: 11.5, color: Colors.black87),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: onView,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  child: Text(
+                    'Inspect',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF0284C7),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: () => _openItemResubmitReasonDialog(
+                  app,
+                  appKey,
+                  columnKey,
+                  title,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isResubmit
+                        ? const Color(0xFFFEF3C7)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    'Resubmit',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isResubmit
+                          ? const Color(0xFFB45309)
+                          : const Color(0xFFD97706),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: isAvailable ? () => _markDocPassed(appKey, columnKey) : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isPassed
+                        ? const Color(0xFFDCFCE7)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    isPassed ? '✓ Pass' : 'Pass',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isAvailable
+                          ? (isPassed
+                              ? const Color(0xFF15803D)
+                              : const Color(0xFF059669))
+                          : Colors.grey.shade400,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '$title • $detail',
-              style: const TextStyle(fontSize: 11.5, color: Colors.black87),
-              overflow: TextOverflow.ellipsis,
+          if (isResubmit && resubmitReason != null && resubmitReason.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 22, top: 2),
+              child: Text(
+                'Reason: $resubmitReason',
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  color: Color(0xFFB45309),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-          ),
-          InkWell(
-            onTap: onView,
-            child: const Text(
-              'Inspect',
-              style: TextStyle(fontSize: 11, color: Color(0xFF0284C7), fontWeight: FontWeight.bold),
-            ),
-          ),
         ],
       ),
     );
@@ -4110,36 +4472,131 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     );
   }
 
-  Widget _buildAnglePhotoPill(BuildContext context, String angle, String? url) {
+  Widget _buildAnglePhotoPill(
+    BuildContext context, {
+    required Map<String, dynamic> app,
+    required String appKey,
+    required String columnKey,
+    required String angle,
+    required String? url,
+  }) {
     final hasPhoto = url != null && url.isNotEmpty;
-    return InkWell(
-      onTap: () => _showDriverAppDocDialog(context, 'Tricycle $angle', url),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: hasPhoto ? const Color(0xFFDCFCE7) : Colors.white,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: hasPhoto ? const Color(0xFF86EFAC) : Colors.grey.shade300),
+    final reviewState = _getDocReviewState(appKey, columnKey);
+    final isPassed = reviewState == 'pass';
+    final isResubmit = reviewState == 'resubmit';
+    final resubmitReason = _docReviewReasons[appKey]?[columnKey];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isPassed
+            ? const Color(0xFFDCFCE7)
+            : isResubmit
+                ? const Color(0xFFFEF3C7)
+                : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isPassed
+              ? const Color(0xFF86EFAC)
+              : isResubmit
+                  ? const Color(0xFFFCD34D)
+                  : Colors.grey.shade300,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              hasPhoto ? Icons.check_circle_rounded : Icons.photo_camera_outlined,
-              size: 12,
-              color: hasPhoto ? const Color(0xFF15803D) : Colors.grey.shade600,
-            ),
-            const SizedBox(width: 4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isPassed
+                    ? Icons.check_circle_rounded
+                    : isResubmit
+                        ? Icons.warning_amber_rounded
+                        : (hasPhoto
+                            ? Icons.photo_camera_outlined
+                            : Icons.hide_image_outlined),
+                size: 13,
+                color: isPassed
+                    ? const Color(0xFF15803D)
+                    : isResubmit
+                        ? const Color(0xFFB45309)
+                        : Colors.grey.shade700,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                angle,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isPassed
+                      ? const Color(0xFF15803D)
+                      : isResubmit
+                          ? const Color(0xFFB45309)
+                          : Colors.grey.shade800,
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => _showDriverAppDocDialog(context, 'Tricycle $angle', url),
+                child: const Text(
+                  'Inspect',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: Color(0xFF0284C7),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () => _openItemResubmitReasonDialog(
+                  app,
+                  appKey,
+                  columnKey,
+                  'Tricycle $angle',
+                ),
+                child: const Text(
+                  'Resubmit',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: Color(0xFFD97706),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: hasPhoto ? () => _markDocPassed(appKey, columnKey) : null,
+                child: Text(
+                  isPassed ? '✓ Pass' : 'Pass',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: hasPhoto
+                        ? (isPassed
+                            ? const Color(0xFF15803D)
+                            : const Color(0xFF059669))
+                        : Colors.grey.shade400,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (isResubmit && resubmitReason != null && resubmitReason.isNotEmpty) ...[
+            const SizedBox(height: 3),
             Text(
-              angle,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.bold,
-                color: hasPhoto ? const Color(0xFF15803D) : Colors.grey.shade700,
+              'Reason: $resubmitReason',
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xFFB45309),
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -4322,14 +4779,16 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   }
 
   void _approveDriverApp(Map<String, dynamic> app) {
-    final assignedBody = '#T-${(300 + _driverDirectory.length)}';
+    final todaCode = app['toda_code']?.toString() ?? 'TODA-01';
+    final pilaSlot = 'Pila #${_driverDirectory.length + 1}';
     setState(() {
       app['application_status'] = 'approved';
-      app['admin_notes'] = 'Approved by Laoag MINC Officer. Assigned Body $assignedBody.';
+      app['admin_notes'] =
+          'Approved by Laoag MINC Officer. Assigned TODA Pila: $todaCode ($pilaSlot).';
       _driverDirectory.add({
-        'bodyNo': assignedBody,
+        'bodyNo': pilaSlot,
         'name': app['full_name'],
-        'toda': app['toda_code'] ?? 'TODA-01',
+        'toda': todaCode,
         'plateNo': app['plate_or_mv_file'] ?? '1204-IN',
         'status': 'Active & Compliant',
         'complianceRating': 100,
@@ -4338,7 +4797,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       _systemAuditLogs.insert(0, {
         'time': 'Just now',
         'actor': 'MINC Officer Santos',
-        'action': 'Approved Driver Application for ${app['full_name']} (Assigned Body $assignedBody)',
+        'action':
+            'Approved Driver Application for ${app['full_name']} (Assigned $todaCode $pilaSlot)',
       });
     });
 
@@ -4351,111 +4811,280 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('✓ Application for ${app['full_name']} APPROVED. Assigned TODA Body $assignedBody.'),
+        content: Text(
+          '✓ Application for ${app['full_name']} APPROVED. Assigned $todaCode ($pilaSlot).',
+        ),
         backgroundColor: const Color(0xFF059669),
       ),
     );
   }
 
   void _requestResubmissionDriverApp(Map<String, dynamic> app) {
-    final noteController = TextEditingController(text: 'Please upload a clearer copy of your document renewal receipt.');
+    final appKey = _getAppKey(app);
+    final age = app['age'] as int? ?? 30;
+    final isFitToWorkMandatory = age >= 50 && age <= 55;
+    final isOwned = app['is_motorcycle_owned'] as bool? ?? true;
+    final labelByCol = <String, String>{
+      for (final item in _getRequiredDocSpecs(
+        isFitToWorkMandatory: isFitToWorkMandatory,
+        isOwned: isOwned,
+      ))
+        item.$1: item.$2,
+    };
+
+    final flaggedReasons = _docReviewReasons[appKey] ?? {};
+    final compiledLines = flaggedReasons.entries
+        .map((e) => '• ${labelByCol[e.key] ?? e.key}: ${e.value}')
+        .toList();
+
+    String selectedReason = _resubmitReasonOptions.first;
+    final customController = TextEditingController(
+      text: compiledLines.isNotEmpty ? compiledLines.join('\n') : '',
+    );
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Request Document Resubmission', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Specify requirements needed for ${app['full_name']}:', style: const TextStyle(fontSize: 12.5)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: noteController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final hasCompiled = compiledLines.isNotEmpty;
+          final isOther =
+              hasCompiled || selectedReason == 'Other (Specify reason)';
+          return AlertDialog(
+            title: const Text(
+              'Request Document Resubmission',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            content: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Specify requirements needed for ${app['full_name']} (shown in mobile app):',
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                  const SizedBox(height: 10),
+                  if (!hasCompiled) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedReason,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      items: _resubmitReasonOptions
+                          .map(
+                            (r) => DropdownMenuItem(
+                              value: r,
+                              child: Text(r, style: const TextStyle(fontSize: 12.5)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => selectedReason = val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (isOther)
+                    TextField(
+                      controller: customController,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        hintText: 'Enter resubmission instructions for the driver...',
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              setState(() {
-                app['application_status'] = 'resubmission_requested';
-                app['admin_notes'] = noteController.text;
-                _systemAuditLogs.insert(0, {
-                  'time': 'Just now',
-                  'actor': 'MINC Officer Santos',
-                  'action': 'Requested Resubmission for ${app['full_name']}: ${noteController.text}',
-                });
-              });
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final finalNote = isOther
+                      ? customController.text.trim()
+                      : selectedReason;
+                  if (finalNote.isEmpty) return;
+                  Navigator.pop(ctx);
+                  setState(() {
+                    app['application_status'] = 'resubmission_requested';
+                    app['admin_notes'] = finalNote;
+                    _systemAuditLogs.insert(0, {
+                      'time': 'Just now',
+                      'actor': 'MINC Officer Santos',
+                      'action':
+                          'Requested Resubmission for ${app['full_name']}: $finalNote',
+                    });
+                  });
 
-              try {
-                Supabase.instance.client
-                    .from('driver_applications')
-                    .update({'application_status': 'resubmission_requested', 'admin_notes': noteController.text})
-                    .eq('phone_number', app['phone_number']);
-              } catch (_) {}
+                  try {
+                    Supabase.instance.client
+                        .from('driver_applications')
+                        .update({
+                          'application_status': 'resubmission_requested',
+                          'admin_notes': finalNote,
+                        })
+                        .eq('phone_number', app['phone_number']);
+                  } catch (_) {}
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Resubmission notice dispatched to ${app['full_name']}.'),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Resubmission notice dispatched to ${app['full_name']}.',
+                      ),
+                      backgroundColor: const Color(0xFFD97706),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFD97706),
+                  foregroundColor: Colors.white,
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white),
-            child: const Text('Send Notice'),
-          ),
-        ],
+                child: const Text('Send Notice'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   void _rejectDriverApp(Map<String, dynamic> app) {
+    String selectedReason = _rejectReasonOptions.first;
+    final customController = TextEditingController();
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reject Driver Application', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
-        content: Text('Are you sure you want to reject the application for ${app['full_name']}? This action is recorded in the paratransit audit trail.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              setState(() {
-                app['application_status'] = 'rejected';
-                app['admin_notes'] = 'Application rejected due to non-compliance with Laoag City Paratransit Code.';
-                _systemAuditLogs.insert(0, {
-                  'time': 'Just now',
-                  'actor': 'MINC Officer Santos',
-                  'action': 'Rejected Driver Application for ${app['full_name']}',
-                });
-              });
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final isOther = selectedReason == 'Other (Specify reason)';
+          return AlertDialog(
+            title: const Text(
+              'Reject Driver Application',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFDC2626),
+              ),
+            ),
+            content: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Reject ${app['full_name']} if suspicious activity or repeated fake data is detected:',
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedReason,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    items: _rejectReasonOptions
+                        .map(
+                          (r) => DropdownMenuItem(
+                            value: r,
+                            child: Text(r, style: const TextStyle(fontSize: 12.5)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedReason = val);
+                      }
+                    },
+                  ),
+                  if (isOther) ...[
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: customController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'Specify rejection reason...',
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final finalReason = isOther
+                      ? customController.text.trim()
+                      : selectedReason;
+                  if (finalReason.isEmpty) return;
+                  Navigator.pop(ctx);
+                  setState(() {
+                    app['application_status'] = 'rejected';
+                    app['admin_notes'] = finalReason;
+                    _systemAuditLogs.insert(0, {
+                      'time': 'Just now',
+                      'actor': 'MINC Officer Santos',
+                      'action':
+                          'Rejected Driver Application for ${app['full_name']}: $finalReason',
+                    });
+                  });
 
-              try {
-                Supabase.instance.client
-                    .from('driver_applications')
-                    .update({'application_status': 'rejected', 'admin_notes': app['admin_notes']})
-                    .eq('phone_number', app['phone_number']);
-              } catch (_) {}
+                  try {
+                    Supabase.instance.client
+                        .from('driver_applications')
+                        .update({
+                          'application_status': 'rejected',
+                          'admin_notes': finalReason,
+                        })
+                        .eq('phone_number', app['phone_number']);
+                  } catch (_) {}
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Application for ${app['full_name']} marked REJECTED.'),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Application for ${app['full_name']} marked REJECTED.',
+                      ),
+                      backgroundColor: const Color(0xFFDC2626),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFDC2626),
+                  foregroundColor: Colors.white,
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
-            child: const Text('Confirm Rejection'),
-          ),
-        ],
+                child: const Text('Confirm Rejection'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
