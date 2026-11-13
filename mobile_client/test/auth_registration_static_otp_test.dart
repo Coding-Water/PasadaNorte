@@ -102,8 +102,8 @@ void main() {
       expect(find.byType(StudentCheckScreen), findsOneWidget);
       expect(find.text('Are you a Student?'), findsOneWidget);
 
-      // Tap Yes, I am a Student
-      await tester.tap(find.text('Yes, I am a Student'));
+      // Tap Yes, Student
+      await tester.tap(find.text('Yes, Student'));
       await tester.pumpAndSettle();
 
       // Verify Screen 3: User Details Input
@@ -228,15 +228,15 @@ void main() {
       await tester.tap(find.text('Passenger'));
       await tester.pumpAndSettle();
 
-      // Screen 2: Tap No, I am not a Student
+      // Screen 2: Tap Not a Student
       expect(find.byType(StudentCheckScreen), findsOneWidget);
-      await tester.tap(find.text('No, I am not a Student'));
+      await tester.tap(find.text('Not a Student'));
       await tester.pumpAndSettle();
 
-      // Screen 3: Senior/PWD check -> Tap No (Automatic Regular Passenger)
+      // Screen 3: Senior/PWD check -> Tap Regular Passenger (Automatic Regular Passenger)
       expect(find.byType(SeniorPwdCheckScreen), findsOneWidget);
       expect(find.text('Are you a Senior Citizen or PWD?'), findsOneWidget);
-      await tester.tap(find.text('No, Regular Commuter / Tourist'));
+      await tester.tap(find.text('Regular Passenger'));
       await tester.pumpAndSettle();
 
       // Screen 4: User Details Input Screen shows Regular Commuter

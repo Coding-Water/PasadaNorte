@@ -79,7 +79,23 @@ class RoleSelectionScreen extends StatelessWidget {
                 ),
               ),
 
-              const Spacer(flex: 2),
+              const SizedBox(height: 20),
+
+              // Centered Passenger / Driver split illustration
+              Expanded(
+                child: Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/images/role_selection_hero.jpg',
+                      fit: BoxFit.contain,
+                      semanticLabel: 'Passenger on the left and PasadaNorte driver on the right',
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
 
               // Two buttons side-by-side with emerald green styling
               Row(
@@ -120,7 +136,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 ],
               ),
 
-              const Spacer(flex: 3),
+              const SizedBox(height: 24),
 
               // Security & verification banner
               Container(
@@ -161,10 +177,10 @@ class RoleSelectionScreen extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppTheme.accentEmerald, width: 2.0),
+          side: const BorderSide(color: AppTheme.accentEmeraldDark, width: 2.0),
           shape: const StadiumBorder(),
-          backgroundColor: const Color(0xFFF0FDF4),
-          foregroundColor: AppTheme.accentEmeraldDark,
+          backgroundColor: Colors.white,
+          foregroundColor: AppTheme.accentEmerald,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
@@ -173,13 +189,18 @@ class RoleSelectionScreen extends StatelessWidget {
           children: [
             Icon(icon, color: AppTheme.accentEmerald, size: 20),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.primarySlate,
-                letterSpacing: -0.2,
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.accentEmerald,
+                    letterSpacing: -0.2,
+                  ),
+                ),
               ),
             ),
           ],
