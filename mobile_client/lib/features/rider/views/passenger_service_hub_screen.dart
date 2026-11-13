@@ -129,28 +129,14 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
         elevation: 0,
         automaticallyImplyLeading: false,
         titleSpacing: 16,
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.asset(
-                'assets/images/app_logo.png',
-                width: 34,
-                height: 34,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'PasadaNorte',
-              style: TextStyle(
-                color: AppTheme.primarySlate,
-                fontWeight: FontWeight.w900,
-                fontSize: 20,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
+        title: const Text(
+          'PasadaNorte',
+          style: TextStyle(
+            color: AppTheme.primarySlate,
+            fontWeight: FontWeight.w900,
+            fontSize: 20,
+            letterSpacing: -0.5,
+          ),
         ),
         actions: [
           Container(
