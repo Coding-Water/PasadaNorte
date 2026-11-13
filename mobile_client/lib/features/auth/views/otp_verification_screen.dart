@@ -24,6 +24,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
+  String? _errorText;
 
   int _resendCountdown = 60;
   int _remainingAttempts = 10;
@@ -108,33 +109,36 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     setState(() {
       _isLoading = true;
+      _errorText = null;
     });
 
     await Future.delayed(const Duration(milliseconds: 400));
 
     if (!mounted) return;
 
-    final isValid = _otpCode == staticOtp ||
-        _otpCode == legacyStaticOtp ||
-        _otpCode.startsWith('1') ||
-        _otpCode.startsWith('2');
+    final isValid = _otpCode == staticOtp || _otpCode == legacyStaticOtp;
 
     if (!isValid) {
+      for (final controller in _controllers) {
+        controller.clear();
+      }
       setState(() {
         _isLoading = false;
         _remainingAttempts--;
         if (_remainingAttempts <= 0) {
           _isLockedOut = true;
         }
+        _errorText = _isLockedOut
+            ? 'Maximum attempts exceeded. Verification locked.'
+            : 'Invalid OTP code. Please try again.';
       });
+      if (!_isLockedOut) {
+        _focusNodes.first.requestFocus();
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            _isLockedOut
-                ? 'Maximum attempts exceeded. Verification locked.'
-                : 'Invalid OTP. Static test OTP is $staticOtp (or $legacyStaticOtp).',
-          ),
+          content: Text(_errorText!),
           backgroundColor: Colors.red,
         ),
       );
@@ -222,12 +226,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                   LengthLimitingTextInputFormatter(1),
                                 ],
                                 onChanged: (value) {
+                                  if (_errorText != null) {
+                                    setState(() => _errorText = null);
+                                  }
                                   if (value.isNotEmpty && index < 5) {
                                     _focusNodes[index + 1].requestFocus();
                                   } else if (value.isEmpty && index > 0) {
                                     _focusNodes[index - 1].requestFocus();
                                   }
-                                  if (_otpCode.length == 6) {
+                                  if (_otpCode.length == 6 && !_isLoading) {
                                     _verifyOtp();
                                   }
                                 },
@@ -255,6 +262,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           },
                         ),
                       ),
+                      if (_errorText != null) ...[
+                        const SizedBox(height: 16),
+                        Center(
+                          child: Text(
+                            _errorText!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.cancelRed,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 32),
                       Center(
                         child: Column(

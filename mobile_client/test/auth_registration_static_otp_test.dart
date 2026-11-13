@@ -116,8 +116,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pump(const Duration(milliseconds: 600));
 
-      // Should display invalid OTP snackbar indicating 123456
-      expect(find.textContaining('Invalid OTP. Static test OTP is 123456'), findsOneWidget);
+      // Should display invalid OTP error message
+      expect(find.text('Invalid OTP code. Please try again.'), findsWidgets);
     });
 
     testWidgets('Rider Registration Flow can skip Face Scan on computer testing', (tester) async {
