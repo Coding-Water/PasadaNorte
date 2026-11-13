@@ -13,7 +13,9 @@ import '../../../core/services/toda_queue_service.dart';
 import '../../../core/services/system_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
+import 'driver_account_screen.dart';
 import 'driver_active_trip_screen.dart';
+import 'driver_activity_screen.dart';
 
 class DriverMapDutyScreen extends StatefulWidget {
   final String fullName;
@@ -28,6 +30,7 @@ class DriverMapDutyScreen extends StatefulWidget {
 }
 
 class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
+  int _currentIndex = 0;
   bool _isOnline = true;
   bool _simulateNetworkDropFailSafe = false; // ISO/IEC 25010:2023 operational fail-safe during mobile data loss
   bool _showHotspots = false; // Default OFF so driver map is clean and does not cause dizziness
@@ -1131,9 +1134,17 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     final visibleZones = _zoneForecasts.where((z) => z.isVisibleOnHeatmap).toList();
 
     return PopScope(
-      canPop: true,
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+        }
+      },
       child: Scaffold(
-        body: Stack(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: [
+            Stack(
           children: [
             // 1. Full-Bleed Google Map with Driver Location, TODA Station, and Optional Hotspots
             Positioned.fill(
@@ -1666,6 +1677,52 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
           ),
         ],
       ),
+            DriverActivityScreen(fullName: widget.fullName),
+            DriverAccountScreen(fullName: widget.fullName),
+          ],
+        ),
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(
+              top: BorderSide(color: Color(0xFFF1F5F9), width: 1.2),
+            ),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) => setState(() => _currentIndex = index),
+            backgroundColor: Colors.white,
+            elevation: 0,
+            selectedItemColor: AppTheme.accentEmerald,
+            unselectedItemColor: Colors.grey.shade500,
+            selectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 11.5,
+            ),
+            type: BottomNavigationBarType.fixed,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                activeIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.receipt_long_outlined),
+                activeIcon: Icon(Icons.receipt_long_rounded),
+                label: 'Activity',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline_rounded),
+                activeIcon: Icon(Icons.person_rounded),
+                label: 'Account',
+              ),
+            ],
+          ),
+        ),
     ),
     );
   }
