@@ -267,6 +267,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   StreamSubscription? _sosSubscription;
   StreamSubscription? _driverAppSubscription;
 
+  // Resolved Incident Reports & History State
+  final List<Map<String, dynamic>> _incidentReports = [];
+  String _incidentSearchQuery = '';
+  String _incidentSeverityFilter = 'All';
+  String _incidentCategoryFilter = 'All';
+
   static const String _kDocReviewStatusKey = 'pn_web_doc_review_status';
   static const String _kDocReviewReasonsKey = 'pn_web_doc_review_reasons';
 
@@ -463,29 +469,589 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     } catch (_) {}
   }
 
-  void _resolveSosAlert(Map<String, dynamic> alert) async {
-    setState(() {
-      alert['status'] = 'RESOLVED';
-      _systemAuditLogs.insert(0, {
-        'time': 'Just now',
-        'actor': 'MINC Emergency Dispatcher',
-        'action': 'Resolved Distress Beacon for Driver ${alert['driver_name']} (${alert['body_number']})',
-      });
-    });
-    try {
-      await Supabase.instance.client
-          .from('emergency_sos_alerts')
-          .update({'status': 'RESOLVED'})
-          .eq('driver_name', alert['driver_name']);
-    } catch (_) {}
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✓ Incident ${alert['id']} marked RESOLVED. Laoag PNP and TODA Dispatch stood down.'),
-          backgroundColor: const Color(0xFF059669),
+  void _resolveSosAlert(Map<String, dynamic> alert) {
+    _openResolveIncidentReportDialog(alert);
+  }
+
+  String _generateIncidentReportCode() {
+    final now = DateTime.now();
+    final y = now.year.toString();
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    final suffix = (1000 + (now.millisecondsSinceEpoch % 9000)).toString();
+    return 'IR-$y$m$d-$suffix';
+  }
+
+  String _formatIncidentTimestamp(dynamic raw) {
+    if (raw == null) return '—';
+    final dt = DateTime.tryParse(raw.toString())?.toLocal();
+    if (dt == null) return raw.toString();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final min = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} • $hour12:$min $ampm';
+  }
+
+  String _computeResolutionDuration(dynamic triggeredRaw, dynamic resolvedRaw) {
+    final t1 = triggeredRaw != null ? DateTime.tryParse(triggeredRaw.toString()) : null;
+    final t2 = resolvedRaw != null ? DateTime.tryParse(resolvedRaw.toString()) : null;
+    if (t1 == null || t2 == null) return '—';
+    final diff = t2.difference(t1);
+    if (diff.isNegative) return '< 1m';
+    if (diff.inMinutes < 1) return '${diff.inSeconds}s';
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    final remMin = diff.inMinutes % 60;
+    return '${diff.inHours}h ${remMin}m';
+  }
+
+  void _openResolveIncidentReportDialog(
+    Map<String, dynamic>? alert, {
+    bool isAlreadyResolved = false,
+  }) {
+    const categories = [
+      'False Alarm / Accidental Trigger',
+      'Mechanical Breakdown',
+      'Traffic Accident / Collision',
+      'Passenger / Fare Dispute',
+      'Medical Emergency',
+      'Security / Harassment Threat',
+      'Other',
+    ];
+    const outcomes = [
+      'Driver Safe — Stand Down',
+      'TODA Assistance Dispatched',
+      'PNP / CDRRMO Coordinated',
+      'Medical Aid Provided',
+      'Notice / Citation Issued',
+    ];
+    const severities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+
+    String selectedCategory = categories.first;
+    String selectedOutcome = outcomes.first;
+    String selectedSeverity = alert == null ? 'MEDIUM' : 'LOW';
+    final driverCtrl = TextEditingController(text: alert?['driver_name']?.toString() ?? '');
+    final bodyCtrl = TextEditingController(text: alert?['body_number']?.toString() ?? '');
+    final plateCtrl = TextEditingController(text: alert?['plate_number']?.toString() ?? '');
+    final todaCtrl = TextEditingController(text: alert?['toda']?.toString() ?? 'Laoag City TODA');
+    final locationCtrl = TextEditingController(
+      text: alert?['location_name']?.toString() ?? 'Laoag City Paratransit Route',
+    );
+    final actionCtrl = TextEditingController(
+      text: alert != null
+          ? 'Contacted driver and verified status; cleared SOS distress beacon.'
+          : '',
+    );
+    final notesCtrl = TextEditingController();
+    final resolvedByCtrl = TextEditingController(text: 'MINC Emergency Dispatcher');
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: Colors.white,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.fact_check_rounded, color: Color(0xFF059669), size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      alert == null
+                          ? 'File Manual Incident Report'
+                          : (isAlreadyResolved
+                              ? 'File Incident Report for Resolved SOS'
+                              : 'Resolve SOS & File Incident Report'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      alert == null
+                          ? 'Record an official MINC / TODA incident in the permanent history log.'
+                          : 'Alert ${alert['id']} • ${alert['driver_name']} (${alert['body_number']})',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 580,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (alert != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.gps_fixed_rounded, color: Color(0xFF0284C7), size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Trigger: ${alert['alert_reason']} • GPS: ${alert['latitude']}, ${alert['longitude']} (${alert['location_name']})',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: driverCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Driver Name *',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 120,
+                          child: TextField(
+                            controller: bodyCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Body #',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 130,
+                          child: TextField(
+                            controller: plateCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Plate #',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: todaCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'TODA Association',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: locationCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Location / Corridor',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  const Text('Severity Level', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    children: severities.map((sev) {
+                      final isSelected = selectedSeverity == sev;
+                      final Color color = switch (sev) {
+                        'CRITICAL' => const Color(0xFFDC2626),
+                        'HIGH' => const Color(0xFFEA580C),
+                        'MEDIUM' => const Color(0xFFD97706),
+                        _ => const Color(0xFF059669),
+                      };
+                      return ChoiceChip(
+                        label: Text(sev, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: isSelected ? Colors.white : color)),
+                        selected: isSelected,
+                        selectedColor: color,
+                        backgroundColor: color.withValues(alpha: 0.08),
+                        side: BorderSide(color: color.withValues(alpha: 0.35)),
+                        onSelected: (_) => setDialogState(() => selectedSeverity = sev),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedCategory,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Incident Category',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: categories
+                              .map((c) => DropdownMenuItem(value: c, child: Text(c, overflow: TextOverflow.ellipsis)))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v != null) setDialogState(() => selectedCategory = v);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedOutcome,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Resolution Outcome',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: outcomes
+                              .map((o) => DropdownMenuItem(value: o, child: Text(o, overflow: TextOverflow.ellipsis)))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v != null) setDialogState(() => selectedOutcome = v);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: actionCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Action Taken',
+                      hintText: 'e.g., Dispatched TODA marshal / called driver / stood down PNP...',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: notesCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Incident Report & Resolution Notes',
+                      hintText: 'Summarize what happened, verification findings, and any follow-up required...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: resolvedByCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Resolved / Filed By',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      final driverName = driverCtrl.text.trim();
+                      if (driverName.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please enter a driver name.')),
+                        );
+                        return;
+                      }
+                      setDialogState(() => isSaving = true);
+                      final nowIso = DateTime.now().toUtc().toIso8601String();
+                      final reportCode = _generateIncidentReportCode();
+                      final newReport = <String, dynamic>{
+                        'id': 'local-$reportCode',
+                        'sos_alert_id': alert?['id'],
+                        'report_code': reportCode,
+                        'driver_name': driverName,
+                        'body_number': bodyCtrl.text.trim(),
+                        'plate_number': plateCtrl.text.trim(),
+                        'toda': todaCtrl.text.trim(),
+                        'contact': alert?['contact']?.toString() ?? '',
+                        'latitude': alert?['latitude'],
+                        'longitude': alert?['longitude'],
+                        'location_name': locationCtrl.text.trim(),
+                        'alert_reason': alert?['alert_reason']?.toString() ?? 'MANUAL_DISPATCH_INCIDENT',
+                        'incident_category': selectedCategory,
+                        'severity': selectedSeverity,
+                        'outcome': selectedOutcome,
+                        'action_taken': actionCtrl.text.trim().isEmpty
+                            ? selectedOutcome
+                            : actionCtrl.text.trim(),
+                        'resolution_notes': notesCtrl.text.trim().isEmpty
+                            ? 'Incident verified and closed by ${resolvedByCtrl.text.trim()}.'
+                            : notesCtrl.text.trim(),
+                        'resolved_by': resolvedByCtrl.text.trim().isEmpty
+                            ? 'MINC Emergency Dispatcher'
+                            : resolvedByCtrl.text.trim(),
+                        'triggered_at': alert?['created_at'] ?? nowIso,
+                        'resolved_at': nowIso,
+                      };
+
+                      if (alert != null && !isAlreadyResolved) {
+                        try {
+                          await Supabase.instance.client
+                              .from('emergency_sos_alerts')
+                              .update({
+                                'status': 'RESOLVED',
+                                'resolved_at': nowIso,
+                              })
+                              .eq('id', alert['id']);
+                        } catch (_) {}
+                      }
+
+                      try {
+                        final inserted = await Supabase.instance.client
+                            .from('incident_reports')
+                            .insert({
+                              if (alert?['id'] != null) 'sos_alert_id': alert!['id'],
+                              'report_code': reportCode,
+                              'driver_name': newReport['driver_name'],
+                              'body_number': newReport['body_number'],
+                              'plate_number': newReport['plate_number'],
+                              'toda': newReport['toda'],
+                              'contact': newReport['contact'],
+                              'latitude': newReport['latitude'],
+                              'longitude': newReport['longitude'],
+                              'location_name': newReport['location_name'],
+                              'alert_reason': newReport['alert_reason'],
+                              'incident_category': newReport['incident_category'],
+                              'severity': newReport['severity'],
+                              'outcome': newReport['outcome'],
+                              'action_taken': newReport['action_taken'],
+                              'resolution_notes': newReport['resolution_notes'],
+                              'resolved_by': newReport['resolved_by'],
+                              'triggered_at': newReport['triggered_at'],
+                              'resolved_at': nowIso,
+                            })
+                            .select()
+                            .single();
+                        newReport['id'] = inserted['id'].toString();
+                      } catch (_) {}
+
+                      if (!mounted) return;
+                      setState(() {
+                        if (alert != null) {
+                          alert['status'] = 'RESOLVED';
+                          alert['resolved_at'] = nowIso;
+                        }
+                        _incidentReports.insert(0, newReport);
+                        _systemAuditLogs.insert(0, {
+                          'time': 'Just now',
+                          'actor': newReport['resolved_by'],
+                          'action':
+                              'Filed Incident Report $reportCode (${newReport['severity']}) for ${newReport['driver_name']} — ${newReport['outcome']}',
+                        });
+                      });
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('✓ Incident Report $reportCode saved to Incident History.'),
+                          backgroundColor: const Color(0xFF059669),
+                          action: SnackBarAction(
+                            label: 'View History',
+                            textColor: Colors.white,
+                            onPressed: () {
+                              setState(() => _selectedSection = 'Incident Reports & History');
+                            },
+                          ),
+                        ),
+                      );
+                    },
+              icon: const Icon(Icons.check_circle_rounded, size: 17),
+              label: Text(
+                isSaving
+                    ? 'Saving...'
+                    : (alert != null && !isAlreadyResolved
+                        ? 'Resolve & Save Report'
+                        : 'Save Incident Report'),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  void _showIncidentReportDetailModal(Map<String, dynamic> report) {
+    final severity = (report['severity'] ?? 'LOW').toString();
+    final Color sevColor = switch (severity) {
+      'CRITICAL' => const Color(0xFFDC2626),
+      'HIGH' => const Color(0xFFEA580C),
+      'MEDIUM' => const Color(0xFFD97706),
+      _ => const Color(0xFF059669),
+    };
+    final duration = _computeResolutionDuration(report['triggered_at'], report['resolved_at']);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Colors.white,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: sevColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.assignment_turned_in_rounded, color: sevColor, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'INCIDENT REPORT • ${report['report_code']}',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                  ),
+                  Text(
+                    '${report['incident_category']} • Severity: $severity',
+                    style: TextStyle(fontSize: 12, color: sevColor, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 580,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${report['driver_name']} (${report['body_number']} • ${report['plate_number']})',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'TODA: ${report['toda']} • Location: ${report['location_name']}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                      ),
+                      if (report['latitude'] != null && report['longitude'] != null)
+                        Text(
+                          'GPS: ${report['latitude']}, ${report['longitude']}',
+                          style: const TextStyle(fontFamily: 'Courier', fontSize: 11.5, color: Color(0xFF0284C7), fontWeight: FontWeight.w600),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildReportFieldRow('Trigger Reason', report['alert_reason']?.toString() ?? '—'),
+                _buildReportFieldRow('Outcome', report['outcome']?.toString() ?? '—'),
+                _buildReportFieldRow('Action Taken', report['action_taken']?.toString() ?? '—'),
+                _buildReportFieldRow('Resolution Notes', report['resolution_notes']?.toString() ?? '—'),
+                _buildReportFieldRow('Resolved By', report['resolved_by']?.toString() ?? '—'),
+                _buildReportFieldRow('Triggered At', _formatIncidentTimestamp(report['triggered_at'])),
+                _buildReportFieldRow('Resolved At', '${_formatIncidentTimestamp(report['resolved_at'])} (Duration: $duration)'),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              final summary = [
+                'PASADANORTE OFFICIAL INCIDENT REPORT',
+                'Report Code: ${report['report_code']}',
+                'Severity: $severity | Category: ${report['incident_category']}',
+                'Driver: ${report['driver_name']} (${report['body_number']} / ${report['plate_number']})',
+                'TODA: ${report['toda']}',
+                'Location: ${report['location_name']} (${report['latitude'] ?? '—'}, ${report['longitude'] ?? '—'})',
+                'Outcome: ${report['outcome']}',
+                'Action Taken: ${report['action_taken']}',
+                'Notes: ${report['resolution_notes']}',
+                'Resolved By: ${report['resolved_by']}',
+                'Resolved At: ${_formatIncidentTimestamp(report['resolved_at'])} (Duration: $duration)',
+              ].join('\n');
+              Clipboard.setData(ClipboardData(text: summary));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Official incident report copied to clipboard.')),
+              );
+            },
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Copy Report'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportFieldRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey.shade600)),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+        ],
+      ),
+    );
   }
 
   final bool _isPnpDispatchPaused = true;
@@ -861,8 +1427,25 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     'status': item['status'] ?? 'ACTIVE_DISPATCHED',
                     'time_ago': 'Live',
                     'created_at': item['created_at'] ?? DateTime.now().toIso8601String(),
+                    'resolved_at': item['resolved_at'],
                     'contact': item['contact'] ?? '',
                   }));
+          });
+        }
+      } catch (_) {}
+
+      // Sync Incident Reports & Resolution History
+      try {
+        final reportRows = await Supabase.instance.client
+            .from('incident_reports')
+            .select()
+            .order('resolved_at', ascending: false)
+            .limit(100);
+        if (mounted) {
+          setState(() {
+            _incidentReports
+              ..clear()
+              ..addAll(reportRows.map((item) => Map<String, dynamic>.from(item)));
           });
         }
       } catch (_) {}
@@ -1437,6 +2020,23 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             : null,
                       ),
                       _buildSidebarItem(Icons.assignment_outlined, 'Live Dispatch Audit'),
+                      _buildSidebarItem(
+                        Icons.fact_check_outlined,
+                        'Incident Reports & History',
+                        badge: _incidentReports.isNotEmpty
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF059669).withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${_incidentReports.length}',
+                                  style: const TextStyle(color: Color(0xFF059669), fontSize: 10, fontWeight: FontWeight.w800),
+                                ),
+                              )
+                            : null,
+                      ),
                       _buildSidebarItem(Icons.format_list_numbered_rounded, 'TODA Pila Queue Board'),
 
                       const SizedBox(height: 16),
@@ -1763,6 +2363,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return Icons.desktop_windows_outlined;
       case 'Live Dispatch Audit':
         return Icons.assignment_outlined;
+      case 'Incident Reports & History':
+        return Icons.fact_check_outlined;
       case 'TODA Pila Queue Board':
         return Icons.format_list_numbered_rounded;
       case 'ML Demand Forecasts':
@@ -1801,6 +2403,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return _buildLiveMonitoringView();
       case 'Live Dispatch Audit':
         return _buildDispatchAuditView();
+      case 'Incident Reports & History':
+        return _buildIncidentReportsHistoryView();
       case 'TODA Pila Queue Board':
         return _buildTodaQueueBoardView();
       case 'ML Demand Forecasts':
@@ -3310,6 +3914,400 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               }),
             ],
           ),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // 4B. INCIDENT REPORTS & RESOLUTION HISTORY
+  // ===========================================================================
+  Widget _buildIncidentReportsHistoryView() {
+    const categories = [
+      'All',
+      'False Alarm / Accidental Trigger',
+      'Mechanical Breakdown',
+      'Traffic Accident / Collision',
+      'Passenger / Fare Dispute',
+      'Medical Emergency',
+      'Security / Harassment Threat',
+      'Other',
+    ];
+
+    final unfiledResolvedSos = _sosAlerts.where((a) {
+      if (a['status'] != 'RESOLVED') return false;
+      final idStr = a['id'].toString();
+      return !_incidentReports.any((r) => r['sos_alert_id']?.toString() == idStr);
+    }).toList();
+
+    final query = _incidentSearchQuery.trim().toLowerCase();
+    final filtered = _incidentReports.where((r) {
+      final matchesSearch = query.isEmpty ||
+          (r['report_code'] ?? '').toString().toLowerCase().contains(query) ||
+          (r['driver_name'] ?? '').toString().toLowerCase().contains(query) ||
+          (r['body_number'] ?? '').toString().toLowerCase().contains(query) ||
+          (r['plate_number'] ?? '').toString().toLowerCase().contains(query) ||
+          (r['location_name'] ?? '').toString().toLowerCase().contains(query) ||
+          (r['resolution_notes'] ?? '').toString().toLowerCase().contains(query);
+      final matchesSeverity = _incidentSeverityFilter == 'All' ||
+          (r['severity'] ?? '').toString().toUpperCase() == _incidentSeverityFilter;
+      final matchesCategory = _incidentCategoryFilter == 'All' ||
+          (r['incident_category'] ?? '').toString() == _incidentCategoryFilter;
+      return matchesSearch && matchesSeverity && matchesCategory;
+    }).toList();
+
+    final highCriticalCount = _incidentReports.where((r) {
+      final sev = (r['severity'] ?? '').toString().toUpperCase();
+      return sev == 'HIGH' || sev == 'CRITICAL';
+    }).length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Incident Reports & Resolution History',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Official post-resolution SOS and dispatch incident archive synced with Supabase.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _incidentReports.isEmpty
+                      ? null
+                      : () {
+                          final buffer = StringBuffer();
+                          buffer.writeln('Report Code,Severity,Category,Driver,Body #,Plate #,TODA,Location,Outcome,Action Taken,Resolved By,Resolved At');
+                          for (final r in filtered) {
+                            String esc(dynamic v) => '"${(v ?? '').toString().replaceAll('"', '""')}"';
+                            buffer.writeln([
+                              esc(r['report_code']),
+                              esc(r['severity']),
+                              esc(r['incident_category']),
+                              esc(r['driver_name']),
+                              esc(r['body_number']),
+                              esc(r['plate_number']),
+                              esc(r['toda']),
+                              esc(r['location_name']),
+                              esc(r['outcome']),
+                              esc(r['action_taken']),
+                              esc(r['resolved_by']),
+                              esc(r['resolved_at']),
+                            ].join(','));
+                          }
+                          Clipboard.setData(ClipboardData(text: buffer.toString()));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Copied ${filtered.length} incident report(s) as CSV to clipboard.')),
+                          );
+                        },
+                  icon: const Icon(Icons.download_rounded, size: 17),
+                  label: const Text('Export CSV'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton.icon(
+                  onPressed: () => _openResolveIncidentReportDialog(null),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('File Manual Report'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+
+        // KPI Summary Strip
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('TOTAL REPORTS FILED', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey.shade600)),
+                    const SizedBox(height: 6),
+                    Text('${_incidentReports.length}', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+                    const Text('Archived in Supabase history', style: TextStyle(fontSize: 11.5, color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('HIGH / CRITICAL INCIDENTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey.shade600)),
+                    const SizedBox(height: 6),
+                    Text('$highCriticalCount', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: highCriticalCount > 0 ? const Color(0xFFDC2626) : const Color(0xFF0F172A))),
+                    const Text('Escalated or emergency cases', style: TextStyle(fontSize: 11.5, color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: unfiledResolvedSos.isNotEmpty ? const Color(0xFFFFFBEB) : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: unfiledResolvedSos.isNotEmpty ? const Color(0xFFFDE68A) : Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('PENDING POST-SOS REPORTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey.shade600)),
+                    const SizedBox(height: 6),
+                    Text('${unfiledResolvedSos.length}', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: unfiledResolvedSos.isNotEmpty ? const Color(0xFFD97706) : const Color(0xFF059669))),
+                    Text(
+                      unfiledResolvedSos.isNotEmpty ? 'Resolved SOS needing report' : 'All resolved SOS documented',
+                      style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        if (unfiledResolvedSos.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.pending_actions_rounded, color: Color(0xFFD97706), size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Resolved SOS Incidents Without an Official Report',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF92400E)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: unfiledResolvedSos.map((alert) {
+                    return ActionChip(
+                      avatar: const Icon(Icons.note_add_rounded, size: 16, color: Color(0xFF92400E)),
+                      label: Text('${alert['driver_name']} (${alert['body_number']}) — File Report'),
+                      backgroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFFFCD34D)),
+                      onPressed: () => _openResolveIncidentReportDialog(alert, isAlreadyResolved: true),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 18),
+
+        // Search and Filter Bar
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search by Report Code, Driver, Body #, Location, or Notes...',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+                onChanged: (val) => setState(() => _incidentSearchQuery = val),
+              ),
+            ),
+            const SizedBox(width: 12),
+            DropdownButton<String>(
+              value: _incidentSeverityFilter,
+              items: ['All', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+                  .map((s) => DropdownMenuItem(value: s, child: Text('Severity: $s', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))))
+                  .toList(),
+              onChanged: (val) {
+                if (val != null) setState(() => _incidentSeverityFilter = val);
+              },
+            ),
+            const SizedBox(width: 12),
+            DropdownButton<String>(
+              value: _incidentCategoryFilter,
+              items: categories
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c == 'All' ? 'Category: All' : c, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))))
+                  .toList(),
+              onChanged: (val) {
+                if (val != null) setState(() => _incidentCategoryFilter = val);
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+
+        // Incident History List
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: filtered.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Center(
+                    child: Text(
+                      'No incident reports recorded yet. Resolving an SOS alert will automatically prompt you to file an incident report here.',
+                      style: TextStyle(color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              : Column(
+                  children: filtered.map((report) {
+                    final sev = (report['severity'] ?? 'LOW').toString().toUpperCase();
+                    final Color sevColor = switch (sev) {
+                      'CRITICAL' => const Color(0xFFDC2626),
+                      'HIGH' => const Color(0xFFEA580C),
+                      'MEDIUM' => const Color(0xFFD97706),
+                      _ => const Color(0xFF059669),
+                    };
+                    final duration = _computeResolutionDuration(report['triggered_at'], report['resolved_at']);
+
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: sevColor.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.assignment_turned_in_rounded, color: sevColor, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Text(
+                                      '${report['report_code']} • ${report['driver_name']}',
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: sevColor.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        sev,
+                                        style: TextStyle(color: sevColor, fontWeight: FontWeight.w800, fontSize: 10.5),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        report['incident_category']?.toString() ?? 'Incident',
+                                        style: const TextStyle(color: Color(0xFF334155), fontWeight: FontWeight.w700, fontSize: 10.5),
+                                      ),
+                                    ),
+                                    if ((report['body_number'] ?? '').toString().isNotEmpty)
+                                      Text(
+                                        'Body ${report['body_number']} • ${report['plate_number']}',
+                                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  'Outcome: ${report['outcome']} — ${report['action_taken']}',
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                                ),
+                                if ((report['resolution_notes'] ?? '').toString().isNotEmpty) ...[
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    report['resolution_notes'].toString(),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                  ),
+                                ],
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Location: ${report['location_name']} • Resolved by ${report['resolved_by']} on ${_formatIncidentTimestamp(report['resolved_at'])} (Duration: $duration)',
+                                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => _showIncidentReportDetailModal(report),
+                            icon: const Icon(Icons.visibility_outlined, size: 16),
+                            label: const Text('View Report'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF0F172A),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
         ),
       ],
     );
@@ -8191,13 +9189,34 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 ),
                                 child: const Text('Resolve'),
                               ),
-                            ] else
-                              TextButton.icon(
-                                onPressed: () => _showSosIncidentModal(alert),
-                                icon: const Icon(Icons.history_rounded, size: 16),
-                                label: const Text('View Report'),
-                                style: TextButton.styleFrom(foregroundColor: Colors.grey.shade700),
+                            ] else ...[
+                              Builder(
+                                builder: (context) {
+                                  final existingReport = _incidentReports.cast<Map<String, dynamic>?>().firstWhere(
+                                        (r) => r?['sos_alert_id']?.toString() == alert['id'].toString(),
+                                        orElse: () => null,
+                                      );
+                                  if (existingReport != null) {
+                                    return TextButton.icon(
+                                      onPressed: () => _showIncidentReportDetailModal(existingReport),
+                                      icon: const Icon(Icons.fact_check_rounded, size: 16),
+                                      label: Text('Report ${existingReport['report_code']}'),
+                                      style: TextButton.styleFrom(foregroundColor: const Color(0xFF059669)),
+                                    );
+                                  }
+                                  return OutlinedButton.icon(
+                                    onPressed: () => _openResolveIncidentReportDialog(alert, isAlreadyResolved: true),
+                                    icon: const Icon(Icons.note_add_rounded, size: 15),
+                                    label: const Text('File Incident Report'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFF0284C7),
+                                      side: const BorderSide(color: Color(0xFFBAE6FD)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    ),
+                                  );
+                                },
                               ),
+                            ],
                           ],
                         ),
                       ],
