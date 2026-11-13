@@ -34,55 +34,38 @@ class SeniorPwdCheckScreen extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Step indicator
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'STEP 2 OF 4: FARE DISCOUNT ELIGIBILITY',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.accentEmeraldDark,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
+              const SizedBox(height: 8),
               const Text(
                 'Are you a Senior Citizen or PWD?',
                 style: TextStyle(
-                  fontSize: 26,
+                  fontSize: 25,
                   fontWeight: FontWeight.w900,
                   color: AppTheme.primarySlate,
                   letterSpacing: -0.5,
                   height: 1.2,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               const Text(
                 'Senior citizens (60+) and PWDs receive a 20% statutory discount (₱15.00 1st km) under RA 9994 and RA 10754.',
                 style: TextStyle(
                   color: Colors.black54,
-                  fontSize: 14,
-                  height: 1.45,
+                  fontSize: 13.5,
+                  height: 1.4,
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
 
               // Centered Senior Citizen / PWD split illustration
-              Expanded(
-                child: Center(
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 250),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.asset(
@@ -96,7 +79,7 @@ class SeniorPwdCheckScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Two buttons side-by-side matching Step 1 style
+              // Two buttons side-by-side
               Row(
                 children: [
                   Expanded(
@@ -138,31 +121,7 @@ class SeniorPwdCheckScreen extends StatelessWidget {
                   ),
                 ],
               ),
-
               const SizedBox(height: 24),
-
-              // Information banner
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.verified_user_outlined, color: AppTheme.accentEmerald, size: 20),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Choosing Regular Passenger applies the standard Laoag ordinance rate (₱20.00 1st km + ₱2.00/km).',
-                        style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600, height: 1.35),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -176,21 +135,21 @@ class SeniorPwdCheckScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return SizedBox(
-      height: 54,
+      height: 50,
       child: OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppTheme.accentEmeraldDark, width: 2.0),
+          side: const BorderSide(color: AppTheme.accentEmeraldDark, width: 1.8),
           shape: const StadiumBorder(),
           backgroundColor: Colors.white,
           foregroundColor: AppTheme.accentEmerald,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: AppTheme.accentEmerald, size: 20),
+            Icon(icon, color: AppTheme.accentEmerald, size: 19),
             const SizedBox(width: 8),
             Flexible(
               child: FittedBox(
