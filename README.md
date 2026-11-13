@@ -3,7 +3,7 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Supabase PostGIS](https://img.shields.io/badge/Supabase-PostGIS-3ECF8E?logo=supabase)](https://supabase.com)
-[![License](https://img.shields.io/badge/License-Academic%20%2F%20LGU-blue.svg)](#)
+[![License](https://img.shields.io/badge/License-Academic%20Research-blue.svg)](#)
 [![ISO/IEC 25010](https://img.shields.io/badge/Standard-ISO%2FIEC%2025010-orange)](#)
 [![Compliance](https://img.shields.io/badge/Ordinance-Laoag%20City%202023--005-green)](#)
 
