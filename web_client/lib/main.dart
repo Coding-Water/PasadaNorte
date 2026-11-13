@@ -3042,6 +3042,86 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     } catch (_) {}
   }
 
+  Widget _buildMapZoomControls(
+    MapController controller, {
+    LatLng? centerTarget,
+    double minZoom = 12.0,
+    double maxZoom = 21.0,
+  }) {
+    void adjustZoom(double delta) {
+      try {
+        final nextZoom =
+            (controller.camera.zoom + delta).clamp(minZoom, maxZoom);
+        controller.move(controller.camera.center, nextZoom);
+      } catch (_) {}
+    }
+
+    return Material(
+      color: Colors.white.withValues(alpha: 0.94),
+      elevation: 3,
+      borderRadius: BorderRadius.circular(10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Tooltip(
+            message: 'Zoom in for accurate pin',
+            child: InkWell(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(10)),
+              onTap: () => adjustZoom(1.0),
+              child: const SizedBox(
+                width: 36,
+                height: 36,
+                child: Icon(Icons.add_rounded,
+                    size: 20, color: Color(0xFF0F172A)),
+              ),
+            ),
+          ),
+          Divider(height: 1, color: Colors.grey.shade300),
+          Tooltip(
+            message: 'Zoom out',
+            child: InkWell(
+              borderRadius: centerTarget == null
+                  ? const BorderRadius.vertical(bottom: Radius.circular(10))
+                  : BorderRadius.zero,
+              onTap: () => adjustZoom(-1.0),
+              child: const SizedBox(
+                width: 36,
+                height: 36,
+                child: Icon(Icons.remove_rounded,
+                    size: 20, color: Color(0xFF0F172A)),
+              ),
+            ),
+          ),
+          if (centerTarget != null) ...[
+            Divider(height: 1, color: Colors.grey.shade300),
+            Tooltip(
+              message: 'Center on pinned location',
+              child: InkWell(
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(10)),
+                onTap: () {
+                  try {
+                    controller.move(
+                      centerTarget,
+                      controller.camera.zoom.clamp(minZoom, maxZoom),
+                    );
+                  } catch (_) {}
+                },
+                child: const SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Icon(Icons.my_location_rounded,
+                      size: 18, color: Color(0xFF059669)),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Future<void> _openCreateOrEditTodaPilaDialog({
     Map<String, dynamic>? existing,
     LatLng? initialPin,
@@ -3140,7 +3220,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
-                    height: 270,
+                    height: 300,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Stack(
@@ -3149,9 +3229,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             mapController: dialogMapController,
                             options: MapOptions(
                               initialCenter: pinnedPoint,
-                              initialZoom: 15.2,
+                              initialZoom: 16.0,
                               minZoom: 12.0,
-                              maxZoom: 19.0,
+                              maxZoom: 21.0,
+                              interactionOptions: const InteractionOptions(
+                                flags: InteractiveFlag.all,
+                              ),
                               onTap: (_, latLng) {
                                 setDialogState(() => pinnedPoint = latLng);
                               },
@@ -3182,6 +3265,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                     point: pinnedPoint,
                                     width: 44,
                                     height: 44,
+                                    alignment: Alignment.topCenter,
                                     child: const Icon(
                                       Icons.location_on_rounded,
                                       color: Color(0xFFDC2626),
@@ -3217,6 +3301,14 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                   ),
                                 ),
                               ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 10,
+                            right: 10,
+                            child: _buildMapZoomControls(
+                              dialogMapController,
+                              centerTarget: pinnedPoint,
                             ),
                           ),
                         ],
@@ -3469,7 +3561,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     ),
                     initialZoom: 14.3,
                     minZoom: 12.0,
-                    maxZoom: 19.0,
+                    maxZoom: 21.0,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all,
+                    ),
                     onTap: (_, latLng) => _openCreateOrEditTodaPilaDialog(
                       initialPin: latLng,
                     ),
@@ -3649,6 +3744,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       ),
                     ),
                   ),
+                ),
+                Positioned(
+                  bottom: 12,
+                  right: 12,
+                  child: _buildMapZoomControls(_todaStationsMapController),
                 ),
               ],
             ),
