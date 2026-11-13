@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_theme.dart';
@@ -24,7 +25,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
 
-  // Rate Limiting & Cooldown Protection (Generous attempts for testing)
   int _resendCountdown = 60;
   int _remainingAttempts = 10;
   bool _isLockedOut = false;
@@ -33,7 +33,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   void initState() {
     super.initState();
+    for (final node in _focusNodes) {
+      node.addListener(_onFocusChanged);
+    }
     _startCountdownTimer();
+  }
+
+  void _onFocusChanged() {
+    if (mounted) setState(() {});
   }
 
   void _startCountdownTimer() {
@@ -60,20 +67,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       controller.dispose();
     }
     for (var node in _focusNodes) {
+      node.removeListener(_onFocusChanged);
       node.dispose();
     }
     super.dispose();
   }
 
   String get _otpCode => _controllers.map((c) => c.text).join();
-
-  void _autoFillTestOtp() {
-    for (int i = 0; i < staticOtp.length; i++) {
-      _controllers[i].text = staticOtp[i];
-    }
-    setState(() {});
-    _verifyOtp();
-  }
 
   void _resendOtp() {
     if (_resendCountdown > 0 || _isLockedOut) return;
@@ -110,12 +110,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _isLoading = true;
     });
 
-    // Simulate short network request
     await Future.delayed(const Duration(milliseconds: 400));
 
     if (!mounted) return;
 
-    // Static OTP validation for registration (accepts 123456 or legacy 202601)
     final isValid = _otpCode == staticOtp ||
         _otpCode == legacyStaticOtp ||
         _otpCode.startsWith('1') ||
@@ -135,7 +133,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           content: Text(
             _isLockedOut
                 ? 'Maximum attempts exceeded. Verification locked.'
-                : 'Invalid OTP. Static test OTP is $staticOtp (or $legacyStaticOtp). $_remainingAttempts attempts left.',
+                : 'Invalid OTP. Static test OTP is $staticOtp (or $legacyStaticOtp).',
           ),
           backgroundColor: Colors.red,
         ),
@@ -147,7 +145,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _isLoading = false;
     });
 
-    // Navigate to Role Selection Screen
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -159,190 +156,184 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Verify Mobile Number'),
+        backgroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.primarySlate),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
-              Text(
-                'Enter 6-Digit Code',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              RichText(
-                text: TextSpan(
-                  style: const TextStyle(color: Colors.grey, fontSize: 14),
-                  children: [
-                    const TextSpan(text: 'We sent a verification code to '),
-                    TextSpan(
-                      text: widget.phoneNumber,
-                      style: TextStyle(
-                        color: Colors.blue.shade900,
-                        fontWeight: FontWeight.bold,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: math.max(0, constraints.maxHeight - 24.0),
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Enter OTP Code 🔐',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primarySlate,
+                          letterSpacing: -0.3,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Static OTP Banner for Rapid Registration Testing
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDF4),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.4)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.verified_user_rounded, size: 18, color: AppTheme.accentEmerald),
-                        SizedBox(width: 8),
-                        Text(
-                          'Static OTP for Registration: 123456',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.primarySlate,
-                          ),
+                      const SizedBox(height: 12),
+                      Text(
+                        "Check your messages! We've sent a one-time code to ${widget.phoneNumber}. Enter the code below to verify your account and continue.",
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          color: Color(0xFF6B7280),
+                          height: 1.5,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Temporary static OTP enabled for testing both Rider and Driver registration. Enter 123456 (or 202601) or tap below to auto-fill.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.35),
-                    ),
-                    const SizedBox(height: 10),
-                    InkWell(
-                      onTap: _autoFillTestOtp,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: AppTheme.accentEmerald,
-                          borderRadius: BorderRadius.circular(10),
+                      ),
+                      const SizedBox(height: 36),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(
+                          6,
+                          (index) {
+                            final isFocused = _focusNodes[index].hasFocus;
+                            return SizedBox(
+                              width: 48,
+                              height: 58,
+                              child: TextField(
+                                controller: _controllers[index],
+                                focusNode: _focusNodes[index],
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.primarySlate,
+                                ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  LengthLimitingTextInputFormatter(1),
+                                ],
+                                onChanged: (value) {
+                                  if (value.isNotEmpty && index < 5) {
+                                    _focusNodes[index + 1].requestFocus();
+                                  } else if (value.isEmpty && index > 0) {
+                                    _focusNodes[index - 1].requestFocus();
+                                  }
+                                  if (_otpCode.length == 6) {
+                                    _verifyOtp();
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: isFocused
+                                      ? AppTheme.accentEmeraldLight
+                                      : const Color(0xFFF7F8FA),
+                                  contentPadding: EdgeInsets.zero,
+                                  counterText: '',
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                      color: AppTheme.accentEmerald,
+                                      width: 1.8,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
+                      ),
+                      const SizedBox(height: 32),
+                      Center(
+                        child: Column(
                           children: [
-                            Icon(Icons.bolt_rounded, size: 16, color: Colors.white),
-                            SizedBox(width: 4),
-                            Text(
-                              'Auto-Fill Static OTP (123456)',
-                              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                            RichText(
+                              textAlign: TextAlign.center,
+                              text: TextSpan(
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF6B7280),
+                                ),
+                                children: [
+                                  const TextSpan(text: 'You can resend the code in '),
+                                  TextSpan(
+                                    text: '$_resendCountdown',
+                                    style: const TextStyle(
+                                      color: AppTheme.accentEmerald,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' seconds'),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: (_resendCountdown > 0 || _isLockedOut)
+                                  ? null
+                                  : _resendOtp,
+                              child: Text(
+                                'Resend code',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: (_resendCountdown > 0 || _isLockedOut)
+                                      ? const Color(0xFF9CA3AF)
+                                      : AppTheme.accentEmerald,
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-
-              // 6 Digit Pin Code Fields
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(
-                  6,
-                  (index) => SizedBox(
-                    width: 45,
-                    height: 55,
-                    child: TextField(
-                      controller: _controllers[index],
-                      focusNode: _focusNodes[index],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(1),
-                      ],
-                      onChanged: (value) {
-                        if (value.isNotEmpty && index < 5) {
-                          _focusNodes[index + 1].requestFocus();
-                        } else if (value.isEmpty && index > 0) {
-                          _focusNodes[index - 1].requestFocus();
-                        }
-                        if (_otpCode.length == 6) {
-                          _verifyOtp();
-                        }
-                      },
-                      decoration: InputDecoration(
-                        contentPadding: EdgeInsets.zero,
-                        counterText: '',
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade400),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.blue.shade900, width: 2),
+                      const Spacer(),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: _isLoading || _isLockedOut ? null : _verifyOtp,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accentEmerald,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: const StadiumBorder(),
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : Text(_isLockedOut ? 'Account Locked' : 'Verify Code'),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
                 ),
               ),
-
-              const SizedBox(height: 24),
-
-              // Attempts Remaining & Cooldown Timer
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Attempts left: $_remainingAttempts/3',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _remainingAttempts == 1 ? Colors.red : Colors.grey.shade700,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  _resendCountdown > 0
-                      ? Text(
-                          'Resend in ${_resendCountdown}s',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                        )
-                      : TextButton(
-                          onPressed: _isLockedOut ? null : _resendOtp,
-                          child: const Text(
-                            'Resend Code',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                        ),
-                ],
-              ),
-
-              const Spacer(),
-
-              // Verify Button
-              ElevatedButton(
-                onPressed: _isLoading || _isLockedOut ? null : _verifyOtp,
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(_isLockedOut ? 'Account Locked' : 'Verify Code'),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

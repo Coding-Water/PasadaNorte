@@ -55,7 +55,7 @@ void main() {
   }
 
   group('Static OTP & Registration Flow Tests (Rider and Driver)', () {
-    testWidgets('OtpVerificationScreen displays static OTP 123456 and auto-fills seamlessly', (tester) async {
+    testWidgets('OtpVerificationScreen follows minimalist layout and verifies static OTP 123456', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -70,12 +70,17 @@ void main() {
         ),
       );
 
-      // Verify static OTP banner is shown with 123456
-      expect(find.textContaining('123456'), findsWidgets);
-      expect(find.text('Auto-Fill Static OTP (123456)'), findsOneWidget);
+      expect(find.text('Enter OTP Code 🔐'), findsOneWidget);
+      expect(find.text('Resend code'), findsOneWidget);
+      expect(find.textContaining('Static OTP for Registration'), findsNothing);
+      expect(find.textContaining('Attempts left:'), findsNothing);
 
-      // Tap the auto-fill button
-      await tester.tap(find.text('Auto-Fill Static OTP (123456)'));
+      final textFields = find.byType(TextField);
+      expect(textFields, findsNWidgets(6));
+      const code = '123456';
+      for (int i = 0; i < 6; i++) {
+        await tester.enterText(textFields.at(i), code[i]);
+      }
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pump(const Duration(milliseconds: 600));
