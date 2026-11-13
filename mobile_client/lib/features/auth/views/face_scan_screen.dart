@@ -31,6 +31,7 @@ class FaceScanScreen extends StatefulWidget {
   final String idType;
   final String idPhotoPath;
   final Map<String, String> vehicleDocumentationPhotos;
+  final bool isResubmissionRedo;
 
   const FaceScanScreen({
     super.key,
@@ -41,6 +42,7 @@ class FaceScanScreen extends StatefulWidget {
     required this.idType,
     required this.idPhotoPath,
     this.vehicleDocumentationPhotos = const {},
+    this.isResubmissionRedo = false,
   });
 
   @override
@@ -500,6 +502,13 @@ class _FaceScanScreenState extends State<FaceScanScreen>
     );
 
     if (widget.role == UserRole.driver) {
+      if (widget.isResubmissionRedo) {
+        unawaited(
+          SupabaseService.resubmitDriverFaceScan(
+            phoneNumber: widget.phoneNumber,
+          ),
+        );
+      }
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -611,7 +620,14 @@ class _FaceScanScreenState extends State<FaceScanScreen>
             onPressed: () {
               Navigator.pop(context);
               if (widget.role == UserRole.driver) {
-                Navigator.push(
+                if (widget.isResubmissionRedo) {
+                  unawaited(
+                    SupabaseService.resubmitDriverFaceScan(
+                      phoneNumber: widget.phoneNumber,
+                    ),
+                  );
+                }
+                Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
                     builder: (context) => DriverApplicationStatusScreen(

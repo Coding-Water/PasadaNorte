@@ -458,6 +458,32 @@ class SupabaseService {
     }
   }
 
+  /// Marks a driver's resubmitted 1:1 Face Bio Scan as ready for MINC review.
+  static Future<bool> resubmitDriverFaceScan({
+    required String phoneNumber,
+  }) async {
+    final updates = <String, dynamic>{
+      'application_status': 'submitted',
+      'admin_notes': 'Driver completed a new 1:1 Face Bio Scan for MINC review.',
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    final cached = _localDriverApplications[phoneNumber];
+    if (cached != null) {
+      _localDriverApplications[phoneNumber] = {...cached, ...updates};
+    }
+    if (!_isConnected) return true;
+    try {
+      await Supabase.instance.client
+          .from('driver_applications')
+          .update(updates)
+          .eq('phone_number', phoneNumber);
+      return true;
+    } catch (e) {
+      debugPrint('Supabase resubmitDriverFaceScan error: $e');
+      return false;
+    }
+  }
+
   // Updates Admin decision (Approve / Reject / Ask Clearer Photos) in Supabase
   static Future<void> updateAdminReviewDecision({
     required String phoneNumber,

@@ -7,6 +7,9 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/services/system_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../driver/views/driver_map_duty_screen.dart';
+import '../../fare/services/fare_calculator_service.dart';
+import '../models/user_model.dart';
+import 'face_scan_screen.dart';
 import 'phone_input_screen.dart';
 
 // NOTIFICATION CHECKLIST:
@@ -32,6 +35,7 @@ class _DriverApplicationStatusScreenState
     extends State<DriverApplicationStatusScreen> {
   final ImagePicker _picker = ImagePicker();
   StreamSubscription<List<Map<String, dynamic>>>? _statusSubscription;
+  Timer? _pollTimer;
 
   String _status = 'submitted';
   String _adminNotes =
@@ -44,13 +48,63 @@ class _DriverApplicationStatusScreenState
 
   static const Map<String, String> _resubmittableFields = {
     'license_photo_url': "Professional Driver's License",
-    'profile_photo_url': 'Selfie / Profile Photo (White Background)',
+    'profile_photo_url': 'Selfie / Profile Photo',
     'nbi_clearance_url': 'NBI Clearance',
-    'police_or_barangay_clearance_url': 'Barangay / Police Clearance',
+    'police_or_barangay_clearance_url': 'Barangay or Police Clearance',
     'fit_to_work_cert_url': 'Fit-to-Work Medical Certificate',
     'or_photo_url': 'LTO Official Receipt (OR)',
     'cr_photo_url': 'LTO Certificate of Registration (CR)',
+    'owner_authorization_letter_url': 'Owner Authorization Letter',
+    'owner_id_photo_url': 'Owner Valid ID',
+    'vehicle_front_photo_url': 'Tricycle Front View',
+    'vehicle_back_photo_url': 'Tricycle Back View',
+    'vehicle_left_photo_url': 'Tricycle Left Side',
+    'vehicle_right_photo_url': 'Tricycle Right Side',
   };
+
+  bool get _needsFaceScanRedo {
+    final lower = _adminNotes.toLowerCase();
+    return lower.contains('face bio scan') ||
+        lower.contains('face scan') ||
+        lower.contains('bioscan');
+  }
+
+  List<MapEntry<String, String>> get _flaggedFieldsToShow {
+    final lowerNotes = _adminNotes.toLowerCase();
+    final matched = _resubmittableFields.entries.where((entry) {
+      final label = entry.value.toLowerCase();
+      if (lowerNotes.contains(label)) return true;
+      if (entry.key == 'police_or_barangay_clearance_url' &&
+          (lowerNotes.contains('barangay') || lowerNotes.contains('police'))) {
+        return true;
+      }
+      if (entry.key == 'profile_photo_url' && lowerNotes.contains('selfie')) {
+        return true;
+      }
+      if (entry.key == 'vehicle_front_photo_url' &&
+          lowerNotes.contains('front view')) {
+        return true;
+      }
+      if (entry.key == 'vehicle_back_photo_url' &&
+          lowerNotes.contains('back view')) {
+        return true;
+      }
+      if (entry.key == 'vehicle_left_photo_url' &&
+          lowerNotes.contains('left side')) {
+        return true;
+      }
+      if (entry.key == 'vehicle_right_photo_url' &&
+          lowerNotes.contains('right side')) {
+        return true;
+      }
+      return false;
+    }).toList();
+
+    if (matched.isNotEmpty || _needsFaceScanRedo) {
+      return matched;
+    }
+    return _resubmittableFields.entries.toList();
+  }
 
   @override
   void initState() {
@@ -69,6 +123,7 @@ class _DriverApplicationStatusScreenState
   @override
   void dispose() {
     _statusSubscription?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
@@ -96,6 +151,14 @@ class _DriverApplicationStatusScreenState
             _applyStatusUpdate(rows.first);
           });
     } catch (_) {}
+
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      final row =
+          await SupabaseService.getDriverApplicationByPhone(widget.phoneNumber);
+      if (!mounted || row == null) return;
+      _applyStatusUpdate(row);
+    });
   }
 
   void _applyStatusUpdate(Map<String, dynamic> row) {
@@ -408,16 +471,79 @@ class _DriverApplicationStatusScreenState
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Upload Updated Files to Resend',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.primarySlate,
+                if (_needsFaceScanRedo) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.accentEmerald),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '1:1 Face Bio Scan Required',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.primarySlate,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Please redo your live 1:1 face verification scan so MINC can complete your identity check.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.black87,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => FaceScanScreen(
+                                  phoneNumber: widget.phoneNumber,
+                                  fullName: widget.fullName,
+                                  role: UserRole.driver,
+                                  passengerCategory: PassengerCategory.regular,
+                                  idType: "Professional Driver's License",
+                                  idPhotoPath: '',
+                                  isResubmissionRedo: true,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.face_retouching_natural_rounded, size: 18),
+                          label: const Text('Redo 1:1 Face Bio Scan'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accentEmerald,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 46),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                ..._resubmittableFields.entries.map((entry) {
+                ],
+                if (_flaggedFieldsToShow.isNotEmpty) ...[
+                  const Text(
+                    'Upload Updated Files to Resend',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.primarySlate,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ..._flaggedFieldsToShow.map((entry) {
                   final selectedPath = _replacementFiles[entry.key];
                   final fileName =
                       selectedPath?.split(RegExp(r'[/\\]')).last;
@@ -489,34 +615,35 @@ class _DriverApplicationStatusScreenState
                     ),
                   );
                 }),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: _isResubmitting ? null : _submitResubmission,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentEmerald,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _isResubmitting ? null : _submitResubmission,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.accentEmerald,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
+                    child: _isResubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Resubmit Documents',
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                   ),
-                  child: _isResubmitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Resubmit Documents',
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                ),
+                ],
               ],
               if (isRejected) ...[
                 const SizedBox(height: 20),

@@ -294,6 +294,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     'Blurry or unreadable photo/scan',
     'Document is expired or invalid',
     'Selfie is not on a plain white background / wearing accessories or mask',
+    '1:1 Face Bio Scan unclear — redo live face scan',
+    '1:1 Face Bio Scan needs manual verification',
     'Cropped or missing document details',
     'Wrong file or mismatched document uploaded',
     'Vehicle plate or side view is unclear',
@@ -3656,11 +3658,26 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     final int totalRequiredDocs = requiredDocItems.length;
     final int passedDocsCount = requiredDocItems.where((item) {
       final col = item.$1;
-      final hasFile = (app[col]?.toString().trim() ?? '').isNotEmpty;
+      final hasFile = col == 'face_bio_scan'
+          ? true
+          : (app[col]?.toString().trim() ?? '').isNotEmpty;
       return hasFile && _getDocReviewState(appKey, col) == 'pass';
+    }).length;
+    final int flaggedResubmitCount = requiredDocItems.where((item) {
+      return _getDocReviewState(appKey, item.$1) == 'resubmit';
     }).length;
     final bool allRequirementsFulfilled =
         totalRequiredDocs > 0 && passedDocsCount == totalRequiredDocs;
+
+    final faceMatch = _flaggedVerifications.cast<Map<String, dynamic>?>().firstWhere(
+      (u) => u?['phone_number'] == app['phone_number'],
+      orElse: () => null,
+    );
+    final double? faceSimilarity = (faceMatch?['similarity'] as num?)?.toDouble();
+    final String faceVerifyStatus = (faceMatch?['status'] ?? 'pending').toString();
+    final String faceDetail = faceSimilarity != null && faceSimilarity > 0
+        ? 'Match ${faceSimilarity.toStringAsFixed(1)}% • $faceVerifyStatus'
+        : 'Liveness & 1:1 Face Match ($faceVerifyStatus)';
 
     Color statusBg = const Color(0xFFFEF3C7);
     Color statusColor = const Color(0xFFB45309);
@@ -3878,6 +3895,15 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                               isAvailable: app['profile_photo_url'] != null,
                               onView: () => _showDriverAppDocDialog(context, 'Driver White-BG Selfie', app['profile_photo_url']),
                             ),
+                            _buildDocStatusRow(
+                              app: app,
+                              appKey: appKey,
+                              columnKey: 'face_bio_scan',
+                              title: '1:1 Face Bio Scan',
+                              detail: faceDetail,
+                              isAvailable: true,
+                              onView: () => _showFaceBioScanDialog(context, app, faceMatch),
+                            ),
                           ],
                         ),
                       ),
@@ -4090,8 +4116,23 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         if (!isApproved) ...[
                           OutlinedButton.icon(
                             onPressed: () => _requestResubmissionDriverApp(app),
+                            style: flaggedResubmitCount > 0
+                                ? OutlinedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFFFFBEB),
+                                    side: const BorderSide(color: Color(0xFFD97706)),
+                                  )
+                                : null,
                             icon: const Icon(Icons.history_edu_rounded, size: 14, color: Color(0xFFD97706)),
-                            label: const Text('Request Resubmission', style: TextStyle(fontSize: 11.5, color: Color(0xFFD97706))),
+                            label: Text(
+                              flaggedResubmitCount > 0
+                                  ? 'Send Resubmission ($flaggedResubmitCount Flagged)'
+                                  : 'Request Resubmission',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFFD97706),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                           OutlinedButton.icon(
                             onPressed: () => _rejectDriverApp(app),
@@ -4171,6 +4212,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       if (isFitToWorkMandatory)
         ('fit_to_work_cert_url', 'Fit-to-Work Medical Certificate'),
       ('profile_photo_url', 'Selfie / Profile Photo'),
+      ('face_bio_scan', '1:1 Face Bio Scan'),
       ('or_photo_url', 'LTO Official Receipt (OR)'),
       ('cr_photo_url', 'LTO Certificate of Registration (CR)'),
       if (!isOwned) ...[
@@ -4647,13 +4689,90 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     );
   }
 
-  void _approveDriverApp(Map<String, dynamic> app) {
+  void _showFaceBioScanDialog(
+    BuildContext context,
+    Map<String, dynamic> app,
+    Map<String, dynamic>? faceMatch,
+  ) {
+    final similarity = (faceMatch?['similarity'] as num?)?.toDouble();
+    final latency = (faceMatch?['latency'] as num?)?.toDouble();
+    final status = (faceMatch?['status'] ?? 'pending').toString();
+    final note = (faceMatch?['note'] ?? 'Live 1:1 liveness & selfie comparison').toString();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.face_retouching_natural_rounded, color: Color(0xFF059669)),
+            SizedBox(width: 8),
+            Text('1:1 Face Bio Scan Inspection', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Applicant: ${app['full_name'] ?? 'Driver'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 8),
+              Text('Verification Status: $status', style: const TextStyle(fontSize: 12.5)),
+              Text(
+                'AI Face Similarity: ${similarity != null && similarity > 0 ? '${similarity.toStringAsFixed(1)}%' : 'Manual Review Required'}',
+                style: const TextStyle(fontSize: 12.5),
+              ),
+              if (latency != null && latency > 0)
+                Text('Scan Latency: ${latency.toStringAsFixed(2)}s', style: const TextStyle(fontSize: 12.5)),
+              const SizedBox(height: 6),
+              Text('System Note: $note', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _showDriverAppDocDialog(context, 'Driver White-BG Selfie', app['profile_photo_url']);
+                },
+                icon: const Icon(Icons.photo_camera_front_rounded, size: 16),
+                label: const Text('Inspect Submitted Selfie Photo'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateDriverApplicationInSupabase(
+    Map<String, dynamic> app,
+    Map<String, dynamic> updates,
+  ) async {
+    final rawId = app['id']?.toString() ?? '';
+    final phone = app['phone_number']?.toString() ?? '';
+    if (rawId.isNotEmpty && !rawId.startsWith('drv_app_')) {
+      await Supabase.instance.client
+          .from('driver_applications')
+          .update(updates)
+          .eq('id', rawId);
+    } else if (phone.isNotEmpty) {
+      await Supabase.instance.client
+          .from('driver_applications')
+          .update(updates)
+          .eq('phone_number', phone);
+    }
+  }
+
+  Future<void> _approveDriverApp(Map<String, dynamic> app) async {
     final todaCode = app['toda_code']?.toString() ?? 'TODA-01';
     final pilaSlot = 'Pila #${_driverDirectory.length + 1}';
+    final note =
+        'Approved by Laoag MINC Officer. Assigned TODA Pila: $todaCode ($pilaSlot).';
     setState(() {
       app['application_status'] = 'approved';
-      app['admin_notes'] =
-          'Approved by Laoag MINC Officer. Assigned TODA Pila: $todaCode ($pilaSlot).';
+      app['admin_notes'] = note;
       _driverDirectory.add({
         'bodyNo': pilaSlot,
         'name': app['full_name'],
@@ -4672,12 +4791,23 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     });
 
     try {
-      Supabase.instance.client
-          .from('driver_applications')
-          .update({'application_status': 'approved', 'admin_notes': app['admin_notes']})
-          .eq('phone_number', app['phone_number']);
-    } catch (_) {}
+      await _updateDriverApplicationInSupabase(app, {
+        'application_status': 'approved',
+        'admin_notes': note,
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Supabase update error: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+      return;
+    }
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -4714,7 +4844,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
+        builder: (dialogContext, setDialogState) {
           final hasCompiled = compiledLines.isNotEmpty;
           final isOther =
               hasCompiled || selectedReason == 'Other (Specify reason)';
@@ -4783,7 +4913,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   final finalNote = isOther
                       ? customController.text.trim()
                       : selectedReason;
@@ -4801,15 +4931,23 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   });
 
                   try {
-                    Supabase.instance.client
-                        .from('driver_applications')
-                        .update({
-                          'application_status': 'resubmission_requested',
-                          'admin_notes': finalNote,
-                        })
-                        .eq('phone_number', app['phone_number']);
-                  } catch (_) {}
+                    await _updateDriverApplicationInSupabase(app, {
+                      'application_status': 'resubmission_requested',
+                      'admin_notes': finalNote,
+                    });
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Supabase update error: $e'),
+                          backgroundColor: const Color(0xFFDC2626),
+                        ),
+                      );
+                    }
+                    return;
+                  }
 
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
@@ -4839,7 +4977,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
+        builder: (dialogContext, setDialogState) {
           final isOther = selectedReason == 'Other (Specify reason)';
           return AlertDialog(
             title: const Text(
@@ -4909,7 +5047,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   final finalReason = isOther
                       ? customController.text.trim()
                       : selectedReason;
@@ -4927,15 +5065,23 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   });
 
                   try {
-                    Supabase.instance.client
-                        .from('driver_applications')
-                        .update({
-                          'application_status': 'rejected',
-                          'admin_notes': finalReason,
-                        })
-                        .eq('phone_number', app['phone_number']);
-                  } catch (_) {}
+                    await _updateDriverApplicationInSupabase(app, {
+                      'application_status': 'rejected',
+                      'admin_notes': finalReason,
+                    });
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Supabase update error: $e'),
+                          backgroundColor: const Color(0xFFDC2626),
+                        ),
+                      );
+                    }
+                    return;
+                  }
 
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
