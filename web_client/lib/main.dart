@@ -96,8 +96,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'radius': 30.0,
       'joinSpeed': 5.0,
       'dwell': 45,
-      'activeUnits': 42,
-      'dispatches': 1420,
+      'activeUnits': 0,
+      'dispatches': 0,
       'lat': 18.1972,
       'lng': 120.5925,
     },
@@ -108,8 +108,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'radius': 25.0,
       'joinSpeed': 5.0,
       'dwell': 30,
-      'activeUnits': 28,
-      'dispatches': 980,
+      'activeUnits': 0,
+      'dispatches': 0,
       'lat': 18.1925,
       'lng': 120.5960,
     },
@@ -120,8 +120,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'radius': 35.0,
       'joinSpeed': 5.0,
       'dwell': 60,
-      'activeUnits': 19,
-      'dispatches': 510,
+      'activeUnits': 0,
+      'dispatches': 0,
       'lat': 18.1845,
       'lng': 120.5912,
     },
@@ -132,8 +132,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'radius': 20.0,
       'joinSpeed': 5.0,
       'dwell': 40,
-      'activeUnits': 14,
-      'dispatches': 340,
+      'activeUnits': 0,
+      'dispatches': 0,
       'lat': 18.1880,
       'lng': 120.5890,
     },
@@ -144,8 +144,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'radius': 30.0,
       'joinSpeed': 5.0,
       'dwell': 50,
-      'activeUnits': 8,
-      'dispatches': 85,
+      'activeUnits': 0,
+      'dispatches': 0,
       'lat': 18.1811,
       'lng': 120.5306,
     },
@@ -457,55 +457,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         duration: const Duration(seconds: 5),
       ),
     );
-  }
-
-  void _simulateDriverSos() async {
-    final id = 'SOS-${DateTime.now().millisecondsSinceEpoch % 10000}';
-    final newAlert = {
-      'id': id,
-      'driver_name': 'Eduardo "Manong Eddie" Castro',
-      'body_number': '#0042',
-      'plate_number': '7489-IN',
-      'toda': 'Laoag Central Terminal TODA',
-      'latitude': 18.1960,
-      'longitude': 120.5935,
-      'location_name': 'Gilbert Bridge / J.P. Rizal St (Zone 1)',
-      'alert_reason': 'DRIVER_PANIC_BUTTON_ACTIVE_TRIP',
-      'status': 'ACTIVE_DISPATCHED',
-      'time_ago': 'Just now',
-      'created_at': DateTime.now().toIso8601String(),
-      'contact': '+63 917 554 9012',
-    };
-    setState(() {
-      _sosAlerts.removeWhere((a) => a['id'] == id);
-      _sosAlerts.insert(0, newAlert);
-      _systemAuditLogs.insert(0, {
-        'time': 'Just now',
-        'actor': 'Live Telemetry Sentinel',
-        'action': 'Received High-Priority SOS Beacon from Body #0042 at Gilbert Bridge',
-      });
-    });
-
-    try {
-      await Supabase.instance.client.from('emergency_sos_alerts').insert({
-        'driver_name': newAlert['driver_name'],
-        'latitude': newAlert['latitude'],
-        'longitude': newAlert['longitude'],
-        'alert_reason': newAlert['alert_reason'],
-        'status': 'ACTIVE_DISPATCHED',
-        'created_at': DateTime.now().toIso8601String(),
-      });
-    } catch (_) {}
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🚨 LIVE SOS RECEIVED: Driver Eduardo Castro (#0042) triggered distress beacon near Gilbert Bridge!'),
-          backgroundColor: Color(0xFFDC2626),
-          duration: Duration(seconds: 5),
-        ),
-      );
-    }
   }
 
   void _showSosIncidentModal(Map<String, dynamic> alert) {
@@ -1446,14 +1397,23 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                   ),
                                 )
                               else
-                                OutlinedButton.icon(
-                                  onPressed: _simulateDriverSos,
-                                  icon: const Icon(Icons.emergency_rounded, size: 15, color: Color(0xFFDC2626)),
-                                  label: const Text('Test Driver SOS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFDC2626))),
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(color: Color(0xFFFCA5A5)),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0FDF4),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.shield_rounded, size: 15, color: Color(0xFF059669)),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'SOS Standby',
+                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF059669)),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               const SizedBox(width: 8),
@@ -1673,25 +1633,25 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               children: [
                 _buildKrispMetricCard(
                   title: 'Completed Trips',
-                  value: '4,565',
-                  dateLabel: 'June 30, 2026',
-                  trendLabel: '↑ 100% vs. Baseline: 45',
+                  value: '${_dispatchTrips.length}',
+                  dateLabel: 'Live Supabase Sync',
+                  trendLabel: '${_dispatchTrips.where((t) => t['status'] == 'COMPLIANT').length} compliant dispatches',
                   trendPositive: true,
                   sparklineType: SparklineType.upwardSmooth,
                 ),
                 _buildKrispMetricCard(
                   title: 'Active Tricycles on Duty',
-                  value: '90',
-                  dateLabel: 'June 30, 2026',
-                  trendLabel: '↑ ∞% vs. June 30: 0',
+                  value: '${_driverDirectory.length}',
+                  dateLabel: 'Live MINC Directory',
+                  trendLabel: '${_driverApplications.where((a) => a['application_status'] == 'submitted').length} pending driver review',
                   trendPositive: true,
                   sparklineType: SparklineType.steadyRise,
                 ),
                 _buildKrispMetricCard(
-                  title: 'Average Pila Dwell Time',
-                  value: '3.8m',
-                  dateLabel: 'June 30, 2026',
-                  trendLabel: '↓ 64% vs. Manual: 10.5m',
+                  title: 'Pending Driver Applications',
+                  value: '${_driverApplications.where((a) => a['application_status'] == 'submitted').length}',
+                  dateLabel: 'Live Supabase Queue',
+                  trendLabel: '${_driverApplications.length} total submitted',
                   trendPositive: true,
                   sparklineType: SparklineType.downwardEfficiency,
                 ),
@@ -1705,6 +1665,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         LayoutBuilder(
           builder: (context, constraints) {
             final isWide = constraints.maxWidth > 900;
+            final approvedApps = _driverApplications.where((a) => a['application_status'] == 'approved').length;
+            final approvalRate = _driverApplications.isEmpty
+                ? '0.0%'
+                : '${((approvedApps / _driverApplications.length) * 100).toStringAsFixed(1)}%';
             return GridView.count(
               crossAxisCount: isWide ? 2 : 1,
               shrinkWrap: true,
@@ -1714,18 +1678,18 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               childAspectRatio: isWide ? 2.4 : 2.2,
               children: [
                 _buildKrispMetricCard(
-                  title: 'Deployment Rate',
-                  value: '11.11%',
-                  dateLabel: 'June 30, 2026',
-                  trendLabel: '↑ ∞% vs. June 30: 0.00%',
+                  title: 'Driver Approval Rate',
+                  value: approvalRate,
+                  dateLabel: 'Live MINC Audit',
+                  trendLabel: '$approvedApps of ${_driverApplications.length} approved',
                   trendPositive: true,
                   sparklineType: SparklineType.mildRise,
                 ),
                 _buildKrispMetricCard(
-                  title: 'TODA Digital Pila Adoption Rate',
-                  value: '88.50%',
-                  dateLabel: 'June 30, 2026',
-                  trendLabel: '↑ 78.5% vs. Week 1: 10.00%',
+                  title: 'Registered Biometric Users',
+                  value: '${_flaggedVerifications.length}',
+                  dateLabel: 'Live Supabase Users',
+                  trendLabel: '${_flaggedVerifications.where((v) => v['status'] == 'approved').length} verified accounts',
                   trendPositive: true,
                   sparklineType: SparklineType.steadyRise,
                 ),
@@ -4625,16 +4589,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ),
             Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: _simulateDriverSos,
-                  icon: const Icon(Icons.emergency_rounded, color: Color(0xFFDC2626), size: 16),
-                  label: const Text('Simulate Driver SOS', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFDC2626))),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFFCA5A5)),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  ),
-                ),
-                const SizedBox(width: 10),
                 ElevatedButton.icon(
                   onPressed: _syncFromSupabase,
                   icon: const Icon(Icons.sync_rounded, size: 16),
@@ -4705,8 +4659,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text('89 Units', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
-                    const Text('Operating across 10 Laoag zones', style: TextStyle(fontSize: 11.5, color: Colors.grey)),
+                    Text('${_driverDirectory.length} Units', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+                    const Text('Approved & active in Laoag City', style: TextStyle(fontSize: 11.5, color: Colors.grey)),
                   ],
                 ),
               ),
