@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_client/core/services/supabase_service.dart';
 import 'package:mobile_client/core/theme/app_theme.dart';
+import 'package:mobile_client/features/auth/models/user_model.dart';
 import 'package:mobile_client/features/auth/views/face_scan_screen.dart';
 import 'package:mobile_client/features/auth/views/id_upload_screen.dart';
 import 'package:mobile_client/features/auth/views/otp_verification_screen.dart';
@@ -330,6 +332,44 @@ void main() {
 
       expect(find.byType(TermsOfServiceScreen), findsOneWidget);
       expect(find.text('Effective Date: November 13, 2026'), findsOneWidget);
+    });
+
+    testWidgets('FaceScanScreen displays selfie intro and guides through tilt left, tilt right, and blink once', (tester) async {
+      SharedPreferences.setMockInitialValues({'pn_perm_camera_granted': true});
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: const FaceScanScreen(
+            phoneNumber: '+639171234567',
+            fullName: 'Maria Santos',
+            role: UserRole.rider,
+            idType: 'National ID (PhilSys)',
+            idPhotoPath: 'demo_id.jpg',
+          ),
+        ),
+      );
+
+      expect(find.text('Take a selfie to verify your identity'), findsOneWidget);
+      await tester.ensureVisible(find.text('Next'));
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tilt your head left'), findsWidgets);
+      await tester.ensureVisible(find.text('Confirm Head Tilt Left'));
+      await tester.tap(find.text('Confirm Head Tilt Left'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tilt your head right'), findsWidgets);
+      await tester.ensureVisible(find.text('Confirm Head Tilt Right'));
+      await tester.tap(find.text('Confirm Head Tilt Right'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Blink once'), findsWidgets);
+      await tester.ensureVisible(find.text('Confirm Blink & Verify'));
+      await tester.tap(find.text('Confirm Blink & Verify'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1:1 Face Match Verified'), findsOneWidget);
     });
   });
 }
