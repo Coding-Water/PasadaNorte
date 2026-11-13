@@ -23,65 +23,82 @@ class DriverStatsService {
   static const String _kTripsCountKey = 'pn_driver_today_trips';
   static const String _kHoursOnlineKey = 'pn_driver_today_hours';
 
-  // In-memory stats initialized with realistic daily baseline
-  static double todayTotalEarnings = 385.00;
-  static int todayCompletedTrips = 14;
-  static double todayHoursOnline = 4.5;
-  static double cashEarnings = 325.00;
-  static double gcashEarnings = 60.00;
+  // In-memory stats initialized to zero for clean real-user accounts
+  static double todayTotalEarnings = 0.00;
+  static int todayCompletedTrips = 0;
+  static double todayHoursOnline = 0.0;
+  static double cashEarnings = 0.00;
+  static double gcashEarnings = 0.00;
 
-  static final List<CompletedTripRecord> recentTrips = [
-    CompletedTripRecord(
-      id: 'TRIP-104',
-      passengerName: 'Maria Clara Santos',
-      route: 'Laoag Central Market ➔ MMSU Gate 2',
-      fare: 15.00,
-      isCash: true,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 18)),
-    ),
-    CompletedTripRecord(
-      id: 'TRIP-103',
-      passengerName: 'Engr. Juan Reyes',
-      route: 'Plaza Salcedo ➔ Robinsons Ilocos',
-      fare: 25.00,
-      isCash: false,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 54)),
-    ),
-    CompletedTripRecord(
-      id: 'TRIP-102',
-      passengerName: 'Aling Remedios',
-      route: 'LCGH Hospital ➔ Brgy. 2 Santa Joaquina',
-      fare: 20.00,
-      isCash: true,
-      timestamp: DateTime.now().subtract(const Duration(hours: 1, minutes: 25)),
-    ),
-    CompletedTripRecord(
-      id: 'TRIP-101',
-      passengerName: 'Mark Angelo Castro',
-      route: 'INCAT School ➔ Gilbert Bridge South',
-      fare: 20.00,
-      isCash: true,
-      timestamp: DateTime.now().subtract(const Duration(hours: 2, minutes: 10)),
-    ),
-  ];
+  static final List<CompletedTripRecord> recentTrips = [];
 
-  // Driver & Tricycle Franchise Profile
-  static const String driverFullName = 'Eduardo "Manong Eddie" Castro';
-  static const String todaAssociation = 'Laoag Central Terminal TODA Association';
-  static const String bodyNumber = '0042';
-  static const String plateNumber = '7489-IN';
-  static const String mincFranchiseNumber = 'MINC-LAOAG-2024-0892';
-  static const String franchiseExpiry = 'December 31, 2027';
-  static const bool isFranchiseActive = true;
-  static const String ltoRegistrationExpiry = 'October 24, 2027';
-  static const String lastInspectionStatus = 'Laoag LGU Inspection • Passed';
+  // Driver & Tricycle Franchise Profile (populated per logged-in / registered driver)
+  static String driverFullName = 'Driver';
+  static String todaAssociation = 'No Assigned TODA Yet';
+  static String bodyNumber = 'Pending';
+  static String plateNumber = 'Unassigned';
+  static String mincFranchiseNumber = 'Pending MINC Approval';
+  static String franchiseExpiry = 'Pending';
+  static bool isFranchiseActive = false;
+  static String ltoRegistrationExpiry = 'Pending';
+  static String lastInspectionStatus = 'Pending MINC Review';
+
+  static void setActiveDriverProfile({
+    required String fullName,
+    String? plateNo,
+    String? todaName,
+    String? bodyNo,
+  }) {
+    driverFullName = fullName.trim().isNotEmpty ? fullName.trim() : 'Driver';
+    if (plateNo != null && plateNo.trim().isNotEmpty) {
+      plateNumber = plateNo.trim();
+    }
+    if (todaName != null && todaName.trim().isNotEmpty) {
+      todaAssociation = todaName.trim();
+    }
+    if (bodyNo != null && bodyNo.trim().isNotEmpty) {
+      bodyNumber = bodyNo.trim();
+    }
+  }
+
+  static Future<void> resetForNewDriver({
+    required String fullName,
+    String? plateNo,
+  }) async {
+    todayTotalEarnings = 0.00;
+    todayCompletedTrips = 0;
+    todayHoursOnline = 0.0;
+    cashEarnings = 0.00;
+    gcashEarnings = 0.00;
+    recentTrips.clear();
+    driverFullName = fullName.trim().isNotEmpty ? fullName.trim() : 'Driver';
+    todaAssociation = 'No Assigned TODA Yet';
+    bodyNumber = 'Pending';
+    plateNumber = (plateNo != null && plateNo.trim().isNotEmpty)
+        ? plateNo.trim()
+        : 'Pending';
+    mincFranchiseNumber = 'Pending MINC Approval';
+    franchiseExpiry = 'Pending';
+    isFranchiseActive = false;
+    ltoRegistrationExpiry = 'Pending';
+    lastInspectionStatus = 'Pending MINC Review';
+    // Clear persisted stats in the background without blocking navigation
+    Future<void>(() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_kEarningsKey);
+        await prefs.remove(_kTripsCountKey);
+        await prefs.remove(_kHoursOnlineKey);
+      } catch (_) {}
+    });
+  }
 
   static Future<void> loadSavedStats() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      todayTotalEarnings = prefs.getDouble(_kEarningsKey) ?? 385.00;
-      todayCompletedTrips = prefs.getInt(_kTripsCountKey) ?? 14;
-      todayHoursOnline = prefs.getDouble(_kHoursOnlineKey) ?? 4.5;
+      todayTotalEarnings = prefs.getDouble(_kEarningsKey) ?? 0.00;
+      todayCompletedTrips = prefs.getInt(_kTripsCountKey) ?? 0;
+      todayHoursOnline = prefs.getDouble(_kHoursOnlineKey) ?? 0.0;
     } catch (_) {}
   }
 

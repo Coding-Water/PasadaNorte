@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -263,351 +265,117 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     },
   ];
 
-  // Dispatch Trips Audit Data (Anti-Overcharging Sentinel)
-  final List<Map<String, dynamic>> _dispatchTrips = [
-    {
-      'id': 'TRP-9401',
-      'rider': 'Maria Clara Santos',
-      'riderRole': 'Student (20% Disc)',
-      'driver': 'Eduardo Castro',
-      'bodyNo': 'T-0142',
-      'toda': 'Laoag Central TODA',
-      'origin': 'Laoag Central Terminal',
-      'destination': 'MMSU CTE P. Gomez St.',
-      'distanceKm': 1.25,
-      'expectedFare': 16.00,
-      'collectedFare': 16.00,
-      'status': 'COMPLIANT',
-      'time': '10:42 AM',
-      'payment': 'Cash Paid',
-    },
-    {
-      'id': 'TRP-9402',
-      'rider': 'Joshua Agcaoili',
-      'riderRole': 'Regular',
-      'driver': 'Nestor Valdez',
-      'bodyNo': 'T-0855',
-      'toda': 'Laoag Central TODA',
-      'origin': 'Public Market J.P. Rizal',
-      'destination': 'Gov. Roque Ablan Hospital',
-      'distanceKm': 1.80,
-      'expectedFare': 24.00,
-      'collectedFare': 40.00,
-      'status': 'OVERCHARGED',
-      'overchargeAmount': 16.00,
-      'time': '11:15 AM',
-      'payment': 'Cash Paid',
-    },
-    {
-      'id': 'TRP-9403',
-      'rider': 'Elena Dumlao',
-      'riderRole': 'Senior Citizen (20% Disc)',
-      'driver': 'Rogelio Pascual',
-      'bodyNo': 'T-0219',
-      'toda': 'MMSU-San Nicolas TODA',
-      'origin': 'MMSU CIT Gate 2',
-      'destination': 'Robinsons Place Ilocos',
-      'distanceKm': 2.40,
-      'expectedFare': 23.00,
-      'collectedFare': 23.00,
-      'status': 'COMPLIANT',
-      'time': '11:28 AM',
-      'payment': 'GCash Digital',
-    },
-    {
-      'id': 'TRP-9404',
-      'rider': 'Bryan Fontanilla',
-      'riderRole': 'Regular',
-      'driver': 'Danilo Ramos',
-      'bodyNo': 'T-0404',
-      'toda': 'Airport-Nalbo TODA',
-      'origin': 'Partas Bus Terminal',
-      'destination': 'Laoag City General Hospital',
-      'distanceKm': 1.60,
-      'expectedFare': 23.00,
-      'collectedFare': 35.00,
-      'status': 'OVERCHARGED',
-      'overchargeAmount': 12.00,
-      'time': '11:50 AM',
-      'payment': 'Cash Paid',
-    },
-    {
-      'id': 'TRP-9405',
-      'rider': 'Grace Malapit',
-      'riderRole': 'Student (20% Disc)',
-      'driver': 'Ferdinand Corpuz',
-      'bodyNo': 'T-0331',
-      'toda': 'Capitol TODA',
-      'origin': 'Ilocos Norte Capitol',
-      'destination': 'Northwestern University',
-      'distanceKm': 2.10,
-      'expectedFare': 21.50,
-      'collectedFare': 21.50,
-      'status': 'COMPLIANT',
-      'time': '12:05 PM',
-      'payment': 'Cash Paid',
-    },
-  ];
+  // Dispatch Trips Audit Data (populated live from Supabase)
+  final List<Map<String, dynamic>> _dispatchTrips = [];
 
-  // MINC Registered Drivers & Operators Directory
-  final List<Map<String, dynamic>> _driverDirectory = [
-    {
-      'bodyNo': 'T-0142',
-      'mtop': 'MTOP-LAO-2024-00142',
-      'name': 'Eduardo "Manong Eddie" Castro',
-      'toda': 'Laoag Central TODA',
-      'phone': '+63 918 992 3310',
-      'plateNo': '9042-NA',
-      'status': 'Active Duty',
-      'verification': 96.4,
-      'trips': 142,
-      'rating': 4.9,
-    },
-    {
-      'bodyNo': 'T-0219',
-      'mtop': 'MTOP-LAO-2023-00219',
-      'name': 'Rogelio Pascual',
-      'toda': 'MMSU-San Nicolas TODA',
-      'phone': '+63 920 445 1198',
-      'plateNo': '4412-NB',
-      'status': 'In Pila (Rank #1)',
-      'verification': 94.8,
-      'trips': 98,
-      'rating': 4.8,
-    },
-    {
-      'bodyNo': 'T-0331',
-      'mtop': 'MTOP-LAO-2024-00331',
-      'name': 'Ferdinand Corpuz',
-      'toda': 'Capitol TODA',
-      'phone': '+63 917 551 2284',
-      'plateNo': '8123-NA',
-      'status': 'Active Duty',
-      'verification': 95.1,
-      'trips': 114,
-      'rating': 4.9,
-    },
-    {
-      'bodyNo': 'T-0404',
-      'mtop': 'MTOP-LAO-2022-00404',
-      'name': 'Danilo Ramos',
-      'toda': 'Airport-Nalbo TODA',
-      'phone': '+63 927 889 0012',
-      'plateNo': '5589-NC',
-      'status': 'Flagged (Dispute)',
-      'verification': 91.0,
-      'trips': 62,
-      'rating': 4.2,
-    },
-    {
-      'bodyNo': 'T-0855',
-      'mtop': 'MTOP-LAO-2023-00855',
-      'name': 'Nestor Valdez',
-      'toda': 'Laoag Central TODA',
-      'phone': '+63 908 776 5543',
-      'plateNo': '1092-NA',
-      'status': 'Overcharge Warning',
-      'verification': 89.4,
-      'trips': 78,
-      'rating': 4.1,
-    },
-  ];
+  // MINC Registered Drivers & Operators Directory (populated from approved Supabase driver applications)
+  final List<Map<String, dynamic>> _driverDirectory = [];
 
-  // TODA Pila FIFO Queue Inspector Data
+  // TODA Pila FIFO Queue Inspector Data (populated live from terminal queues)
   final Map<String, List<Map<String, dynamic>>> _pilaQueues = {
-    'TODA-01': [
-      {'rank': 1, 'bodyNo': 'T-0142', 'name': 'Eduardo Castro', 'dwellMins': 4, 'status': 'Next to Board'},
-      {'rank': 2, 'bodyNo': 'T-0520', 'name': 'Arturo Domingo', 'dwellMins': 9, 'status': 'Queued'},
-      {'rank': 3, 'bodyNo': 'T-0855', 'name': 'Nestor Valdez', 'dwellMins': 14, 'status': 'Queued'},
-      {'rank': 4, 'bodyNo': 'T-0912', 'name': 'Jaime Alcantara', 'dwellMins': 18, 'status': 'Queued'},
-      {'rank': 5, 'bodyNo': 'T-1004', 'name': 'Crisanto Agbayani', 'dwellMins': 22, 'status': 'Queued'},
-    ],
-    'TODA-02': [
-      {'rank': 1, 'bodyNo': 'T-0219', 'name': 'Rogelio Pascual', 'dwellMins': 2, 'status': 'Next to Board'},
-      {'rank': 2, 'bodyNo': 'T-0388', 'name': 'Marcos Barba', 'dwellMins': 6, 'status': 'Queued'},
-      {'rank': 3, 'bodyNo': 'T-0741', 'name': 'Emilio Farinas', 'dwellMins': 11, 'status': 'Queued'},
-    ],
-    'TODA-03': [
-      {'rank': 1, 'bodyNo': 'T-0331', 'name': 'Ferdinand Corpuz', 'dwellMins': 5, 'status': 'Next to Board'},
-      {'rank': 2, 'bodyNo': 'T-0662', 'name': 'Vicente Keon', 'dwellMins': 12, 'status': 'Queued'},
-    ],
+    'TODA-01': [],
+    'TODA-02': [],
+    'TODA-03': [],
   };
 
-  // Flagged 1:1 Face Verifications Queue
-  final List<Map<String, dynamic>> _flaggedVerifications = [
-    {
-      'id': 'VER-2026-001',
-      'phone_number': '+639174451029',
-      'name': 'Maria Clara Santos',
-      'role': 'rider',
-      'idType': 'Student ID (MMSU CTE)',
-      'similarity': 96.4,
-      'latency': 1.12,
-      'status': 'approved',
-      'note': 'Valid 20% statutory student discount applied.',
-    },
-    {
-      'id': 'VER-2026-002',
-      'phone_number': '+639189923310',
-      'name': 'Eduardo "Manong Eddie" Castro',
-      'role': 'driver',
-      'idType': 'Professional Driver\'s License',
-      'similarity': 94.8,
-      'latency': 1.45,
-      'status': 'approved',
-      'note': 'MINC Franchise #0042 active & verified.',
-    },
-    {
-      'id': 'VER-2026-003',
-      'phone_number': '+639201124489',
-      'name': 'Juan Delos Reyes',
-      'role': 'driver',
-      'idType': 'TODA MINC Permit',
-      'similarity': 78.2,
-      'latency': 1.60,
-      'status': 'pending',
-      'note': 'Manual review requested. Partial face shadow.',
-    },
-  ];
+  // Flagged 1:1 Face Verifications Queue (populated live from Supabase)
+  final List<Map<String, dynamic>> _flaggedVerifications = [];
 
-  // Driver Applications & Vehicle Compliance Queue (Laoag City MINC & Ordinance Standards)
+  // Driver Applications & Vehicle Compliance Queue (populated live from Supabase)
   String _driverAppFilter = 'All'; // 'All', 'submitted', 'under_review', 'approved', 'resubmission_requested', 'rejected'
   String _driverAppSearchQuery = '';
-  final List<Map<String, dynamic>> _driverApplications = [
-    {
-      'id': 'drv_app_179448001',
-      'full_name': 'Rolando "Lando" Agcaoili',
-      'phone_number': '+639178829910',
-      'birth_date': '1973-04-15',
-      'age': 53,
-      'fit_to_work_cert_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/fit_to_work_cert_lando.jpg',
-      'profile_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/profile_lando_white_bg.jpg',
-      'license_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/license_lando.jpg',
-      'license_number': 'A02-12-984210',
-      'license_expiry_date': '2028-04-15',
-      'nbi_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/nbi_clearance_lando.jpg',
-      'police_or_barangay_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/barangay_clearance_lando.jpg',
-      'motorcycle_brand_model': 'Kawasaki Barako II 175',
-      'engine_displacement_cc': 175,
-      'model_year': 2021,
-      'plate_or_mv_file': '1204-IN',
-      'or_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_or_lando.jpg',
-      'cr_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_cr_lando.jpg',
-      'is_motorcycle_owned': true,
-      'owner_authorization_letter_url': null,
-      'owner_id_photo_url': null,
-      'vehicle_front_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_front_lando.jpg',
-      'vehicle_back_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_back_lando.jpg',
-      'vehicle_left_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_left_lando.jpg',
-      'vehicle_right_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_right_lando.jpg',
-      'toda_code': 'TODA-01',
-      'application_status': 'submitted',
-      'admin_notes': 'Awaiting MINC inspection. Age 53 fit-to-work medical certificate attached and verified.',
-      'submitted_at': '2026-11-12T10:15:00Z',
-    },
-    {
-      'id': 'drv_app_179448002',
-      'full_name': 'Nestor "Ka Nes" Guillermo',
-      'phone_number': '+639201124489',
-      'birth_date': '1995-08-20',
-      'age': 31,
-      'fit_to_work_cert_url': null,
-      'profile_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/profile_nestor_white_bg.jpg',
-      'license_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/license_nestor.jpg',
-      'license_number': 'A01-16-102934',
-      'license_expiry_date': '2029-08-20',
-      'nbi_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/nbi_clearance_nestor.jpg',
-      'police_or_barangay_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/police_clearance_nestor.jpg',
-      'motorcycle_brand_model': 'Honda TMX 125 Alpha',
-      'engine_displacement_cc': 125,
-      'model_year': 2022,
-      'plate_or_mv_file': '4821-IN',
-      'or_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_or_nestor.jpg',
-      'cr_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_cr_nestor.jpg',
-      'is_motorcycle_owned': false,
-      'owner_authorization_letter_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/owner_auth_nestor.jpg',
-      'owner_id_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/owner_id_nestor.jpg',
-      'vehicle_front_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_front_nestor.jpg',
-      'vehicle_back_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_back_nestor.jpg',
-      'vehicle_left_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_left_nestor.jpg',
-      'vehicle_right_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_right_nestor.jpg',
-      'toda_code': 'TODA-02',
-      'application_status': 'submitted',
-      'admin_notes': 'Motorcycle registered under relative; owner authorization letter and ID attached.',
-      'submitted_at': '2026-11-12T09:30:00Z',
-    },
-    {
-      'id': 'drv_app_179448003',
-      'full_name': 'Eduardo "Manong Eddie" Castro',
-      'phone_number': '+639189923310',
-      'birth_date': '1982-11-04',
-      'age': 44,
-      'fit_to_work_cert_url': null,
-      'profile_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/profile_eddie_white_bg.jpg',
-      'license_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/license_eddie.jpg',
-      'license_number': 'A03-08-445892',
-      'license_expiry_date': '2027-11-04',
-      'nbi_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/nbi_clearance_eddie.jpg',
-      'police_or_barangay_clearance_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/barangay_clearance_eddie.jpg',
-      'motorcycle_brand_model': 'Bajaj CT 150 Boxer',
-      'engine_displacement_cc': 150,
-      'model_year': 2020,
-      'plate_or_mv_file': '7489-IN',
-      'or_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_or_eddie.jpg',
-      'cr_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/lto_cr_eddie.jpg',
-      'is_motorcycle_owned': true,
-      'owner_authorization_letter_url': null,
-      'owner_id_photo_url': null,
-      'vehicle_front_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_front_eddie.jpg',
-      'vehicle_back_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_back_eddie.jpg',
-      'vehicle_left_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_left_eddie.jpg',
-      'vehicle_right_photo_url': 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/trike_right_eddie.jpg',
-      'toda_code': 'TODA-01',
-      'application_status': 'approved',
-      'admin_notes': 'All documents and vehicle inspections fully approved. Body #0042 assigned.',
-      'submitted_at': '2026-11-10T14:20:00Z',
-    },
-  ];
+  final List<Map<String, dynamic>> _driverApplications = [];
 
   // System Audit Trail
-  final List<Map<String, dynamic>> _systemAuditLogs = [
-    {'time': 'Today, 11:30 AM', 'actor': 'MINC Officer Santos', 'action': 'Sent Overcharge Warning Notice to Body #T-0855'},
-    {'time': 'Today, 10:15 AM', 'actor': 'System Sentinel', 'action': 'Automated GPS Discrepancy Flagged on Trip TRP-9402'},
-    {'time': 'Today, 09:00 AM', 'actor': 'Laoag Admin', 'action': 'Synced PostGIS Terminal Geofences with Supabase'},
-    {'time': 'Yesterday', 'actor': 'TODA Inspector', 'action': 'Validated 14 Driver Face Verification Biometric IDs'},
-  ];
+  final List<Map<String, dynamic>> _systemAuditLogs = [];
 
   // Live Emergency SOS Sentinel State (Real-Time Driver Distress Beacons)
-  final List<Map<String, dynamic>> _sosAlerts = [
-    {
-      'id': 'SOS-2026-089',
-      'driver_name': 'Eduardo "Manong Eddie" Castro',
-      'body_number': '#0042',
-      'plate_number': '7489-IN',
-      'toda': 'Laoag Central Terminal TODA',
-      'latitude': 18.1960,
-      'longitude': 120.5935,
-      'location_name': 'Gilbert Bridge / J.P. Rizal St (Zone 1)',
-      'alert_reason': 'DRIVER_PANIC_BUTTON_ACTIVE_TRIP',
-      'status': 'ACTIVE_DISPATCHED',
-      'time_ago': '1 min ago',
-      'created_at': DateTime.now().subtract(const Duration(minutes: 1)).toIso8601String(),
-      'contact': '+63 917 554 9012',
-    },
-  ];
+  final List<Map<String, dynamic>> _sosAlerts = [];
   StreamSubscription? _sosSubscription;
+  StreamSubscription? _driverAppSubscription;
 
   @override
   void initState() {
     super.initState();
     _syncFromSupabase();
     _listenToSosAlerts();
+    _listenToDriverApplications();
   }
 
   @override
   void dispose() {
     _sosSubscription?.cancel();
+    _driverAppSubscription?.cancel();
     super.dispose();
+  }
+
+  Map<String, dynamic> _parseDriverApplicationRow(Map<String, dynamic> row) {
+    return {
+      'id': row['id'].toString(),
+      'full_name': row['full_name'] ?? 'Driver Candidate',
+      'phone_number': row['phone_number'] ?? '',
+      'birth_date': row['birth_date'] ?? '1990-01-01',
+      'age': row['age'] ?? 30,
+      'fit_to_work_cert_url': row['fit_to_work_cert_url'],
+      'profile_photo_url': row['profile_photo_url'] ?? '',
+      'license_photo_url': row['license_photo_url'] ?? '',
+      'license_number': row['license_number'] ?? 'N/A',
+      'license_expiry_date': row['license_expiry_date'] ?? 'N/A',
+      'nbi_clearance_url': row['nbi_clearance_url'] ?? '',
+      'police_or_barangay_clearance_url': row['police_or_barangay_clearance_url'] ?? '',
+      'motorcycle_brand_model': row['motorcycle_brand_model'] ?? 'Standard Tricycle',
+      'engine_displacement_cc': row['engine_displacement_cc'] ?? 125,
+      'model_year': row['model_year'] ?? 2020,
+      'plate_or_mv_file': row['plate_or_mv_file'] ?? 'PENDING',
+      'or_photo_url': row['or_photo_url'] ?? '',
+      'cr_photo_url': row['cr_photo_url'] ?? '',
+      'is_motorcycle_owned': row['is_motorcycle_owned'] ?? true,
+      'owner_authorization_letter_url': row['owner_authorization_letter_url'],
+      'owner_id_photo_url': row['owner_id_photo_url'],
+      'vehicle_front_photo_url': row['vehicle_front_photo_url'],
+      'vehicle_back_photo_url': row['vehicle_back_photo_url'],
+      'vehicle_left_photo_url': row['vehicle_left_photo_url'],
+      'vehicle_right_photo_url': row['vehicle_right_photo_url'],
+      'toda_code': row['toda_code'] ?? 'TODA-01',
+      'application_status': row['application_status'] ?? 'submitted',
+      'admin_notes': row['admin_notes'] ?? 'Pending review by MINC.',
+      'submitted_at': row['submitted_at'] ?? row['created_at'] ?? DateTime.now().toIso8601String(),
+    };
+  }
+
+  void _listenToDriverApplications() {
+    try {
+      _driverAppSubscription = Supabase.instance.client
+          .from('driver_applications')
+          .stream(primaryKey: ['id'])
+          .order('created_at', ascending: false)
+          .listen((data) {
+        if (!mounted) return;
+        setState(() {
+          _driverApplications
+            ..clear()
+            ..addAll(data.map(_parseDriverApplicationRow));
+          _driverDirectory
+            ..clear()
+            ..addAll(
+              _driverApplications
+                  .where((a) => a['application_status'] == 'approved')
+                  .map((a) => {
+                        'bodyNo': a['toda_code'] ?? 'Pending',
+                        'mtop': 'MINC-${a['id'].toString().substring(0, 6).toUpperCase()}',
+                        'name': a['full_name'],
+                        'toda': a['toda_code'] ?? 'TODA-01',
+                        'phone': a['phone_number'] ?? '',
+                        'plateNo': a['plate_or_mv_file'] ?? 'PENDING',
+                        'status': 'Active Duty',
+                        'verification': 100.0,
+                        'trips': 0,
+                        'rating': 5.0,
+                      }),
+            );
+        });
+      });
+    } catch (_) {}
   }
 
   void _listenToSosAlerts() {
@@ -973,51 +741,86 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           .from('driver_applications')
           .select()
           .order('created_at', ascending: false)
-          .limit(50);
-      if (driverAppRows.isNotEmpty) {
-        setState(() {
-          for (final row in driverAppRows) {
-            final idStr = row['id'].toString();
-            final idx = _driverApplications.indexWhere((a) => a['id'] == idStr);
-            final parsed = {
-              'id': idStr,
-              'full_name': row['full_name'] ?? 'Driver Candidate',
-              'phone_number': row['phone_number'] ?? '',
-              'birth_date': row['birth_date'] ?? '1990-01-01',
-              'age': row['age'] ?? 30,
-              'fit_to_work_cert_url': row['fit_to_work_cert_url'],
-              'profile_photo_url': row['profile_photo_url'] ?? '',
-              'license_photo_url': row['license_photo_url'] ?? '',
-              'license_number': row['license_number'] ?? 'N/A',
-              'license_expiry_date': row['license_expiry_date'] ?? 'N/A',
-              'nbi_clearance_url': row['nbi_clearance_url'] ?? '',
-              'police_or_barangay_clearance_url': row['police_or_barangay_clearance_url'] ?? '',
-              'motorcycle_brand_model': row['motorcycle_brand_model'] ?? 'Standard Tricycle',
-              'engine_displacement_cc': row['engine_displacement_cc'] ?? 125,
-              'model_year': row['model_year'] ?? 2020,
-              'plate_or_mv_file': row['plate_or_mv_file'] ?? 'PENDING',
-              'or_photo_url': row['or_photo_url'] ?? '',
-              'cr_photo_url': row['cr_photo_url'] ?? '',
-              'is_motorcycle_owned': row['is_motorcycle_owned'] ?? true,
-              'owner_authorization_letter_url': row['owner_authorization_letter_url'],
-              'owner_id_photo_url': row['owner_id_photo_url'],
-              'vehicle_front_photo_url': row['vehicle_front_photo_url'],
-              'vehicle_back_photo_url': row['vehicle_back_photo_url'],
-              'vehicle_left_photo_url': row['vehicle_left_photo_url'],
-              'vehicle_right_photo_url': row['vehicle_right_photo_url'],
-              'toda_code': row['toda_code'] ?? 'TODA-01',
-              'application_status': row['application_status'] ?? 'submitted',
-              'admin_notes': row['admin_notes'] ?? 'Pending review by MINC.',
-              'submitted_at': row['submitted_at'] ?? DateTime.now().toIso8601String(),
-            };
-            if (idx >= 0) {
-              _driverApplications[idx] = parsed;
-            } else {
-              _driverApplications.insert(0, parsed);
-            }
-          }
-        });
-      }
+          .limit(100);
+      setState(() {
+        _driverApplications
+          ..clear()
+          ..addAll(driverAppRows.map(_parseDriverApplicationRow));
+        _driverDirectory
+          ..clear()
+          ..addAll(
+            _driverApplications
+                .where((a) => a['application_status'] == 'approved')
+                .map((a) => {
+                      'bodyNo': a['toda_code'] ?? 'Pending',
+                      'mtop': 'MINC-${a['id'].toString().substring(0, 6).toUpperCase()}',
+                      'name': a['full_name'],
+                      'toda': a['toda_code'] ?? 'TODA-01',
+                      'phone': a['phone_number'] ?? '',
+                      'plateNo': a['plate_or_mv_file'] ?? 'PENDING',
+                      'status': 'Active Duty',
+                      'verification': 100.0,
+                      'trips': 0,
+                      'rating': 5.0,
+                    }),
+          );
+      });
+
+      // Sync live emergency SOS alerts
+      try {
+        final sosRows = await Supabase.instance.client
+            .from('emergency_sos_alerts')
+            .select()
+            .order('created_at', ascending: false)
+            .limit(50);
+        if (mounted) {
+          setState(() {
+            _sosAlerts
+              ..clear()
+              ..addAll(sosRows.map((item) => {
+                    'id': item['id'].toString(),
+                    'driver_name': item['driver_name'] ?? 'Tricycle Driver',
+                    'body_number': item['body_number'] ?? 'Pending',
+                    'plate_number': item['plate_number'] ?? 'Unassigned',
+                    'toda': item['toda'] ?? 'Laoag City TODA',
+                    'latitude': (item['latitude'] as num?)?.toDouble() ?? 18.1960,
+                    'longitude': (item['longitude'] as num?)?.toDouble() ?? 120.5935,
+                    'location_name': item['location_name'] ?? 'Laoag City Paratransit Route',
+                    'alert_reason': item['alert_reason'] ?? 'DRIVER_TRIGGERED_EMERGENCY_SOS',
+                    'status': item['status'] ?? 'ACTIVE_DISPATCHED',
+                    'time_ago': 'Live',
+                    'created_at': item['created_at'] ?? DateTime.now().toIso8601String(),
+                    'contact': item['contact'] ?? '',
+                  }));
+          });
+        }
+      } catch (_) {}
+
+      // Sync live 1:1 face verification records from users table
+      try {
+        final userRows = await Supabase.instance.client
+            .from('users')
+            .select()
+            .order('created_at', ascending: false)
+            .limit(100);
+        if (mounted) {
+          setState(() {
+            _flaggedVerifications
+              ..clear()
+              ..addAll(userRows.map((u) => {
+                    'id': u['id'].toString(),
+                    'phone_number': u['phone_number'] ?? '',
+                    'name': u['full_name'] ?? 'User',
+                    'role': u['role'] ?? 'rider',
+                    'idType': u['id_type'] ?? 'Submitted ID',
+                    'similarity': (u['ai_similarity_percent'] as num?)?.toDouble() ?? 0.0,
+                    'latency': ((u['verification_latency_ms'] as num?)?.toDouble() ?? 0.0) / 1000.0,
+                    'status': u['verification_status'] ?? 'pending',
+                    'note': u['admin_review_note'] ?? 'Synced from Supabase',
+                  }));
+          });
+        }
+      } catch (_) {}
     } catch (_) {}
     if (mounted) {
       setState(() => _isSyncing = false);
@@ -4377,49 +4180,179 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     );
   }
 
+  Future<String?> _resolveDriverDocUrl(String? rawUrl) async {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+      return rawUrl;
+    }
+    const prefix = 'storage://driver-documents/';
+    if (rawUrl.startsWith(prefix)) {
+      final path = rawUrl.substring(prefix.length);
+      try {
+        return await Supabase.instance.client.storage
+            .from('driver-documents')
+            .createSignedUrl(path, 300);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   void _showDriverAppDocDialog(BuildContext context, String docTitle, String? docUrl) {
-    final mockToken = 'sign-hmac-${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
+    final rawValue = (docUrl ?? '').trim();
+    final fileName = rawValue.isEmpty
+        ? 'No file submitted'
+        : rawValue.split(RegExp(r'[/\\]')).last;
+    final lowerName = fileName.toLowerCase();
+    final isImage = lowerName.endsWith('.jpg') ||
+        lowerName.endsWith('.jpeg') ||
+        lowerName.endsWith('.png') ||
+        lowerName.endsWith('.webp');
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.vpn_key_rounded, color: Color(0xFF0284C7)),
-            const SizedBox(width: 8),
-            Text('$docTitle (Document Vault)', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'RA 10173 Protected Access: This time-expiring link expires in 300 seconds (5 minutes). Access is logged to Supabase biometric_access_logs.',
-              style: TextStyle(fontSize: 12, height: 1.35),
+      builder: (ctx) => FutureBuilder<String?>(
+        future: _resolveDriverDocUrl(rawValue),
+        builder: (context, snapshot) {
+          final resolvedUrl = snapshot.data;
+          final isLoading = snapshot.connectionState == ConnectionState.waiting;
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.vpn_key_rounded, color: Color(0xFF0284C7)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$docTitle (Document Vault)',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: SelectableText(
-                docUrl != null && docUrl.startsWith('http')
-                    ? '$docUrl?token=$mockToken&expires_in=300'
-                    : 'https://zrkkbknndavvprejskjy.supabase.co/storage/v1/object/sign/driver-documents/${docTitle.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}.jpg?token=$mockToken&expires_in=300',
-                style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+            content: SizedBox(
+              width: 460,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Submitted File: $fileName',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'RA 10173 Protected Access: Signed Supabase Storage links expire in 300 seconds (5 minutes).',
+                    style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.35),
+                  ),
+                  const SizedBox(height: 12),
+                  if (isLoading)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (resolvedUrl != null) ...[
+                    if (isImage)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 260),
+                          child: Image.network(
+                            resolvedUrl,
+                            width: double.infinity,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Container(
+                              padding: const EdgeInsets.all(14),
+                              color: Colors.grey.shade100,
+                              child: const Text(
+                                'Preview unavailable in dialog. Click "Open File" below to view in a new tab.',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F9FF),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFBAE6FD)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.description_rounded, color: Color(0xFF0284C7)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Document ready ($fileName). Click "Open File" to view or download.',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: SelectableText(
+                        resolvedUrl,
+                        style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                      ),
+                    ),
+                  ] else
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.shade200),
+                      ),
+                      child: Text(
+                        rawValue.isEmpty
+                            ? 'No file path was recorded for this document.'
+                            : 'Stored reference: $rawValue\n(File was recorded locally on the mobile device or Storage bucket policy blocked upload.)',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
+            actions: [
+              if (resolvedUrl != null) ...[
+                TextButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: resolvedUrl));
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('Signed document URL copied.')),
+                    );
+                  },
+                  icon: const Icon(Icons.copy_rounded, size: 16),
+                  label: const Text('Copy Link'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => html.window.open(resolvedUrl, '_blank'),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('Open File'),
+                ),
+              ],
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

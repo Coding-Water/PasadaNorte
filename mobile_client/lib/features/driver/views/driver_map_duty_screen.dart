@@ -696,13 +696,15 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       _buildPilaInfoRow(
                         icon: Icons.store_mall_directory_rounded,
                         title: 'Terminal Station',
-                        value: 'Laoag Central Terminal TODA',
+                        value: DriverStatsService.todaAssociation,
                       ),
                       const Divider(height: 18),
                       _buildPilaInfoRow(
                         icon: Icons.badge_outlined,
                         title: 'Registered TODA',
-                        value: 'CENTRAL-TODA',
+                        value: DriverStatsService.bodyNumber == 'Pending'
+                            ? 'Pending MINC Assignment'
+                            : 'Body #${DriverStatsService.bodyNumber}',
                       ),
                       const Divider(height: 18),
                       _buildPilaInfoRow(
@@ -891,9 +893,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           DriverStatsService.driverFullName,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: AppTheme.primarySlate,
                             fontSize: 16.5,
                             fontWeight: FontWeight.w800,
@@ -1174,9 +1176,11 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                                         BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
                                       ],
                                     ),
-                                    child: const Text(
-                                      'YOU (#0042)',
-                                      style: TextStyle(
+                                    child: Text(
+                                      DriverStatsService.bodyNumber == 'Pending'
+                                          ? 'YOU'
+                                          : 'YOU (#${DriverStatsService.bodyNumber})',
+                                      style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 9,
                                         fontWeight: FontWeight.w900,
@@ -1455,11 +1459,13 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text('TODA UNIT', style: TextStyle(color: Colors.grey.shade600, fontSize: 9, fontWeight: FontWeight.w700)),
-                                      const Text(
-                                        '#${DriverStatsService.bodyNumber} • ${DriverStatsService.plateNumber}',
+                                      Text(
+                                        DriverStatsService.bodyNumber == 'Pending'
+                                            ? 'Pending • ${DriverStatsService.plateNumber}'
+                                            : '#${DriverStatsService.bodyNumber} • ${DriverStatsService.plateNumber}',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(color: AppTheme.primarySlate, fontSize: 12, fontWeight: FontWeight.w800),
+                                        style: const TextStyle(color: AppTheme.primarySlate, fontSize: 12, fontWeight: FontWeight.w800),
                                       ),
                                     ],
                                   ),
@@ -1526,8 +1532,8 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                   );
                   final isDriverInQueue = currentDynamicRank > 0;
                   final String pilaLabel = isDriverInQueue
-                      ? 'Pila #$currentDynamicRank - Laoag Central Terminal TODA'
-                      : 'Pila #-- - Laoag Central Terminal TODA';
+                      ? 'Pila #$currentDynamicRank - ${DriverStatsService.todaAssociation}'
+                      : 'Pila #-- • ${DriverStatsService.todaAssociation}';
 
                   return Row(
                     children: [

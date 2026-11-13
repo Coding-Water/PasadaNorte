@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/services/android_permissions_service.dart';
+import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
@@ -519,6 +520,12 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         );
         return;
       }
+
+      // Reset stats for the newly registered driver so earnings/trips/pila start clean
+      await DriverStatsService.resetForNewDriver(
+        fullName: widget.fullName,
+        plateNo: plate,
+      );
 
       // Record driver application in SupabaseService
       await SupabaseService.recordDriverApplication(

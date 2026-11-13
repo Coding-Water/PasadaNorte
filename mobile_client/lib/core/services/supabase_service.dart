@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/models/user_model.dart';
 import '../../features/fare/services/fare_calculator_service.dart';
@@ -250,6 +252,56 @@ class SupabaseService {
   // Local registry of submitted driver applications
   static final Map<String, Map<String, dynamic>> _localDriverApplications = {};
 
+  static String _guessContentType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.doc')) return 'application/msword';
+    if (lower.endsWith('.docx')) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    if (lower.endsWith('.png')) return 'image/png';
+    return 'image/jpeg';
+  }
+
+  static Future<String?> _uploadDriverDocument({
+    required String phoneNumber,
+    required String docType,
+    required String? localPathOrName,
+  }) async {
+    if (localPathOrName == null || localPathOrName.trim().isEmpty) {
+      return null;
+    }
+    if (localPathOrName.startsWith('http') ||
+        localPathOrName.startsWith('storage://')) {
+      return localPathOrName;
+    }
+    if (!_isConnected || kIsWeb) return localPathOrName;
+    try {
+      final file = File(localPathOrName);
+      if (!file.existsSync()) return localPathOrName;
+      final bytes = await file.readAsBytes();
+      final rawName = localPathOrName.split(RegExp(r'[/\\]')).last;
+      final safeName = rawName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final safePhone = phoneNumber.replaceAll(RegExp(r'[^0-9+]'), '');
+      final storagePath =
+          'applications/$safePhone/${docType}_${DateTime.now().millisecondsSinceEpoch}_$safeName';
+      await Supabase.instance.client.storage
+          .from('driver-documents')
+          .uploadBinary(
+            storagePath,
+            bytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: _guessContentType(safeName),
+            ),
+          );
+      return 'storage://driver-documents/$storagePath';
+    } catch (e) {
+      debugPrint('Supabase Storage upload fallback ($docType): $e');
+      return localPathOrName;
+    }
+  }
+
   // Saves comprehensive Laoag City Driver Application & Vehicle Documentation
   static Future<String?> recordDriverApplication({
     required String fullName,
@@ -271,48 +323,75 @@ class SupabaseService {
     String? ownerIdPhotoUrl,
     Map<String, String>? vehiclePhotos,
   }) async {
-    final record = {
-      'id': 'drv_app_${DateTime.now().millisecondsSinceEpoch}',
+    // Upload actual files/photos to Supabase Storage when connected
+    final uploaded = await Future.wait<String?>([
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'license', localPathOrName: licensePhotoUrl),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'nbi', localPathOrName: nbiClearanceUrl),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'clearance', localPathOrName: policeOrBarangayClearanceUrl),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'profile', localPathOrName: profilePhotoUrl),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'fit_to_work', localPathOrName: fitToWorkCertUrl),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'or', localPathOrName: orPhotoUrl),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'cr', localPathOrName: crPhotoUrl),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'owner_auth', localPathOrName: ownerAuthLetterUrl),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'owner_id', localPathOrName: ownerIdPhotoUrl),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'trike_front', localPathOrName: vehiclePhotos?['Front View']),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'trike_back', localPathOrName: vehiclePhotos?['Back View']),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'trike_left', localPathOrName: vehiclePhotos?['Left Side View']),
+      _uploadDriverDocument(phoneNumber: phoneNumber, docType: 'trike_right', localPathOrName: vehiclePhotos?['Right Side View']),
+    ]);
+
+    final dbRecord = {
       'phone_number': phoneNumber,
       'full_name': fullName,
       'birth_date': birthDate.toIso8601String().split('T').first,
       'age': (DateTime.now().difference(birthDate).inDays / 365.25).floor(),
-      'license_photo_url': licensePhotoUrl,
-      'nbi_clearance_url': nbiClearanceUrl,
-      'police_or_barangay_clearance_url': policeOrBarangayClearanceUrl,
-      'profile_photo_url': profilePhotoUrl,
-      'fit_to_work_cert_url': fitToWorkCertUrl,
+      'license_photo_url': uploaded[0] ?? licensePhotoUrl,
+      'nbi_clearance_url': uploaded[1] ?? nbiClearanceUrl,
+      'police_or_barangay_clearance_url': uploaded[2] ?? policeOrBarangayClearanceUrl,
+      'profile_photo_url': uploaded[3] ?? profilePhotoUrl,
+      'fit_to_work_cert_url': uploaded[4],
       'motorcycle_brand_model': motorcycleBrandModel,
       'engine_displacement_cc': engineDisplacementCc,
       'model_year': modelYear,
       'plate_or_mv_file': plateOrMvFile,
-      'or_photo_url': orPhotoUrl,
-      'cr_photo_url': crPhotoUrl,
+      'or_photo_url': uploaded[5] ?? orPhotoUrl,
+      'cr_photo_url': uploaded[6] ?? crPhotoUrl,
       'is_motorcycle_owned': isMotorcycleOwned,
-      'owner_authorization_letter_url': ownerAuthLetterUrl,
-      'owner_id_photo_url': ownerIdPhotoUrl,
-      'vehicle_front_photo_url': vehiclePhotos?['Front View'],
-      'vehicle_back_photo_url': vehiclePhotos?['Back View'],
-      'vehicle_left_photo_url': vehiclePhotos?['Left Side View'],
-      'vehicle_right_photo_url': vehiclePhotos?['Right Side View'],
+      'owner_authorization_letter_url': uploaded[7],
+      'owner_id_photo_url': uploaded[8],
+      'vehicle_front_photo_url': uploaded[9],
+      'vehicle_back_photo_url': uploaded[10],
+      'vehicle_left_photo_url': uploaded[11],
+      'vehicle_right_photo_url': uploaded[12],
       'application_status': 'submitted',
       'created_at': DateTime.now().toIso8601String(),
     };
 
-    _localDriverApplications[phoneNumber] = record;
+    final localId = 'drv_app_${DateTime.now().millisecondsSinceEpoch}';
+    _localDriverApplications[phoneNumber] = {
+      'id': localId,
+      ...dbRecord,
+    };
 
-    if (!_isConnected) return record['id'] as String;
+    if (!_isConnected) return localId;
     try {
       final inserted = await Supabase.instance.client
           .from('driver_applications')
-          .insert(record)
+          .insert(dbRecord)
           .select()
           .maybeSingle();
       if (inserted != null && inserted['id'] != null) {
-        return inserted['id'] as String;
+        final remoteId = inserted['id'].toString();
+        _localDriverApplications[phoneNumber] = {
+          ...dbRecord,
+          'id': remoteId,
+        };
+        return remoteId;
       }
-    } catch (_) {}
-    return record['id'] as String;
+    } catch (e) {
+      debugPrint('Supabase recordDriverApplication error: $e');
+    }
+    return localId;
   }
 
   // Updates Admin decision (Approve / Reject / Ask Clearer Photos) in Supabase
