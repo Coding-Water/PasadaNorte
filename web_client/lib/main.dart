@@ -895,6 +895,32 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           });
         }
       } catch (_) {}
+      // Sync configurable 10 Laoag zones from Supabase
+      try {
+        final zoneRows = await Supabase.instance.client
+            .from('laoag_zones')
+            .select()
+            .order('zone_code');
+        if (mounted && zoneRows.isNotEmpty) {
+          setState(() {
+            for (final row in zoneRows) {
+              final code = row['zone_code']?.toString() ?? '';
+              final idx = _mlZones.indexWhere((z) => z['code'] == code);
+              if (idx != -1) {
+                _mlZones[idx]['name'] =
+                    row['zone_name']?.toString() ?? _mlZones[idx]['name'];
+                _mlZones[idx]['lat'] =
+                    (row['lat'] as num?)?.toDouble() ?? _mlZones[idx]['lat'];
+                _mlZones[idx]['lng'] =
+                    (row['lng'] as num?)?.toDouble() ?? _mlZones[idx]['lng'];
+                _mlZones[idx]['keywords'] =
+                    row['keywords']?.toString() ?? '';
+              }
+            }
+          });
+        }
+      } catch (_) {}
+
       // Sync live 1-hour completed_trips per zone
       try {
         final oneHourAgo =
@@ -968,6 +994,17 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 
   String _mapDropoffToZoneCode(String dropoff) {
     final text = dropoff.toLowerCase();
+    for (final z in _mlZones) {
+      final code = z['code']?.toString() ?? '';
+      if (code.isNotEmpty && text.contains(code.toLowerCase())) return code;
+      final kwRaw = z['keywords']?.toString() ?? '';
+      if (kwRaw.isNotEmpty) {
+        for (final kw in kwRaw.split(',')) {
+          final k = kw.trim().toLowerCase();
+          if (k.isNotEmpty && text.contains(k)) return code;
+        }
+      }
+    }
     if (text.contains('mmsu') || text.contains('cit') || text.contains('cte') || text.contains('gomez')) return 'Z02';
     if (text.contains('bell tower') || text.contains('plaza') || text.contains('aurora')) return 'Z03';
     if (text.contains('lcgh') || text.contains('general hospital')) return 'Z04';
@@ -2335,6 +2372,18 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   },
                 ),
                 const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: _openManageZonesDialog,
+                  icon: const Icon(Icons.edit_location_alt_outlined, size: 16),
+                  label: const Text('Configure 10 Zones',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F172A),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
@@ -2785,11 +2834,294 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   ),
                 ],
               ),
+              const SizedBox(width: 16),
+              OutlinedButton.icon(
+                onPressed: () => _openEditZoneDialog(selectedZone),
+                icon: const Icon(Icons.edit_location_alt_rounded, size: 16),
+                label: const Text('Edit / Re-pin'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF059669),
+                  side: const BorderSide(color: Color(0xFF059669)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
             ],
           ),
         ),
       ],
     );
+  }
+
+  Future<void> _openManageZonesDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.layers_rounded, color: Color(0xFF059669)),
+            SizedBox(width: 8),
+            Text(
+              'Configure Laoag 10 Demand Zones',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 640,
+          height: 440,
+          child: ListView.separated(
+            itemCount: _mlZones.length,
+            separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+            itemBuilder: (_, index) {
+              final z = _mlZones[index];
+              final lat = (z['lat'] as num).toDouble().toStringAsFixed(5);
+              final lng = (z['lng'] as num).toDouble().toStringAsFixed(5);
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFF059669).withValues(alpha: 0.12),
+                  child: Text(
+                    z['code'].toString(),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF059669),
+                    ),
+                  ),
+                ),
+                title: Text(
+                  z['name'].toString(),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                ),
+                subtitle: Text(
+                  'Lat: $lat, Lng: $lng',
+                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
+                ),
+                trailing: OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await _openEditZoneDialog(z);
+                  },
+                  icon: const Icon(Icons.edit_location_alt_rounded, size: 15),
+                  label: const Text('Pin & Edit'),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openEditZoneDialog(Map<String, dynamic> zone) async {
+    final code = zone['code'].toString();
+    final nameCtrl = TextEditingController(text: zone['name']?.toString() ?? '');
+    final keywordsCtrl = TextEditingController(text: zone['keywords']?.toString() ?? '');
+    LatLng pinnedPoint = LatLng(
+      (zone['lat'] as num).toDouble(),
+      (zone['lng'] as num).toDouble(),
+    );
+    bool isSatellite = false;
+    final zoneMapController = MapController();
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Row(
+            children: [
+              const Icon(Icons.edit_location_alt_rounded, color: Color(0xFF059669)),
+              const SizedBox(width: 8),
+              Text(
+                'Set Zone $code Location & Name',
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 640,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Zone / Landmark Cluster Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: keywordsCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Drop-off Match Keywords (comma-separated)',
+                      hintText: 'e.g. market, public market, commercial',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Tap anywhere on the map to pin the Zone center:',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        'Lat: ${pinnedPoint.latitude.toStringAsFixed(5)}, Lng: ${pinnedPoint.longitude.toStringAsFixed(5)}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 300,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Stack(
+                        children: [
+                          FlutterMap(
+                            mapController: zoneMapController,
+                            options: MapOptions(
+                              initialCenter: pinnedPoint,
+                              initialZoom: 16.0,
+                              minZoom: 12.0,
+                              maxZoom: 21.0,
+                              interactionOptions: const InteractionOptions(
+                                flags: InteractiveFlag.all,
+                              ),
+                              onTap: (_, latLng) {
+                                setDialogState(() => pinnedPoint = latLng);
+                              },
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: isSatellite
+                                    ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                                    : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                                userAgentPackageName: 'com.pasadanorte.web_admin',
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: pinnedPoint,
+                                    width: 44,
+                                    height: 44,
+                                    alignment: Alignment.topCenter,
+                                    child: const Icon(
+                                      Icons.location_on_rounded,
+                                      color: Color(0xFFDC2626),
+                                      size: 40,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: Material(
+                              color: Colors.white.withValues(alpha: 0.94),
+                              elevation: 2,
+                              borderRadius: BorderRadius.circular(8),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => setDialogState(() => isSatellite = !isSatellite),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  child: Text(
+                                    isSatellite ? 'Streets' : 'Satellite',
+                                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 10,
+                            right: 10,
+                            child: _buildMapZoomControls(
+                              zoneMapController,
+                              centerTarget: pinnedPoint,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                if (nameCtrl.text.trim().isEmpty) return;
+                Navigator.pop(ctx, true);
+              },
+              icon: const Icon(Icons.save_rounded, size: 18),
+              label: const Text('Save Zone'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved == true) {
+      final newName = nameCtrl.text.trim();
+      final newKeywords = keywordsCtrl.text.trim();
+      setState(() {
+        zone['name'] = newName;
+        zone['lat'] = double.parse(pinnedPoint.latitude.toStringAsFixed(6));
+        zone['lng'] = double.parse(pinnedPoint.longitude.toStringAsFixed(6));
+        zone['keywords'] = newKeywords;
+        _selectedZoneCode = code;
+      });
+      try {
+        await Supabase.instance.client.from('laoag_zones').upsert({
+          'zone_code': code,
+          'zone_name': newName,
+          'lat': double.parse(pinnedPoint.latitude.toStringAsFixed(6)),
+          'lng': double.parse(pinnedPoint.longitude.toStringAsFixed(6)),
+          'keywords': newKeywords,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+      if (mounted) {
+        _laoagMapController.move(pinnedPoint, 15.5);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Zone $code ($newName) saved & synced.'),
+            backgroundColor: const Color(0xFF059669),
+          ),
+        );
+      }
+    }
+    nameCtrl.dispose();
+    keywordsCtrl.dispose();
   }
 
   // ===========================================================================

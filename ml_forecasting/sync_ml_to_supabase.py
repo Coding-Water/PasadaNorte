@@ -60,15 +60,35 @@ def fetch_laoag_weather() -> tuple[float, float]:
         return 29.0, 0.0
 
 
-def map_destination_to_zone(dropoff_text: str) -> str:
+def fetch_active_zones(supabase_url: str, service_key: str) -> list[tuple[str, str, list[str]]]:
+    """Load admin-configured 10 zones from Supabase laoag_zones, falling back to ZONES."""
+    endpoint = f"{supabase_url.rstrip('/')}/rest/v1/laoag_zones?select=zone_code,zone_name,keywords&order=zone_code.asc"
+    headers = {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+    }
+    try:
+        rows = http_json(endpoint, headers=headers) or []
+        if rows:
+            parsed = []
+            for r in rows:
+                kws = [k.strip().lower() for k in str(r.get("keywords", "")).split(",") if k.strip()]
+                parsed.append((str(r["zone_code"]), str(r["zone_name"]), kws))
+            return parsed
+    except Exception as exc:
+        print(f"[zones] Using default 10 zones ({exc})")
+    return ZONES
+
+
+def map_destination_to_zone(dropoff_text: str, zones: list[tuple[str, str, list[str]]]) -> str:
     text = (dropoff_text or "").lower()
-    for code, name, keywords in ZONES:
+    for code, _, keywords in zones:
         if code.lower() in text or any(k in text for k in keywords):
             return code
     return "Z01"
 
 
-def fetch_live_trips(supabase_url: str, service_key: str) -> tuple[dict[str, int], int]:
+def fetch_live_trips(supabase_url: str, service_key: str, zones: list[tuple[str, str, list[str]]]) -> tuple[dict[str, int], int]:
     """Fetch completed_trips from Supabase and count trips in the last 60 minutes per zone."""
     endpoint = (
         f"{supabase_url.rstrip('/')}/rest/v1/completed_trips"
@@ -82,11 +102,11 @@ def fetch_live_trips(supabase_url: str, service_key: str) -> tuple[dict[str, int
         rows = http_json(endpoint, headers=headers) or []
     except Exception as exc:
         print(f"[supabase] Could not read completed_trips ({exc}); assuming 0 live trips.")
-        return {code: 0 for code, _, _ in ZONES}, 0
+        return {code: 0 for code, _, _ in zones}, 0
 
     now_utc = datetime.now(timezone.utc)
     cutoff = now_utc - timedelta(hours=1)
-    live_1h = {code: 0 for code, _, _ in ZONES}
+    live_1h = {code: 0 for code, _, _ in zones}
 
     for row in rows:
         ts_raw = row.get("completed_at")
@@ -99,7 +119,7 @@ def fetch_live_trips(supabase_url: str, service_key: str) -> tuple[dict[str, int
         except ValueError:
             continue
         if ts >= cutoff:
-            zone_code = map_destination_to_zone(str(row.get("dropoff_location", "")))
+            zone_code = map_destination_to_zone(str(row.get("dropoff_location", "")), zones)
             live_1h[zone_code] += 1
 
     return live_1h, len(rows)
@@ -218,7 +238,8 @@ def main():
     is_market_day = 1 if now_ph.weekday() in (2, 5, 6) else 0
 
     temp_c, rain_mm = fetch_laoag_weather()
-    live_1h, total_live_trips = fetch_live_trips(supabase_url, service_key)
+    active_zones = fetch_active_zones(supabase_url, service_key)
+    live_1h, total_live_trips = fetch_live_trips(supabase_url, service_key, active_zones)
 
     csv_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
@@ -230,7 +251,7 @@ def main():
 
     now_iso = datetime.now(timezone.utc).isoformat()
     forecast_rows = []
-    for code, name, _ in ZONES:
+    for code, name, _ in active_zones:
         # Blend ML forecast with live 1-hour observed requests when live trips exist
         blended = predictions[code] if total_live_trips == 0 else round(
             0.70 * predictions[code] + 0.30 * live_1h[code], 1
