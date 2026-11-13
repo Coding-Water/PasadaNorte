@@ -74,31 +74,25 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final screenHeight = mediaQuery.size.height;
-    final screenWidth = mediaQuery.size.width;
 
     // White bottom sheet takes ~50% of the screen height
     final bottomSheetHeight = math.min(screenHeight * 0.50, 450.0);
-    // Phone mockup width increased for a wider, immersive presentation
-    final phoneWidth = math.min(screenWidth * 0.90, 400.0);
-    // Phone mockup extends downward behind the white scooped curve
-    final phoneHeight = math.min(screenHeight * 0.60, 540.0);
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: _primaryGreen,
+        backgroundColor: const Color(0xFFE6F9EE),
         body: Stack(
           children: [
-            // 1. Phone Mockup Layer (Top hero, submerged into the white container)
+            // 1. Creative Flat Vector Illustration Layer
             Positioned(
-              top: mediaQuery.padding.top + 8,
-              left: (screenWidth - phoneWidth) / 2,
-              width: phoneWidth,
-              height: phoneHeight,
+              top: mediaQuery.padding.top + 12,
+              left: 12,
+              right: 12,
+              bottom: bottomSheetHeight - 18,
               child: _ImmersivePhoneMockup(
                 currentPage: _currentPage,
               ),
@@ -341,19 +335,17 @@ class _ImmersivePhoneMockup extends StatelessWidget {
 
   Widget _buildScreenContent(int index) {
     final assetNames = [
-      'assets/images/walkthrough_1.png',
-      'assets/images/walkthrough_2.png',
-      'assets/images/walkthrough_3.png',
+      'assets/images/walkthrough_1.jpg',
+      'assets/images/walkthrough_2.jpg',
+      'assets/images/walkthrough_3.jpg',
     ];
 
-    return Transform.scale(
-      scale: 1.06,
-      alignment: Alignment.topCenter,
+    return Center(
+      key: ValueKey(assetNames[index]),
       child: Image.asset(
         assetNames[index],
-        key: ValueKey(assetNames[index]),
-        fit: BoxFit.cover,
-        alignment: Alignment.topCenter,
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
       ),
     );
   }
