@@ -1,6 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
+import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../../../core/services/android_permissions_service.dart';
 import '../../../core/services/face_verification_service.dart';
 import '../../../core/services/supabase_service.dart';
@@ -52,14 +57,29 @@ class _FaceScanScreenState extends State<FaceScanScreen>
   late final AnimationController _progressController;
   late Animation<double> _progressAnimation;
 
+  CameraController? _cameraController;
+  FaceDetector? _faceDetector;
+  bool _useLiveCamera = false;
+  bool _isProcessingFrame = false;
+  bool _sawEyesOpenBeforeBlink = false;
+  bool _sawBlinkClosed = false;
+  String _liveFeedbackHint = 'Keep your face inside the oval frame';
+
+  static const _orientations = {
+    DeviceOrientation.portraitUp: 0,
+    DeviceOrientation.landscapeLeft: 90,
+    DeviceOrientation.portraitDown: 180,
+    DeviceOrientation.landscapeRight: 270,
+  };
+
   @override
   void initState() {
     super.initState();
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 900),
     );
-    _progressAnimation = Tween<double>(begin: 0.0, end: 0.33).animate(
+    _progressAnimation = Tween<double>(begin: 0.0, end: 0.12).animate(
       CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
     );
   }
@@ -67,8 +87,28 @@ class _FaceScanScreenState extends State<FaceScanScreen>
   @override
   void dispose() {
     _livenessTimer?.cancel();
+    _disposeCameraResources();
     _progressController.dispose();
     super.dispose();
+  }
+
+  Future<void> _disposeCameraResources() async {
+    final controller = _cameraController;
+    _cameraController = null;
+    if (controller != null) {
+      try {
+        if (controller.value.isStreamingImages) {
+          await controller.stopImageStream();
+        }
+      } catch (_) {}
+      try {
+        await controller.dispose();
+      } catch (_) {}
+    }
+    try {
+      await _faceDetector?.close();
+    } catch (_) {}
+    _faceDetector = null;
   }
 
   Future<void> _enterLivenessStage() async {
@@ -84,16 +124,281 @@ class _FaceScanScreenState extends State<FaceScanScreen>
     }
 
     if (!mounted) return;
-    _startAutomaticLiveness();
+    final liveStarted = camAllowed ? await _tryStartLiveCamera() : false;
+    if (!mounted) return;
+
+    if (!liveStarted) {
+      _startSimulatedAutomaticLiveness();
+    }
   }
 
-  void _startAutomaticLiveness() {
+  Future<bool> _tryStartLiveCamera() async {
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) {
+      return false;
+    }
+
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return false;
+
+      final frontCamera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+
+      final controller = CameraController(
+        frontCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: Platform.isAndroid
+            ? ImageFormatGroup.nv21
+            : ImageFormatGroup.bgra8888,
+      );
+
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return false;
+      }
+
+      _faceDetector = FaceDetector(
+        options: FaceDetectorOptions(
+          enableClassification: true,
+          enableTracking: true,
+          performanceMode: FaceDetectorMode.accurate,
+          minFaceSize: 0.25,
+        ),
+      );
+
+      _cameraController = controller;
+      setState(() {
+        _useLiveCamera = true;
+        _inLivenessStage = true;
+        _livenessStep = _LivenessStep.tiltLeft;
+        _isScanning = false;
+        _result = null;
+        _sawEyesOpenBeforeBlink = false;
+        _sawBlinkClosed = false;
+        _liveFeedbackHint = 'Keep your face inside the oval frame';
+      });
+      _animateProgressTo(0.0, 0.12);
+
+      await controller.startImageStream(_onCameraImage);
+      return true;
+    } catch (_) {
+      await _disposeCameraResources();
+      return false;
+    }
+  }
+
+  Future<void> _onCameraImage(CameraImage image) async {
+    if (_isProcessingFrame ||
+        _isScanning ||
+        _livenessStep == _LivenessStep.completed ||
+        _faceDetector == null ||
+        _cameraController == null) {
+      return;
+    }
+
+    _isProcessingFrame = true;
+    try {
+      final inputImage = _inputImageFromCameraImage(image);
+      if (inputImage == null) return;
+
+      final faces = await _faceDetector!.processImage(inputImage);
+      if (!mounted || _livenessStep == _LivenessStep.completed) return;
+
+      if (faces.isEmpty) {
+        setState(() => _liveFeedbackHint = 'Position your face inside the oval frame');
+        return;
+      }
+      if (faces.length > 1) {
+        setState(() => _liveFeedbackHint = 'Only one face should be in the frame');
+        return;
+      }
+
+      final face = faces.first;
+      final yaw = face.headEulerAngleY ?? 0.0;
+      final roll = face.headEulerAngleZ ?? 0.0;
+      final leftEye = face.leftEyeOpenProbability;
+      final rightEye = face.rightEyeOpenProbability;
+
+      if (_livenessStep == _LivenessStep.tiltLeft) {
+        if (yaw > 14.0 || roll > 12.0) {
+          setState(() {
+            _livenessStep = _LivenessStep.tiltRight;
+            _liveFeedbackHint = 'Great! Now tilt your head to the right';
+          });
+          _animateProgressTo(0.12, 0.45);
+        } else {
+          setState(() => _liveFeedbackHint = 'Slowly tilt your head left');
+        }
+        return;
+      }
+
+      if (_livenessStep == _LivenessStep.tiltRight) {
+        if (yaw < -14.0 || roll < -12.0) {
+          setState(() {
+            _livenessStep = _LivenessStep.blinkOnce;
+            _sawEyesOpenBeforeBlink = false;
+            _sawBlinkClosed = false;
+            _liveFeedbackHint = 'Look straight ahead and blink once';
+          });
+          _animateProgressTo(0.45, 0.78);
+        } else {
+          setState(() => _liveFeedbackHint = 'Slowly tilt your head right');
+        }
+        return;
+      }
+
+      if (_livenessStep == _LivenessStep.blinkOnce) {
+        if (yaw.abs() > 14.0) {
+          setState(() => _liveFeedbackHint = 'Face straight ahead to blink');
+          return;
+        }
+        if (leftEye == null || rightEye == null) return;
+
+        if (!_sawEyesOpenBeforeBlink && leftEye > 0.65 && rightEye > 0.65) {
+          _sawEyesOpenBeforeBlink = true;
+          setState(() => _liveFeedbackHint = 'Now blink once');
+          return;
+        }
+
+        if (_sawEyesOpenBeforeBlink &&
+            !_sawBlinkClosed &&
+            leftEye < 0.30 &&
+            rightEye < 0.30) {
+          _sawBlinkClosed = true;
+          return;
+        }
+
+        if (_sawBlinkClosed && leftEye > 0.60 && rightEye > 0.60) {
+          setState(() {
+            _livenessStep = _LivenessStep.completed;
+            _liveFeedbackHint = 'Capturing selfie...';
+          });
+          _animateProgressTo(0.78, 1.0);
+          await _captureAndVerifyLiveSelfie();
+        }
+      }
+    } catch (_) {
+    } finally {
+      _isProcessingFrame = false;
+    }
+  }
+
+  InputImage? _inputImageFromCameraImage(CameraImage image) {
+    final controller = _cameraController;
+    if (controller == null) return null;
+
+    final camera = controller.description;
+    final sensorOrientation = camera.sensorOrientation;
+    InputImageRotation? rotation;
+
+    if (Platform.isIOS) {
+      rotation = InputImageRotationValue.fromRawValue(sensorOrientation);
+    } else if (Platform.isAndroid) {
+      var rotationCompensation = _orientations[controller.value.deviceOrientation];
+      if (rotationCompensation == null) return null;
+      if (camera.lensDirection == CameraLensDirection.front) {
+        rotationCompensation = (sensorOrientation + rotationCompensation) % 360;
+      } else {
+        rotationCompensation = (sensorOrientation - rotationCompensation + 360) % 360;
+      }
+      rotation = InputImageRotationValue.fromRawValue(rotationCompensation);
+    }
+    if (rotation == null) return null;
+
+    final format = InputImageFormatValue.fromRawValue(image.format.raw);
+    if (format == null) return null;
+
+    if (image.planes.length == 1) {
+      final plane = image.planes.first;
+      return InputImage.fromBytes(
+        bytes: plane.bytes,
+        metadata: InputImageMetadata(
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: rotation,
+          format: format,
+          bytesPerRow: plane.bytesPerRow,
+        ),
+      );
+    }
+
+    if (Platform.isAndroid && image.planes.length == 3) {
+      final nv21Bytes = _convertYuv420ToNv21(image);
+      return InputImage.fromBytes(
+        bytes: nv21Bytes,
+        metadata: InputImageMetadata(
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: rotation,
+          format: InputImageFormat.nv21,
+          bytesPerRow: image.width,
+        ),
+      );
+    }
+
+    return null;
+  }
+
+  Uint8List _convertYuv420ToNv21(CameraImage image) {
+    final width = image.width;
+    final height = image.height;
+    final yPlane = image.planes[0];
+    final uPlane = image.planes[1];
+    final vPlane = image.planes[2];
+    final nv21 = Uint8List(width * height + (width * height ~/ 2));
+
+    int dstIndex = 0;
+    for (int row = 0; row < height; row++) {
+      final rowStart = row * yPlane.bytesPerRow;
+      nv21.setRange(dstIndex, dstIndex + width, yPlane.bytes, rowStart);
+      dstIndex += width;
+    }
+
+    final uvHeight = height ~/ 2;
+    final uvWidth = width ~/ 2;
+    final uPixelStride = uPlane.bytesPerPixel ?? 1;
+    final vPixelStride = vPlane.bytesPerPixel ?? 1;
+
+    for (int row = 0; row < uvHeight; row++) {
+      final uRowStart = row * uPlane.bytesPerRow;
+      final vRowStart = row * vPlane.bytesPerRow;
+      for (int col = 0; col < uvWidth; col++) {
+        nv21[dstIndex++] = vPlane.bytes[vRowStart + col * vPixelStride];
+        nv21[dstIndex++] = uPlane.bytes[uRowStart + col * uPixelStride];
+      }
+    }
+    return nv21;
+  }
+
+  Future<void> _captureAndVerifyLiveSelfie() async {
+    String capturePath = 'live_capture_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    try {
+      if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+        await _cameraController!.stopImageStream();
+      }
+      if (_cameraController != null && _cameraController!.value.isInitialized) {
+        final photo = await _cameraController!.takePicture();
+        capturePath = photo.path;
+      }
+    } catch (_) {}
+
+    await _startFaceVerification(
+      skipPermissionCheck: true,
+      liveFacePath: capturePath,
+    );
+  }
+
+  void _startSimulatedAutomaticLiveness() {
     _livenessTimer?.cancel();
     setState(() {
+      _useLiveCamera = false;
       _inLivenessStage = true;
       _livenessStep = _LivenessStep.tiltLeft;
       _isScanning = false;
       _result = null;
+      _liveFeedbackHint = 'Keep your face inside the oval frame';
     });
     _animateProgressTo(0.0, 0.33);
 
@@ -123,7 +428,10 @@ class _FaceScanScreenState extends State<FaceScanScreen>
     _progressController.forward(from: 0.0);
   }
 
-  Future<void> _startFaceVerification({bool skipPermissionCheck = false}) async {
+  Future<void> _startFaceVerification({
+    bool skipPermissionCheck = false,
+    String? liveFacePath,
+  }) async {
     if (!skipPermissionCheck) {
       final camAllowed = await AndroidPermissionsService.ensureCameraPermission(context);
       if (!camAllowed && mounted) {
@@ -149,7 +457,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
       passengerCategory: widget.passengerCategory,
       idType: widget.idType,
       idPhotoPath: widget.idPhotoPath,
-      liveFacePath: 'live_capture_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      liveFacePath: liveFacePath ?? 'live_capture_${DateTime.now().millisecondsSinceEpoch}.jpg',
       simulateLowConfidenceCase: _simulateLowConfidence,
     );
 
@@ -164,6 +472,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
 
   void _skipFaceScan() {
     _livenessTimer?.cancel();
+    _disposeCameraResources();
     const result = FaceVerificationResult(
       similarityScorePercent: 95.0,
       processingTimeMs: 120,
@@ -334,7 +643,9 @@ class _FaceScanScreenState extends State<FaceScanScreen>
           onPressed: () {
             if (_inLivenessStage && !_isScanning) {
               _livenessTimer?.cancel();
+              _disposeCameraResources();
               setState(() {
+                _useLiveCamera = false;
                 _inLivenessStage = false;
                 _livenessStep = _LivenessStep.tiltLeft;
                 _result = null;
@@ -504,44 +815,8 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                             color: const Color(0xFFF7F8FA),
                             borderRadius: BorderRadius.circular(140),
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (_isScanning) ...[
-                                const CircularProgressIndicator(color: AppTheme.accentEmerald),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Checking 1:1 match...',
-                                  style: TextStyle(
-                                    color: AppTheme.primarySlate,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13.5,
-                                  ),
-                                ),
-                              ] else if (isComplete) ...[
-                                Icon(
-                                  _result!.isApproved
-                                      ? Icons.check_circle_rounded
-                                      : Icons.flaky_rounded,
-                                  color: _result!.isApproved
-                                      ? AppTheme.accentEmerald
-                                      : Colors.amber,
-                                  size: 64,
-                                ),
-                              ] else ...[
-                                Icon(
-                                  switch (_livenessStep) {
-                                    _LivenessStep.tiltLeft => Icons.rotate_left_rounded,
-                                    _LivenessStep.tiltRight => Icons.rotate_right_rounded,
-                                    _LivenessStep.blinkOnce => Icons.remove_red_eye_outlined,
-                                    _LivenessStep.completed => Icons.face_rounded,
-                                  },
-                                  color: AppTheme.accentEmerald,
-                                  size: 72,
-                                ),
-                              ],
-                            ],
-                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: _buildOvalCameraContent(isComplete),
                         ),
                       ),
                     ),
@@ -571,7 +846,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Keep your face inside the oval frame',
+                          _liveFeedbackHint,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 12.5,
@@ -601,6 +876,62 @@ class _FaceScanScreenState extends State<FaceScanScreen>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildOvalCameraContent(bool isComplete) {
+    if (_isScanning) {
+      return const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: AppTheme.accentEmerald),
+          SizedBox(height: 16),
+          Text(
+            'Checking 1:1 match...',
+            style: TextStyle(
+              color: AppTheme.primarySlate,
+              fontWeight: FontWeight.w600,
+              fontSize: 13.5,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (isComplete) {
+      return Center(
+        child: Icon(
+          _result!.isApproved ? Icons.check_circle_rounded : Icons.flaky_rounded,
+          color: _result!.isApproved ? AppTheme.accentEmerald : Colors.amber,
+          size: 64,
+        ),
+      );
+    }
+
+    if (_useLiveCamera &&
+        _cameraController != null &&
+        _cameraController!.value.isInitialized) {
+      return FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: _cameraController!.value.previewSize?.height ?? 240,
+          height: _cameraController!.value.previewSize?.width ?? 296,
+          child: CameraPreview(_cameraController!),
+        ),
+      );
+    }
+
+    return Center(
+      child: Icon(
+        switch (_livenessStep) {
+          _LivenessStep.tiltLeft => Icons.rotate_left_rounded,
+          _LivenessStep.tiltRight => Icons.rotate_right_rounded,
+          _LivenessStep.blinkOnce => Icons.remove_red_eye_outlined,
+          _LivenessStep.completed => Icons.face_rounded,
+        },
+        color: AppTheme.accentEmerald,
+        size: 72,
+      ),
     );
   }
 }
