@@ -714,6 +714,7 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
   int _activeTabIndex = 0; // 0 = Recent, 1 = Suggested
   List<LocationPoint> _results = const [];
   List<LocationPoint> _recentPlaces = const [];
+  List<Map<String, dynamic>> _savedAddresses = const [];
   Set<String> _bookmarkedNames = {};
 
   @override
@@ -735,6 +736,7 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
       final prefs = await SharedPreferences.getInstance();
       final recentRaw = prefs.getStringList(_recentPrefsKey) ?? const [];
       final bookmarksRaw = prefs.getStringList(_bookmarksPrefsKey) ?? const [];
+      final savedAddrRaw = prefs.getStringList('pasada_saved_addresses_v1') ?? const [];
       final parsedRecent = <LocationPoint>[];
       for (final item in recentRaw) {
         final decoded = jsonDecode(item) as Map<String, dynamic>;
@@ -744,9 +746,13 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
           longitude: (decoded['lng'] as num).toDouble(),
         ));
       }
+      final parsedSaved = savedAddrRaw
+          .map((e) => Map<String, dynamic>.from(jsonDecode(e) as Map))
+          .toList();
       if (!mounted) return;
       setState(() {
         _recentPlaces = parsedRecent;
+        _savedAddresses = parsedSaved;
         _bookmarkedNames = bookmarksRaw.toSet();
         if (_recentPlaces.isEmpty) {
           _activeTabIndex = 1; // Show Suggested by default if no recent yet
@@ -774,6 +780,7 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
       );
     } catch (_) {}
     if (!mounted) return;
+    FocusScope.of(context).unfocus();
     Navigator.pop(context, place);
   }
 
@@ -1133,20 +1140,36 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
                         icon: Icons.map_outlined,
                         iconColor: AppTheme.accentEmerald,
                         label: 'Select from map',
-                        onTap: () => Navigator.pop(context),
+                        onTap: () {
+                          FocusScope.of(context).unfocus();
+                          Navigator.pop(context);
+                        },
                       ),
-                      const SizedBox(width: 8),
-                      _buildQuickShortcutPill(
-                        icon: Icons.home_outlined,
-                        label: 'Home',
-                        onTap: () => _selectPlace(_suggestedLaoagPlaces.first),
-                      ),
-                      const SizedBox(width: 8),
-                      _buildQuickShortcutPill(
-                        icon: Icons.work_outline_rounded,
-                        label: 'Office',
-                        onTap: () => _selectPlace(_suggestedLaoagPlaces[4]),
-                      ),
+                      ..._savedAddresses.map((addr) {
+                        final label = addr['label']?.toString() ?? 'Saved';
+                        final lower = label.toLowerCase();
+                        final IconData pillIcon = lower.contains('home')
+                            ? Icons.home_outlined
+                            : (lower.contains('school') || lower.contains('univ'))
+                                ? Icons.school_outlined
+                                : (lower.contains('work') || lower.contains('office'))
+                                    ? Icons.work_outline_rounded
+                                    : Icons.location_on_outlined;
+                        return Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: _buildQuickShortcutPill(
+                            icon: pillIcon,
+                            label: label,
+                            onTap: () => _selectPlace(
+                              LocationPoint(
+                                name: addr['address']?.toString() ?? label,
+                                latitude: (addr['lat'] as num).toDouble(),
+                                longitude: (addr['lng'] as num).toDouble(),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
                     ],
                   ),
                 ),
