@@ -113,9 +113,208 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
     );
   }
 
-  Future<void> _deleteAddress(int index) async {
+  Future<void> _confirmAndDeleteAddress(int index) async {
+    final addr = _addresses[index];
+    final label = addr['label']?.toString() ?? 'Saved Place';
+    final addressText = addr['address']?.toString() ?? '';
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Delete Address',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFEF4444),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Sure you want to delete this address?',
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primarySlate,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          _iconForLabel(label),
+                          color: AppTheme.accentEmerald,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              color: AppTheme.primarySlate,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      addressText,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFFE8F8EF),
+                          foregroundColor: AppTheme.accentEmerald,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentEmerald,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
+                        child: const Text(
+                          'Yes, Delete',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final removed = Map<String, dynamic>.from(addr);
     setState(() => _addresses.removeAt(index));
     await _persistAddresses();
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.white,
+        elevation: 6,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        content: Row(
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              color: AppTheme.accentEmerald,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Address deleted!',
+                style: TextStyle(
+                  color: AppTheme.primarySlate,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                if (!mounted) return;
+                setState(() {
+                  final insertIdx = index.clamp(0, _addresses.length);
+                  _addresses.insert(insertIdx, removed);
+                });
+                await _persistAddresses();
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: AppTheme.accentEmerald,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                minimumSize: const Size(0, 32),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                'Undo',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -251,6 +450,10 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                                         onPressed: () => _bookToAddress(addr),
                                       ),
                                       PopupMenuButton<String>(
+                                        color: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
                                         icon: Icon(
                                           Icons.more_vert_rounded,
                                           color: Colors.grey.shade600,
@@ -262,26 +465,48 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                                               existing: addr,
                                               index: index,
                                             );
-                                          } else if (action == 'book') {
-                                            _bookToAddress(addr);
                                           } else if (action == 'delete') {
-                                            _deleteAddress(index);
+                                            _confirmAndDeleteAddress(index);
                                           }
                                         },
                                         itemBuilder: (_) => const [
                                           PopupMenuItem(
-                                            value: 'book',
-                                            child: Text('Set as Drop-off'),
-                                          ),
-                                          PopupMenuItem(
                                             value: 'edit',
-                                            child: Text('Edit Address'),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.edit_outlined,
+                                                  size: 18,
+                                                  color: AppTheme.primarySlate,
+                                                ),
+                                                SizedBox(width: 10),
+                                                Text(
+                                                  'Edit',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                           PopupMenuItem(
                                             value: 'delete',
-                                            child: Text(
-                                              'Delete',
-                                              style: TextStyle(color: Colors.red),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.delete_outline_rounded,
+                                                  size: 18,
+                                                  color: Color(0xFFEF4444),
+                                                ),
+                                                SizedBox(width: 10),
+                                                Text(
+                                                  'Delete',
+                                                  style: TextStyle(
+                                                    color: Color(0xFFEF4444),
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
