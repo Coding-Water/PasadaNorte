@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/services/demand_forecast_service.dart';
 import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/session_cache_service.dart';
 import '../../../core/services/sound_alert_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/toda_queue_service.dart';
@@ -35,6 +36,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   List<DemandZoneForecast> _zoneForecasts = [];
 
   void _returnToPasadaNorteHome() {
+    unawaited(SessionCacheService.clearSession());
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const WelcomeOnboardingScreen()),

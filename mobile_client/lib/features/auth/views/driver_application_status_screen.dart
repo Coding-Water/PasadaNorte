@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/services/session_cache_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/system_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../driver/views/driver_map_duty_screen.dart';
+import 'phone_input_screen.dart';
 
 // NOTIFICATION CHECKLIST:
 // [x] Native Android Notification Center alerts (Approved / Resubmission / Rejected)
@@ -53,6 +55,13 @@ class _DriverApplicationStatusScreenState
   @override
   void initState() {
     super.initState();
+    unawaited(
+      SessionCacheService.saveDriverSession(
+        phoneNumber: widget.phoneNumber,
+        fullName: widget.fullName,
+        isPendingReview: true,
+      ),
+    );
     _loadInitialStatus();
     _listenToApplicationStatus();
   }
@@ -271,15 +280,26 @@ class _DriverApplicationStatusScreenState
                 ),
                 child: Column(
                   children: [
-                    Container(
-                      width: 68,
-                      height: 68,
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
+                    if (isUnderReview)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.asset(
+                          'assets/images/review_hourglass.jpg',
+                          width: 156,
+                          height: 98,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    else
+                      Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(statusIcon, color: statusColor, size: 36),
                       ),
-                      child: Icon(statusIcon, color: statusColor, size: 36),
-                    ),
                     const SizedBox(height: 16),
                     Text(
                       heading,
@@ -328,7 +348,13 @@ class _DriverApplicationStatusScreenState
               if (isApproved) ...[
                 const SizedBox(height: 22),
                 ElevatedButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
+                    await SessionCacheService.saveDriverSession(
+                      phoneNumber: widget.phoneNumber,
+                      fullName: widget.fullName,
+                      isPendingReview: false,
+                    );
+                    if (!context.mounted) return;
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
@@ -511,6 +537,31 @@ class _DriverApplicationStatusScreenState
                   ),
                 ),
               ],
+              const SizedBox(height: 18),
+              Center(
+                child: TextButton(
+                  onPressed: () async {
+                    await SessionCacheService.clearSession();
+                    if (!context.mounted) return;
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const PhoneInputScreen(initialIsRegisterMode: false),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                  child: const Text(
+                    'Use a different account',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../../../core/services/android_permissions_service.dart';
 import '../../../core/services/face_verification_service.dart';
+import '../../../core/services/session_cache_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
@@ -509,6 +510,13 @@ class _FaceScanScreenState extends State<FaceScanScreen>
         ),
       );
     } else {
+      unawaited(
+        SessionCacheService.saveRiderSession(
+          phoneNumber: widget.phoneNumber,
+          fullName: widget.fullName,
+          idType: widget.idType,
+        ),
+      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -613,6 +621,13 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                   ),
                 );
               } else {
+                unawaited(
+                  SessionCacheService.saveRiderSession(
+                    phoneNumber: widget.phoneNumber,
+                    fullName: widget.fullName,
+                    idType: widget.idType,
+                  ),
+                );
                 Navigator.push(
                   context,
                   MaterialPageRoute(

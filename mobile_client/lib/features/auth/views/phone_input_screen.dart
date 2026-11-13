@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/services/session_cache_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../driver/views/driver_map_duty_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../../rider/views/passenger_service_hub_screen.dart';
+import 'driver_application_status_screen.dart';
 import 'otp_verification_screen.dart';
 
 class PhoneInputScreen extends StatefulWidget {
@@ -65,12 +67,37 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
         }
 
         if (roleStr == 'driver') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => DriverMapDutyScreen(fullName: fullName),
-            ),
+          final appRow =
+              await SupabaseService.getDriverApplicationByPhone(fullPhoneNumber);
+          if (!mounted) return;
+          final appStatus = (appRow?['application_status'] ?? '').toString();
+          final isPendingReview = appRow != null && appStatus != 'approved';
+
+          await SessionCacheService.saveDriverSession(
+            phoneNumber: fullPhoneNumber,
+            fullName: fullName,
+            isPendingReview: isPendingReview,
           );
+          if (!mounted) return;
+
+          if (isPendingReview) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DriverApplicationStatusScreen(
+                  phoneNumber: fullPhoneNumber,
+                  fullName: fullName,
+                ),
+              ),
+            );
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DriverMapDutyScreen(fullName: fullName),
+              ),
+            );
+          }
         } else {
           final idTypeStr = (existingUser['id_type'] as String?) ?? 'National ID (PhilID)';
           PassengerCategory lockedCat = PassengerCategory.regular;
@@ -80,6 +107,13 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
               idTypeStr.toUpperCase().contains('PWD')) {
             lockedCat = PassengerCategory.senior;
           }
+
+          await SessionCacheService.saveRiderSession(
+            phoneNumber: fullPhoneNumber,
+            fullName: fullName,
+            idType: idTypeStr,
+          );
+          if (!mounted) return;
 
           Navigator.push(
             context,

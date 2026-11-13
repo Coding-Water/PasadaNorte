@@ -198,15 +198,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
       }
 
       final filePath = picked.path ?? picked.name;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$docLabel uploaded (${picked.name}).'),
-            backgroundColor: AppTheme.accentEmerald,
-            duration: const Duration(seconds: 1),
-          ),
-        );
-      }
       return filePath;
     } on MissingPluginException {
       final isWidgetTest = WidgetsBinding.instance.runtimeType
@@ -294,13 +285,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         imageQuality: 85,
       );
       if (file != null) {
-        if (!mounted) return file.path;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$docLabel uploaded (${file.name}).'),
-            duration: const Duration(seconds: 1),
-          ),
-        );
         return file.path;
       }
     } catch (_) {}

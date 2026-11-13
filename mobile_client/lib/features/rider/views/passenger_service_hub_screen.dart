@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../core/services/session_cache_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
@@ -35,6 +37,7 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
   }
 
   void _returnToHome(BuildContext context) {
+    unawaited(SessionCacheService.clearSession());
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const WelcomeOnboardingScreen()),
