@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../models/user_model.dart';
@@ -21,23 +24,266 @@ class UserDetailsInputScreen extends StatefulWidget {
 }
 
 class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
-  final _nameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _lastNameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _middleNameController = TextEditingController();
+  final _suffixController = TextEditingController();
+  final _dobController = TextEditingController();
+  late final TextEditingController _phoneController;
+
+  String? _selectedGender;
+  DateTime? _selectedDob;
+
+  // Profile picture: either an asset avatar path or a user-picked file path
+  String? _selectedAvatarAsset;
+  String? _pickedPhotoPath;
+  final ImagePicker _picker = ImagePicker();
+
+  static const List<String> _genderOptions = [
+    'Male',
+    'Female',
+    'Non-Binary',
+    'Transgender Man',
+    'Transgender Woman',
+    'Genderqueer / Genderfluid',
+    'Agender',
+    'Two-Spirit',
+    'Intersex',
+    'Prefer not to say',
+    'Other',
+  ];
+
+  static final List<String> _avatarAssets = List.generate(
+    24,
+    (index) => 'assets/images/avatars/avatar_${(index + 1).toString().padLeft(2, '0')}.png',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneController = TextEditingController(text: widget.phoneNumber);
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _lastNameController.dispose();
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _suffixController.dispose();
+    _dobController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
-  void _onProceedToIdUpload() {
+  String _composeFullName() {
+    final parts = <String>[
+      _firstNameController.text.trim(),
+      if (_middleNameController.text.trim().isNotEmpty) _middleNameController.text.trim(),
+      _lastNameController.text.trim(),
+      if (_suffixController.text.trim().isNotEmpty) _suffixController.text.trim(),
+    ];
+    return parts.join(' ');
+  }
+
+  Future<void> _pickDateOfBirth() async {
+    final now = DateTime.now();
+    final initial = _selectedDob ?? DateTime(now.year - 22, 1, 1);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1920, 1, 1),
+      lastDate: now,
+      helpText: 'Select Date of Birth',
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDob = picked;
+        _dobController.text = _formatDate(picked);
+      });
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}';
+  }
+
+  Future<void> _pickCustomPhoto(ImageSource source) async {
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      if (file != null && mounted) {
+        setState(() {
+          _pickedPhotoPath = file.path;
+          _selectedAvatarAsset = null;
+        });
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to access photo on this device.')),
+        );
+      }
+    }
+  }
+
+  void _showProfilePicturePicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.72,
+          minChildSize: 0.45,
+          maxChildSize: 0.9,
+          builder: (context, scrollController) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Profile Picture',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.primarySlate,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Upload your own photo or pick a PasadaNorte avatar.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Upload / Camera buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _pickCustomPhoto(ImageSource.gallery),
+                          icon: const Icon(Icons.photo_library_rounded, size: 18),
+                          label: const Text('Upload Photo'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.accentEmerald,
+                            side: const BorderSide(color: AppTheme.accentEmeraldDark, width: 1.5),
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _pickCustomPhoto(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                          label: const Text('Take Photo'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.accentEmerald,
+                            side: const BorderSide(color: AppTheme.accentEmeraldDark, width: 1.5),
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  const Text(
+                    'Or choose an avatar',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primarySlate,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Expanded(
+                    child: GridView.builder(
+                      controller: scrollController,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        mainAxisSpacing: 14,
+                        crossAxisSpacing: 14,
+                      ),
+                      itemCount: _avatarAssets.length,
+                      itemBuilder: (context, index) {
+                        final asset = _avatarAssets[index];
+                        final isSelected = _selectedAvatarAsset == asset;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedAvatarAsset = asset;
+                              _pickedPhotoPath = null;
+                            });
+                            Navigator.pop(sheetContext);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected ? AppTheme.accentEmerald : Colors.transparent,
+                                width: 3,
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: ClipOval(
+                              child: Image.asset(
+                                asset,
+                                fit: BoxFit.cover,
+                                semanticLabel: 'PasadaNorte avatar ${index + 1}',
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _onContinue() {
     if (_formKey.currentState!.validate()) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => IdUploadScreen(
             phoneNumber: widget.phoneNumber,
-            fullName: _nameController.text.trim(),
+            fullName: _composeFullName(),
             role: widget.role,
             passengerCategory: widget.passengerCategory,
           ),
@@ -46,269 +292,395 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDriver = widget.role == UserRole.driver;
+  InputDecoration _fieldDecoration({
+    required String hintText,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.w400),
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: const Color(0xFFF7F8FA),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppTheme.accentEmerald, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppTheme.cancelRed, width: 1.2),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppTheme.cancelRed, width: 1.5),
+      ),
+    );
+  }
 
-    String categoryTitle = 'Regular Commuter';
-    String categorySubtitle = 'Standard Laoag ordinance rate: ₱20.00 1st km + ₱2.00/km';
-    IconData categoryIcon = Icons.person_rounded;
-    Color categoryColor = const Color(0xFF0284C7);
-    Color categoryBg = const Color(0xFFE0F2FE);
+  Widget _buildFieldLabel(String text, {bool isRequired = true}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primarySlate,
+            ),
+          ),
+          if (!isRequired) ...[
+            const SizedBox(width: 4),
+            Text(
+              '(Optional)',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
-    if (isDriver) {
-      categoryTitle = 'Tricycle Driver (TODA)';
-      categorySubtitle = 'Laoag Paratransit Franchise • Professional Driver';
-      categoryIcon = Icons.electric_rickshaw_rounded;
-      categoryColor = const Color(0xFFD97706);
-      categoryBg = const Color(0xFFFEF3C7);
-    } else if (widget.passengerCategory == PassengerCategory.student) {
-      categoryTitle = 'Student Passenger (20% Off)';
-      categorySubtitle = 'Statutory discounted rate: ₱15.00 1st km (RA 11314)';
-      categoryIcon = Icons.school_rounded;
-      categoryColor = AppTheme.accentEmerald;
-      categoryBg = const Color(0xFFDCFCE7);
-    } else if (widget.passengerCategory == PassengerCategory.senior ||
-        widget.passengerCategory == PassengerCategory.pwd) {
-      categoryTitle = 'Senior / PWD Passenger (20% Off)';
-      categorySubtitle = 'Statutory discounted rate: ₱15.00 1st km (RA 9994 / 10754)';
-      categoryIcon = Icons.accessible_rounded;
-      categoryColor = AppTheme.accentEmerald;
-      categoryBg = const Color(0xFFDCFCE7);
+  Widget _buildAvatarPreview() {
+    Widget avatarContent;
+    if (_pickedPhotoPath != null && !kIsWeb) {
+      avatarContent = ClipOval(
+        child: Image.file(
+          File(_pickedPhotoPath!),
+          width: 96,
+          height: 96,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else if (_selectedAvatarAsset != null) {
+      avatarContent = ClipOval(
+        child: Image.asset(
+          _selectedAvatarAsset!,
+          width: 96,
+          height: 96,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else {
+      avatarContent = CircleAvatar(
+        radius: 48,
+        backgroundColor: const Color(0xFFF1F5F9),
+        child: Icon(
+          Icons.person_rounded,
+          size: 52,
+          color: Colors.grey.shade400,
+        ),
+      );
     }
 
+    return Center(
+      child: Semantics(
+        button: true,
+        label: 'Choose or upload profile picture',
+        child: GestureDetector(
+          onTap: _showProfilePicturePicker,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: (_pickedPhotoPath != null || _selectedAvatarAsset != null)
+                        ? AppTheme.accentEmerald
+                        : Colors.transparent,
+                    width: 2.5,
+                  ),
+                ),
+                child: avatarContent,
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentEmerald,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Icon(
+                    Icons.edit_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(isDriver ? 'Driver Profile Details' : 'Passenger Profile Details'),
+        title: const Text(
+          'Fill Personal Info',
+          style: TextStyle(
+            color: AppTheme.primarySlate,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
+        centerTitle: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.primarySlate, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Confirmed Classification Badge Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.02),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: categoryBg,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(categoryIcon, color: categoryColor, size: 24),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              categoryTitle,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.primarySlate,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              categorySubtitle,
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.check_circle_rounded, color: AppTheme.accentEmerald, size: 20),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                const Text(
-                  'What is your Full Name?',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.primarySlate,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Enter your official full name as printed on your identification card. This will be verified during the ID and face verification steps.',
-                  style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 13.5,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Pre-filled verified phone number display
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.phone_android_rounded, size: 18, color: AppTheme.primarySlate),
-                      const SizedBox(width: 10),
-                      Text(
-                        widget.phoneNumber,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.primarySlate,
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDCFCE7),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.check_rounded, size: 12, color: Color(0xFF15803D)),
-                            SizedBox(width: 4),
-                            Text(
-                              'OTP Verified',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF15803D),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Full Name Input
-                TextFormField(
-                  controller: _nameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Full Legal Name',
-                    hintText: 'e.g. Juan Dela Cruz',
-                    prefixIcon: Icon(Icons.person_outline_rounded),
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your full name';
-                    }
-                    if (value.trim().split(' ').length < 2) {
-                      return 'Please enter your first and last name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-
-                // Individual Screens Next Steps Roadmap
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDF4),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF86EFAC)),
-                  ),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+                child: Form(
+                  key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      const SizedBox(height: 6),
+                      _buildAvatarPreview(),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: Text(
+                          'Tap to add photo or choose avatar (Optional)',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+
+                      // Last Name
+                      _buildFieldLabel('Last Name'),
+                      TextFormField(
+                        controller: _lastNameController,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: _fieldDecoration(hintText: 'Last Name'),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter your last name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // First Name
+                      _buildFieldLabel('First Name'),
+                      TextFormField(
+                        controller: _firstNameController,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: _fieldDecoration(hintText: 'First Name'),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter your first name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Middle Name & Suffix
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline_rounded, color: Color(0xFF16A34A), size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Individual Verification Steps Ahead',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF15803D),
+                          Expanded(
+                            flex: 2,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildFieldLabel('Middle Name', isRequired: false),
+                                TextFormField(
+                                  controller: _middleNameController,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: _fieldDecoration(hintText: 'Middle Name'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 1,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildFieldLabel('Suffix', isRequired: false),
+                                TextFormField(
+                                  controller: _suffixController,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: _fieldDecoration(hintText: 'Jr., III'),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        isDriver
-                            ? '• Screen 1: Driver Professional License, Clearances & Vehicle Specs\n• Screen 2: 1:1 Live Face Verification'
-                            : '• Screen 1: Upload your ${widget.passengerCategory == PassengerCategory.student ? "Student ID" : (widget.passengerCategory == PassengerCategory.senior ? "Senior / PWD ID" : "Government ID")}\n• Screen 2: 1:1 Live Face Verification',
+                      const SizedBox(height: 16),
+
+                      // Phone Number (Auto-filled & OTP verified)
+                      _buildFieldLabel('Phone Number'),
+                      TextFormField(
+                        controller: _phoneController,
+                        readOnly: true,
                         style: const TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xFF166534),
-                          height: 1.4,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primarySlate,
+                        ),
+                        decoration: _fieldDecoration(
+                          hintText: '+63 9XX XXX XXXX',
+                          prefixIcon: const Icon(
+                            Icons.phone_android_rounded,
+                            color: AppTheme.primarySlate,
+                            size: 20,
+                          ),
+                          suffixIcon: Container(
+                            margin: const EdgeInsets.only(right: 10, top: 10, bottom: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.accentEmeraldLight,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.check_circle_rounded, size: 13, color: AppTheme.accentEmeraldDark),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Verified',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.accentEmeraldDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
+                      const SizedBox(height: 16),
+
+                      // Gender (All gender options)
+                      _buildFieldLabel('Gender'),
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedGender,
+                        isExpanded: true,
+                        icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade600),
+                        decoration: _fieldDecoration(hintText: 'Gender'),
+                        hint: Text(
+                          'Gender',
+                          style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                        ),
+                        items: _genderOptions
+                            .map(
+                              (g) => DropdownMenuItem<String>(
+                                value: g,
+                                child: Text(
+                                  g,
+                                  style: const TextStyle(
+                                    fontSize: 14.5,
+                                    color: AppTheme.primarySlate,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() => _selectedGender = value);
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select your gender';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Date of Birth
+                      _buildFieldLabel('Date of Birth'),
+                      TextFormField(
+                        controller: _dobController,
+                        readOnly: true,
+                        onTap: _pickDateOfBirth,
+                        decoration: _fieldDecoration(
+                          hintText: 'Date of Birth',
+                          suffixIcon: Icon(
+                            Icons.calendar_today_rounded,
+                            color: Colors.grey.shade600,
+                            size: 18,
+                          ),
+                        ),
+                        validator: (value) {
+                          if (_selectedDob == null) {
+                            return 'Please select your date of birth';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
-                const SizedBox(height: 28),
+              ),
+            ),
 
-                // Proceed Button
-                ElevatedButton(
-                  onPressed: _onProceedToIdUpload,
+            // Bottom Continue Button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: _onContinue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.accentEmerald,
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: const StadiumBorder(),
+                  ),
+                  child: const Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Proceed to ID & Face Verification',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.white),
-                    ],
-                  ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

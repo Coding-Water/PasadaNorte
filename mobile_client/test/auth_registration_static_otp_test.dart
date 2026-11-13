@@ -15,6 +15,39 @@ import 'package:mobile_client/features/rider/views/passenger_service_hub_screen.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  Future<void> fillPersonalInfoAndContinue(
+    WidgetTester tester, {
+    required String lastName,
+    required String firstName,
+    String gender = 'Female',
+  }) async {
+    expect(find.text('Fill Personal Info'), findsOneWidget);
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), lastName);
+    await tester.enterText(fields.at(1), firstName);
+    await tester.pump();
+
+    // Select Gender
+    final genderDropdown = find.byType(DropdownButtonFormField<String>);
+    await tester.ensureVisible(genderDropdown);
+    await tester.tap(genderDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(gender).last);
+    await tester.pumpAndSettle();
+
+    // Select Date of Birth
+    final dobField = fields.at(5);
+    await tester.ensureVisible(dobField);
+    await tester.tap(dobField);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    // Tap Continue
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+  }
+
   group('Static OTP & Registration Flow Tests (Rider and Driver)', () {
     testWidgets('OtpVerificationScreen displays static OTP 123456 and auto-fills seamlessly', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
@@ -108,18 +141,21 @@ void main() {
 
       // Verify Screen 3: User Details Input
       expect(find.byType(UserDetailsInputScreen), findsOneWidget);
-      expect(find.text('What is your Full Name?'), findsOneWidget);
 
-      // Fill full name
-      final nameField = find.byType(TextFormField);
-      await tester.enterText(nameField, 'Maria Santos');
-      await tester.pump();
-
-      // Ensure button is visible & tap
-      final proceedToIdBtn = find.text('Proceed to ID & Face Verification');
-      await tester.ensureVisible(proceedToIdBtn);
-      await tester.tap(proceedToIdBtn);
+      // Test Profile Picture avatar picker sheet
+      await tester.tap(find.bySemanticsLabel('Choose or upload profile picture'));
       await tester.pumpAndSettle();
+      expect(find.text('Profile Picture'), findsOneWidget);
+      expect(find.text('Or choose an avatar'), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('PasadaNorte avatar 1'));
+      await tester.pumpAndSettle();
+
+      await fillPersonalInfoAndContinue(
+        tester,
+        lastName: 'Santos',
+        firstName: 'Maria',
+        gender: 'Female',
+      );
 
       // Verify Individual Screen: ID Upload
       expect(find.byType(IdUploadScreen), findsOneWidget);
@@ -169,16 +205,12 @@ void main() {
       // Verify User Details Input Screen for Driver
       expect(find.byType(UserDetailsInputScreen), findsOneWidget);
 
-      // Fill full name
-      final nameField = find.byType(TextFormField);
-      await tester.enterText(nameField, 'Danilo Ramos');
-      await tester.pump();
-
-      // Proceed to ID and Face Verification
-      final proceedToIdBtn = find.text('Proceed to ID & Face Verification');
-      await tester.ensureVisible(proceedToIdBtn);
-      await tester.tap(proceedToIdBtn);
-      await tester.pumpAndSettle();
+      await fillPersonalInfoAndContinue(
+        tester,
+        lastName: 'Ramos',
+        firstName: 'Danilo',
+        gender: 'Male',
+      );
 
       // Verify Individual Screen: Driver ID & Vehicle Compliance
       expect(find.byType(IdUploadScreen), findsOneWidget);
@@ -239,19 +271,15 @@ void main() {
       await tester.tap(find.text('Regular Passenger'));
       await tester.pumpAndSettle();
 
-      // Screen 4: User Details Input Screen shows Regular Commuter
+      // Screen 4: User Details Input Screen
       expect(find.byType(UserDetailsInputScreen), findsOneWidget);
-      expect(find.text('Regular Commuter'), findsOneWidget);
 
-      // Fill name & proceed
-      final nameField = find.byType(TextFormField);
-      await tester.enterText(nameField, 'Jose Rizal');
-      await tester.pump();
-
-      final proceedToIdBtn = find.text('Proceed to ID & Face Verification');
-      await tester.ensureVisible(proceedToIdBtn);
-      await tester.tap(proceedToIdBtn);
-      await tester.pumpAndSettle();
+      await fillPersonalInfoAndContinue(
+        tester,
+        lastName: 'Rizal',
+        firstName: 'Jose',
+        gender: 'Male',
+      );
 
       // Individual ID Upload Screen verifies Regular Government ID requirement
       expect(find.byType(IdUploadScreen), findsOneWidget);
