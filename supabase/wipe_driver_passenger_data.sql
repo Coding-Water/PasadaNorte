@@ -1,5 +1,6 @@
 -- Wipe all Driver & Passenger test data while preserving Laoag Zones, TODA Terminals, Fare Matrix, and ML Forecasts.
 -- Run this in the Supabase Dashboard -> SQL Editor before hot restarting.
+-- Note: To clear uploaded files in Storage, use Supabase Dashboard -> Storage -> driver-documents -> Empty bucket.
 
 DO $$
 DECLARE
@@ -22,6 +23,3 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
-
--- Optional: Also remove uploaded driver/passenger documents & selfies from Storage
-DELETE FROM storage.objects WHERE bucket_id = 'driver-documents';
