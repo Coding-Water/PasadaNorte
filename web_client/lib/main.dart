@@ -82,77 +82,18 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   String _dispatchFilter = 'All'; // 'All', 'Compliant', 'Overcharged'
   final String _driverTodaFilter = 'All';
 
-  // Digital Pila Calibration & Field Validation State (Moved from mobile driver app)
-  String _selectedCalibrationTerminalId = 'TERM-01';
+  // Digital Pila Calibration & Field Validation State (Synced from Supabase toda_terminals)
+  String _selectedCalibrationTerminalId = '';
   double _simulatedDistanceMeters = 8.0;
   double _simulatedSpeedKmh = 0.0;
   int _simulatedDwellSeconds = 35;
   bool _ntpClockSynced = true;
   int _ntpDriftMs = 3;
 
-  // Terminals State
-  final List<Map<String, dynamic>> _terminals = [
-    {
-      'id': 'TERM-01',
-      'name': 'Laoag Central Terminal & Public Market TODA',
-      'code': 'TODA-01',
-      'radius': 30.0,
-      'joinSpeed': 5.0,
-      'dwell': 45,
-      'activeUnits': 0,
-      'dispatches': 0,
-      'lat': 18.1972,
-      'lng': 120.5925,
-    },
-    {
-      'id': 'TERM-02',
-      'name': 'MMSU Laoag Campus (CTE / CIT Gate) TODA',
-      'code': 'TODA-02',
-      'radius': 25.0,
-      'joinSpeed': 5.0,
-      'dwell': 30,
-      'activeUnits': 0,
-      'dispatches': 0,
-      'lat': 18.1925,
-      'lng': 120.5960,
-    },
-    {
-      'id': 'TERM-03',
-      'name': 'Robinsons Place Ilocos / San Nicolas Boundary TODA',
-      'code': 'TODA-03',
-      'radius': 35.0,
-      'joinSpeed': 5.0,
-      'dwell': 60,
-      'activeUnits': 0,
-      'dispatches': 0,
-      'lat': 18.1845,
-      'lng': 120.5912,
-    },
-    {
-      'id': 'TERM-04',
-      'name': 'Laoag City General Hospital (LCGH) TODA',
-      'code': 'TODA-04',
-      'radius': 20.0,
-      'joinSpeed': 5.0,
-      'dwell': 40,
-      'activeUnits': 0,
-      'dispatches': 0,
-      'lat': 18.1880,
-      'lng': 120.5890,
-    },
-    {
-      'id': 'TERM-05',
-      'name': 'Laoag International Airport (Gabu) TODA',
-      'code': 'TODA-05',
-      'radius': 30.0,
-      'joinSpeed': 5.0,
-      'dwell': 50,
-      'activeUnits': 0,
-      'dispatches': 0,
-      'lat': 18.1811,
-      'lng': 120.5306,
-    },
-  ];
+  // Terminals State (wiped clean — admin creates & pins TODA Pilas)
+  final List<Map<String, dynamic>> _terminals = [];
+  final MapController _todaStationsMapController = MapController();
+  bool _isTodaStationsSatellite = false;
 
   // 10 Laoag Zones (Spatial-Temporal Forecasting Calibration)
   final List<Map<String, dynamic>> _mlZones = [
@@ -822,6 +763,44 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           _succKm = (res['succeeding_km_rate'] as num?)?.toDouble() ?? _succKm;
         });
       }
+
+      // Sync live TODA Pilas from Supabase toda_terminals table
+      try {
+        final terminalRows = await Supabase.instance.client
+            .from('toda_terminals')
+            .select()
+            .order('name', ascending: true);
+        if (mounted) {
+          setState(() {
+            _terminals
+              ..clear()
+              ..addAll(terminalRows.map((row) => {
+                    'id': row['id'].toString(),
+                    'name': (row['name'] ?? 'TODA Pila').toString(),
+                    'code': (row['toda_code'] ?? 'TODA').toString(),
+                    'radius': (row['radius_meters'] as num?)?.toDouble() ?? 25.0,
+                    'joinSpeed':
+                        (row['join_speed_limit_kmh'] as num?)?.toDouble() ??
+                            (row['speed_limit_kmh'] as num?)?.toDouble() ??
+                            5.0,
+                    'dwell':
+                        (row['min_stop_dwell_seconds'] as num?)?.toInt() ??
+                            (row['dwell_time_seconds'] as num?)?.toInt() ??
+                            30,
+                    'activeUnits': 0,
+                    'dispatches': 0,
+                    'lat': (row['latitude'] as num?)?.toDouble() ?? 18.1960,
+                    'lng': (row['longitude'] as num?)?.toDouble() ?? 120.5935,
+                  }));
+            if (_terminals.isEmpty) {
+              _selectedCalibrationTerminalId = '';
+            } else if (!_terminals
+                .any((t) => t['id'] == _selectedCalibrationTerminalId)) {
+              _selectedCalibrationTerminalId = _terminals.first['id'].toString();
+            }
+          });
+        }
+      } catch (_) {}
 
       // Sync live driver applications from Supabase driver_applications table
       final driverAppRows = await Supabase.instance.client
@@ -2968,14 +2947,376 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   }
 
   // ===========================================================================
+  Future<void> _upsertTodaTerminalToSupabase(Map<String, dynamic> t) async {
+    try {
+      await Supabase.instance.client.from('toda_terminals').upsert({
+        'id': t['id'],
+        'name': t['name'],
+        'toda_code': t['code'],
+        'latitude': (t['lat'] as num).toDouble(),
+        'longitude': (t['lng'] as num).toDouble(),
+        'radius_meters': (t['radius'] as num).toDouble(),
+        'join_speed_limit_kmh': (t['joinSpeed'] as num).toDouble(),
+        'min_stop_dwell_seconds': (t['dwell'] as num).toInt(),
+        'dwell_time_seconds': (t['dwell'] as num).toInt(),
+        'speed_limit_kmh': (t['joinSpeed'] as num).toDouble(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Supabase TODA sync note: $e'),
+            backgroundColor: Colors.orange.shade800,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteTodaTerminalFromSupabase(String terminalId) async {
+    try {
+      await Supabase.instance.client
+          .from('toda_terminals')
+          .delete()
+          .eq('id', terminalId);
+    } catch (_) {}
+  }
+
+  Future<void> _openCreateOrEditTodaPilaDialog({
+    Map<String, dynamic>? existing,
+    LatLng? initialPin,
+  }) async {
+    final isEdit = existing != null;
+    final nameCtrl = TextEditingController(
+      text: existing?['name']?.toString() ?? '',
+    );
+    final codeCtrl = TextEditingController(
+      text: existing?['code']?.toString() ??
+          'TODA-${(_terminals.length + 1).toString().padLeft(2, '0')}',
+    );
+    LatLng pinnedPoint = initialPin ??
+        LatLng(
+          (existing?['lat'] as num?)?.toDouble() ?? 18.1960,
+          (existing?['lng'] as num?)?.toDouble() ?? 120.5935,
+        );
+    double radius = (existing?['radius'] as num?)?.toDouble() ?? 25.0;
+    double joinSpeed = (existing?['joinSpeed'] as num?)?.toDouble() ?? 5.0;
+    int dwell = (existing?['dwell'] as num?)?.toInt() ?? 30;
+    bool isSatellite = _isTodaStationsSatellite;
+    final dialogMapController = MapController();
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Row(
+            children: [
+              const Icon(Icons.add_location_alt_rounded,
+                  color: Color(0xFF059669)),
+              const SizedBox(width: 8),
+              Text(
+                isEdit
+                    ? 'Edit & Calibrate TODA Pila'
+                    : 'Create & Pin New TODA Pila',
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 640,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: nameCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'TODA Pila Name',
+                            hintText: 'e.g. Laoag Public Market Terminal',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: codeCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'TODA Code',
+                            hintText: 'e.g. TODA-01',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Tap anywhere on the map to pin the Pila location:',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        'Lat: ${pinnedPoint.latitude.toStringAsFixed(5)}, Lng: ${pinnedPoint.longitude.toStringAsFixed(5)}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 270,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Stack(
+                        children: [
+                          FlutterMap(
+                            mapController: dialogMapController,
+                            options: MapOptions(
+                              initialCenter: pinnedPoint,
+                              initialZoom: 15.2,
+                              minZoom: 12.0,
+                              maxZoom: 19.0,
+                              onTap: (_, latLng) {
+                                setDialogState(() => pinnedPoint = latLng);
+                              },
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: isSatellite
+                                    ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                                    : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                                userAgentPackageName: 'com.pasadanorte.web_admin',
+                              ),
+                              CircleLayer(
+                                circles: [
+                                  CircleMarker(
+                                    point: pinnedPoint,
+                                    radius: radius,
+                                    useRadiusInMeter: true,
+                                    color: const Color(0xFF059669)
+                                        .withValues(alpha: 0.20),
+                                    borderColor: const Color(0xFF059669),
+                                    borderStrokeWidth: 2,
+                                  ),
+                                ],
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: pinnedPoint,
+                                    width: 44,
+                                    height: 44,
+                                    child: const Icon(
+                                      Icons.location_on_rounded,
+                                      color: Color(0xFFDC2626),
+                                      size: 40,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: Material(
+                              color: Colors.white.withValues(alpha: 0.94),
+                              elevation: 2,
+                              borderRadius: BorderRadius.circular(8),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => setDialogState(
+                                    () => isSatellite = !isSatellite),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  child: Text(
+                                    isSatellite ? 'Streets' : 'Satellite',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Geofence Radius: ${radius.toStringAsFixed(0)} meters',
+                    style: const TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w700),
+                  ),
+                  Slider(
+                    value: radius,
+                    min: 10.0,
+                    max: 150.0,
+                    divisions: 28,
+                    activeColor: const Color(0xFF059669),
+                    onChanged: (v) => setDialogState(() => radius = v),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Join Speed Limit: ${joinSpeed.toStringAsFixed(1)} km/h',
+                              style: const TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                            Slider(
+                              value: joinSpeed,
+                              min: 2.0,
+                              max: 15.0,
+                              divisions: 13,
+                              activeColor: const Color(0xFF0052CC),
+                              onChanged: (v) =>
+                                  setDialogState(() => joinSpeed = v),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Min Dwell Time: ${dwell}s',
+                              style: const TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                            Slider(
+                              value: dwell.toDouble(),
+                              min: 10,
+                              max: 120,
+                              divisions: 22,
+                              activeColor: const Color(0xFF0052CC),
+                              onChanged: (v) =>
+                                  setDialogState(() => dwell = v.round()),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                if (nameCtrl.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Please enter a Pila name.')),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              icon: const Icon(Icons.save_rounded, size: 17),
+              label: Text(isEdit ? 'Save Pila Settings' : 'Create TODA Pila'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved != true) return;
+
+    final id = existing?['id']?.toString() ??
+        'pila_${DateTime.now().millisecondsSinceEpoch}';
+    final updated = <String, dynamic>{
+      'id': id,
+      'name': nameCtrl.text.trim(),
+      'code': codeCtrl.text.trim().isEmpty ? 'TODA' : codeCtrl.text.trim(),
+      'radius': radius,
+      'joinSpeed': joinSpeed,
+      'dwell': dwell,
+      'activeUnits': existing?['activeUnits'] ?? 0,
+      'dispatches': existing?['dispatches'] ?? 0,
+      'lat': pinnedPoint.latitude,
+      'lng': pinnedPoint.longitude,
+    };
+
+    setState(() {
+      if (isEdit) {
+        final idx = _terminals.indexWhere((t) => t['id'] == id);
+        if (idx >= 0) _terminals[idx] = updated;
+      } else {
+        _terminals.add(updated);
+      }
+      _selectedCalibrationTerminalId = id;
+    });
+
+    await _upsertTodaTerminalToSupabase(updated);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${updated['name']} saved & synced to Driver Maps!',
+          ),
+          backgroundColor: const Color(0xFF059669),
+        ),
+      );
+    }
+  }
+
   // ===========================================================================
   // 7. TODA GEOFENCES & DIGITAL PILA CALIBRATION WORKBENCH (Option B)
   // ===========================================================================
   Widget _buildTodaStationsView() {
-    final activeTerminal = _terminals.firstWhere(
-      (t) => t['id'] == _selectedCalibrationTerminalId,
-      orElse: () => _terminals.first,
-    );
+    final hasTerminals = _terminals.isNotEmpty;
+    final activeTerminal = hasTerminals
+        ? _terminals.firstWhere(
+            (t) => t['id'] == _selectedCalibrationTerminalId,
+            orElse: () => _terminals.first,
+          )
+        : <String, dynamic>{
+            'id': '',
+            'name': 'No TODA Pila Configured',
+            'code': 'NONE',
+            'radius': 25.0,
+            'joinSpeed': 5.0,
+            'dwell': 30,
+            'lat': 18.1960,
+            'lng': 120.5935,
+          };
 
     final double activeRadius = (activeTerminal['radius'] as num).toDouble();
     final double activeSpeedLimit = (activeTerminal['joinSpeed'] as num?)?.toDouble() ?? 5.0;
@@ -3014,112 +3355,363 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Digital Pila Calibration & NTP Field Validation',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Administrative terminal geofence boundary configuration and ISO/IEC 25010 ground-truth validation suite.',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-              ],
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFECFDF5),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFA7F3D0)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.verified_rounded, size: 16, color: Color(0xFF059669)),
-                  SizedBox(width: 6),
                   Text(
-                    'Laoag City Ord. 2023-005 Compliant',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF065F46)),
+                    'TODA Stations & Digital Pila Map Builder',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Pin TODA Pila locations on the map, name each station, and calibrate individual geofences synced live to Driver Maps.',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: () => _openCreateOrEditTodaPilaDialog(),
+              icon: const Icon(Icons.add_location_alt_rounded, size: 18),
+              label: const Text('Create TODA Pila'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 18),
 
-        // 1. Blue Terminal Bay Selector Banner
+        // Interactive Map of All TODA Pilas (tap map to quick-create a Pila at that pin)
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          height: 360,
           decoration: BoxDecoration(
-            color: const Color(0xFF0052CC),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0052CC).withValues(alpha: 0.25),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade300),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Select TODA Terminal Bay (3-Day Calibration: 60 Events | 5-Day Validation: 100 True + 100 Pass-By/Traffic Events)',
-                style: TextStyle(color: Color(0xFFFDE047), fontWeight: FontWeight.w700, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _todaStationsMapController,
+                  options: MapOptions(
+                    initialCenter: LatLng(
+                      (activeTerminal['lat'] as num?)?.toDouble() ?? 18.1960,
+                      (activeTerminal['lng'] as num?)?.toDouble() ?? 120.5935,
+                    ),
+                    initialZoom: 14.3,
+                    minZoom: 12.0,
+                    maxZoom: 19.0,
+                    onTap: (_, latLng) => _openCreateOrEditTodaPilaDialog(
+                      initialPin: latLng,
+                    ),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: _isTodaStationsSatellite
+                          ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                          : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                      userAgentPackageName: 'com.pasadanorte.web_admin',
+                    ),
+                    CircleLayer(
+                      circles: _terminals.map((t) {
+                        final isSelected =
+                            t['id'] == _selectedCalibrationTerminalId;
+                        return CircleMarker(
+                          point: LatLng(
+                            (t['lat'] as num).toDouble(),
+                            (t['lng'] as num).toDouble(),
+                          ),
+                          radius: (t['radius'] as num).toDouble(),
+                          useRadiusInMeter: true,
+                          color: (isSelected
+                                  ? const Color(0xFF059669)
+                                  : const Color(0xFF0052CC))
+                              .withValues(alpha: isSelected ? 0.25 : 0.14),
+                          borderColor: isSelected
+                              ? const Color(0xFF059669)
+                              : const Color(0xFF0052CC),
+                          borderStrokeWidth: isSelected ? 2.5 : 1.5,
+                        );
+                      }).toList(),
+                    ),
+                    MarkerLayer(
+                      markers: _terminals.map((t) {
+                        final isSelected =
+                            t['id'] == _selectedCalibrationTerminalId;
+                        return Marker(
+                          point: LatLng(
+                            (t['lat'] as num).toDouble(),
+                            (t['lng'] as num).toDouble(),
+                          ),
+                          width: 150,
+                          height: 44,
+                          child: GestureDetector(
+                            onTap: () => setState(() {
+                              _selectedCalibrationTerminalId =
+                                  t['id'].toString();
+                            }),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? const Color(0xFF059669)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A),
+                                  width: 1.5,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black26,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.local_taxi_rounded,
+                                    size: 14,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : const Color(0xFF059669),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Flexible(
+                                    child: Text(
+                                      '${t['code']} • ${t['name']}',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedCalibrationTerminalId,
-                    isExpanded: true,
-                    icon: const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF0052CC), size: 28),
-                    items: _terminals.map((t) {
-                      return DropdownMenuItem<String>(
-                        value: t['id'],
-                        child: Text(
-                          '${t['name']} (${(t['radius'] as num).toStringAsFixed(0)}m)',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: Color(0xFF1E293B)),
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black12, blurRadius: 6),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.touch_app_rounded,
+                            size: 15, color: Color(0xFF059669)),
+                        SizedBox(width: 6),
+                        Text(
+                          'Click anywhere on the map to pin a new TODA Pila',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() => _selectedCalibrationTerminalId = val);
-                      }
-                    },
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Your TODA: ${activeTerminal['code']}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Material(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    elevation: 2,
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => setState(() =>
+                          _isTodaStationsSatellite = !_isTodaStationsSatellite),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isTodaStationsSatellite
+                                  ? Icons.map_outlined
+                                  : Icons.satellite_alt_rounded,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isTodaStationsSatellite
+                                  ? 'Streets'
+                                  : 'Satellite',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                  Text(
-                    'Geofence Radius: ${activeRadius.toStringAsFixed(0)}m',
-                    style: const TextStyle(color: Color(0xFFFDE047), fontSize: 13, fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
+
+        if (!hasTerminals)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(36),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.local_taxi_outlined,
+                    size: 46, color: Colors.grey.shade400),
+                const SizedBox(height: 10),
+                const Text(
+                  'No TODA Pilas Configured Yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'All static TODA data has been wiped. Click anywhere on the map above or click "Create TODA Pila" to pin and calibrate your own TODA Pilas.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          // 1. Blue Terminal Bay Selector Banner
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0052CC),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0052CC).withValues(alpha: 0.25),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Select TODA Terminal Bay for Calibration & Field Validation',
+                  style: TextStyle(
+                      color: Color(0xFFFDE047),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: activeTerminal['id'].toString(),
+                      isExpanded: true,
+                      icon: const Icon(Icons.arrow_drop_down_rounded,
+                          color: Color(0xFF0052CC), size: 28),
+                      items: _terminals.map((t) {
+                        return DropdownMenuItem<String>(
+                          value: t['id'].toString(),
+                          child: Text(
+                            '${t['name']} (${(t['radius'] as num).toStringAsFixed(0)}m)',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14.5,
+                                color: Color(0xFF1E293B)),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _selectedCalibrationTerminalId = val);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'TODA Code: ${activeTerminal['code']}',
+                      style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      'Geofence Radius: ${activeRadius.toStringAsFixed(0)}m',
+                      style: const TextStyle(
+                          color: Color(0xFFFDE047),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
 
         // 2. NTP Sync & Ground-Truth Field Validation Card
         Container(
@@ -3400,30 +3992,56 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text('Code: ${t['code']} • Join Speed: ${t['joinSpeed']} km/h • Dwell: ${t['dwell']}s', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                    const Spacer(),
+                    Expanded(
+                      child: Text(
+                        'Code: ${t['code']} • Join Speed: ${t['joinSpeed']} km/h • Dwell: ${t['dwell']}s • Pin: ${(t['lat'] as num).toStringAsFixed(4)}, ${(t['lng'] as num).toStringAsFixed(4)}',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                      ),
+                    ),
                     if (!isSelected)
                       TextButton(
-                        onPressed: () => setState(() => _selectedCalibrationTerminalId = t['id']),
+                        onPressed: () => setState(() => _selectedCalibrationTerminalId = t['id'].toString()),
                         child: const Text('Load into Workbench', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                       ),
+                    TextButton.icon(
+                      onPressed: () => _openCreateOrEditTodaPilaDialog(existing: t),
+                      icon: const Icon(Icons.edit_location_alt_outlined, size: 15),
+                      label: const Text('Edit / Calibrate', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
+                    IconButton(
+                      tooltip: 'Delete TODA Pila',
+                      onPressed: () async {
+                        final deletedId = t['id'].toString();
+                        setState(() {
+                          _terminals.removeWhere((item) => item['id'] == deletedId);
+                          if (_selectedCalibrationTerminalId == deletedId) {
+                            _selectedCalibrationTerminalId =
+                                _terminals.isNotEmpty ? _terminals.first['id'].toString() : '';
+                          }
+                        });
+                        await _deleteTodaTerminalFromSupabase(deletedId);
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red),
+                    ),
                   ],
                 ),
                 Slider(
-                  value: (t['radius'] as double).clamp(10.0, 50.0),
+                  value: (t['radius'] as num).toDouble().clamp(10.0, 150.0),
                   min: 10.0,
-                  max: 50.0,
-                  divisions: 8,
+                  max: 150.0,
+                  divisions: 28,
                   activeColor: const Color(0xFF059669),
                   label: '${(t['radius'] as num).toStringAsFixed(0)}m',
                   onChanged: (val) {
                     setState(() => t['radius'] = val);
                   },
+                  onChangeEnd: (_) => _upsertTodaTerminalToSupabase(t),
                 ),
               ],
             ),
           );
         }),
+        ],
       ],
     );
   }
@@ -6048,18 +6666,28 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         vertical: 10,
                       ),
                     ),
-                    items: _terminals.map((t) {
-                      final code = (t['code'] ?? 'TODA-01').toString();
-                      final name = (t['name'] ?? code).toString();
-                      return DropdownMenuItem(
-                        value: code,
-                        child: Text(
-                          '$code — $name',
-                          style: const TextStyle(fontSize: 12.5),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
+                    items: _terminals.isEmpty
+                        ? [
+                            DropdownMenuItem(
+                              value: selectedToda,
+                              child: Text(
+                                '$selectedToda (No TODA Pila created yet)',
+                                style: const TextStyle(fontSize: 12.5),
+                              ),
+                            ),
+                          ]
+                        : _terminals.map((t) {
+                            final code = (t['code'] ?? 'TODA-01').toString();
+                            final name = (t['name'] ?? code).toString();
+                            return DropdownMenuItem(
+                              value: code,
+                              child: Text(
+                                '$code — $name',
+                                style: const TextStyle(fontSize: 12.5),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
                     onChanged: (val) {
                       if (val != null) {
                         setDialogState(() => selectedToda = val);

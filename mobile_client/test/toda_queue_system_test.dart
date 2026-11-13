@@ -4,6 +4,19 @@ import 'package:mobile_client/core/services/toda_queue_service.dart';
 import 'package:mobile_client/features/driver/views/toda_queue_screen.dart';
 
 void main() {
+  setUpAll(() {
+    TodaQueueService.replaceTerminalsFromSupabase([
+      {
+        'id': 'term_01',
+        'name': 'Laoag Central Terminal & Public Market TODA',
+        'toda_code': 'CENTRAL-TODA',
+        'latitude': 18.1972,
+        'longitude': 120.5925,
+        'radius_meters': 25.0,
+      },
+    ]);
+  });
+
   setUp(() {
     TodaQueueService.resetQueuesForTesting();
   });

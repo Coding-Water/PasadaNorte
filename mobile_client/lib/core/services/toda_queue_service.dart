@@ -62,52 +62,43 @@ class TodaTerminal {
 }
 
 class TodaQueueService {
-  static final List<TodaTerminal> laoagTerminals = [
-    TodaTerminal(
-      id: 'term_01',
-      name: 'Laoag Central Terminal & Public Market TODA',
-      todaCode: 'CENTRAL-TODA',
-      centerPoint: LocationService.laoagLandmarks[0],
-      radiusMeters: 25.0,
-      dwellTimeSeconds: 30,
-    ),
-    TodaTerminal(
-      id: 'term_02',
-      name: 'INCAT School Gate TODA Pila',
-      todaCode: 'INCAT-TODA',
-      centerPoint: const LocationPoint(
-        name: 'INCAT (Ilocos Norte College of Arts and Trades)',
-        latitude: 18.1990,
-        longitude: 120.5980,
-      ),
-      radiusMeters: 15.0,
-      dwellTimeSeconds: 25,
-    ),
-    TodaTerminal(
-      id: 'term_03',
-      name: 'MMSU Laoag Campus TODA',
-      todaCode: 'MMSU-TODA',
-      centerPoint: LocationService.laoagLandmarks[1],
-      radiusMeters: 15.0,
-      dwellTimeSeconds: 30,
-    ),
-    TodaTerminal(
-      id: 'term_04',
-      name: 'Laoag Plaza & Heritage Center TODA',
-      todaCode: 'PLAZA-TODA',
-      centerPoint: LocationService.laoagLandmarks[2],
-      radiusMeters: 12.0,
-      dwellTimeSeconds: 30,
-    ),
-    TodaTerminal(
-      id: 'term_05',
-      name: 'Laoag City General Hospital Pila',
-      todaCode: 'HOSPITAL-TODA',
-      centerPoint: LocationService.laoagLandmarks[3],
-      radiusMeters: 10.0,
-      dwellTimeSeconds: 20,
-    ),
-  ];
+  /// Populated dynamically from Supabase `toda_terminals` created in Web Admin.
+  static final List<TodaTerminal> laoagTerminals = [];
+
+  static void replaceTerminalsFromSupabase(List<Map<String, dynamic>> rows) {
+    final parsed = <TodaTerminal>[];
+    for (final row in rows) {
+      final id = row['id']?.toString();
+      final name = row['name']?.toString();
+      final lat = (row['latitude'] as num?)?.toDouble();
+      final lng = (row['longitude'] as num?)?.toDouble();
+      if (id == null || name == null || lat == null || lng == null) continue;
+      parsed.add(
+        TodaTerminal(
+          id: id,
+          name: name,
+          todaCode: (row['toda_code'] ?? 'TODA').toString(),
+          centerPoint: LocationPoint(
+            name: name,
+            latitude: lat,
+            longitude: lng,
+          ),
+          radiusMeters: (row['radius_meters'] as num?)?.toDouble() ?? 25.0,
+          dwellTimeSeconds:
+              (row['min_stop_dwell_seconds'] as num?)?.toInt() ??
+                  (row['dwell_time_seconds'] as num?)?.toInt() ??
+                  30,
+          speedLimitKmh:
+              (row['join_speed_limit_kmh'] as num?)?.toDouble() ??
+                  (row['speed_limit_kmh'] as num?)?.toDouble() ??
+                  5.0,
+        ),
+      );
+    }
+    laoagTerminals
+      ..clear()
+      ..addAll(parsed);
+  }
 
   static void updateAdminPilaRadius(
     String terminalId,
@@ -131,6 +122,22 @@ class TodaQueueService {
     double lat,
     double lng,
   ) {
+    if (laoagTerminals.isEmpty) {
+      return (
+        terminal: TodaTerminal(
+          id: 'unassigned',
+          name: 'No TODA Pila Configured',
+          todaCode: 'NONE',
+          centerPoint: LocationPoint(
+            name: 'Laoag City',
+            latitude: lat,
+            longitude: lng,
+          ),
+          radiusMeters: 25.0,
+        ),
+        distanceMeters: 0.0,
+      );
+    }
     TodaTerminal nearest = laoagTerminals.first;
     double minDistance = double.infinity;
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/demand_forecast_service.dart';
 import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/location_service.dart';
@@ -45,6 +46,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   }
 
   StreamSubscription<Map<String, dynamic>>? _rideRequestedSubscription;
+  StreamSubscription<List<Map<String, dynamic>>>? _todaTerminalsSub;
   bool _isDispatchDialogOpen = false;
 
   @override
@@ -52,6 +54,19 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     super.initState();
     _loadForecast();
     _listenToRealtimeDispatches();
+    _listenToTodaTerminals();
+  }
+
+  void _listenToTodaTerminals() {
+    try {
+      _todaTerminalsSub = Supabase.instance.client
+          .from('toda_terminals')
+          .stream(primaryKey: ['id'])
+          .listen((rows) {
+        TodaQueueService.replaceTerminalsFromSupabase(rows);
+        if (mounted) setState(() {});
+      }, onError: (_) {});
+    } catch (_) {}
   }
 
   void _listenToRealtimeDispatches() {
@@ -69,6 +84,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   @override
   void dispose() {
     _rideRequestedSubscription?.cancel();
+    _todaTerminalsSub?.cancel();
     super.dispose();
   }
 
@@ -1141,7 +1157,24 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                       }).toList(),
                     ),
                   ],
-                  // Marker Layer: Driver Location (YOU) & Terminal Station Pins
+                  // Live TODA Pila Geofence Circles (Synced from Web Admin)
+                  if (TodaQueueService.laoagTerminals.isNotEmpty)
+                    CircleLayer(
+                      circles: TodaQueueService.laoagTerminals.map((term) {
+                        return CircleMarker(
+                          point: LatLng(
+                            term.centerPoint.latitude,
+                            term.centerPoint.longitude,
+                          ),
+                          radius: term.radiusMeters,
+                          useRadiusInMeter: true,
+                          color: AppTheme.accentEmerald.withValues(alpha: 0.14),
+                          borderColor: AppTheme.accentEmerald.withValues(alpha: 0.7),
+                          borderStrokeWidth: 2.0,
+                        );
+                      }).toList(),
+                    ),
+                  // Marker Layer: Driver Location (YOU) & Live TODA Pila Pins
                   MarkerLayer(
                     markers: [
                       // Driver Location Marker (High Visibility)
@@ -1214,38 +1247,53 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                           ],
                         ),
                       ),
-                      // TODA Station Landmark Marker
-                      Marker(
-                        point: const LatLng(18.1972, 120.5925),
-                        width: 100,
-                        height: 32,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppTheme.primarySlate, width: 1.2),
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black12, blurRadius: 4),
-                            ],
+                      // Live TODA Pila Pins from Admin Web Portal
+                      ...TodaQueueService.laoagTerminals.map(
+                        (term) => Marker(
+                          point: LatLng(
+                            term.centerPoint.latitude,
+                            term.centerPoint.longitude,
                           ),
-                          child: const FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.local_taxi_rounded, size: 12, color: AppTheme.accentEmerald),
-                                SizedBox(width: 3),
-                                Text(
-                                  'TODA PILA',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppTheme.primarySlate,
-                                  ),
-                                ),
+                          width: 140,
+                          height: 38,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: AppTheme.primarySlate,
+                                width: 1.2,
+                              ),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black12, blurRadius: 4),
                               ],
+                            ),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.local_taxi_rounded,
+                                    size: 12,
+                                    color: AppTheme.accentEmerald,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${term.name} (${term.radiusMeters.toStringAsFixed(0)}m)',
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.primarySlate,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),

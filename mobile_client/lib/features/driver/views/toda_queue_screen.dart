@@ -26,10 +26,14 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
   void initState() {
     super.initState();
     final defaultId = widget.initialTerminalId ?? 'term_01';
-    _selectedTerminal = TodaQueueService.laoagTerminals.firstWhere(
-      (t) => t.id == defaultId,
-      orElse: () => TodaQueueService.laoagTerminals.first,
-    );
+    if (TodaQueueService.laoagTerminals.isEmpty) {
+      _selectedTerminal = TodaQueueService.findNearestTerminal(18.1960, 120.5935).terminal;
+    } else {
+      _selectedTerminal = TodaQueueService.laoagTerminals.firstWhere(
+        (t) => t.id == defaultId,
+        orElse: () => TodaQueueService.laoagTerminals.first,
+      );
+    }
   }
 
   void _refreshQueue() {

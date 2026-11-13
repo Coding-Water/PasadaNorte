@@ -63,18 +63,15 @@ class SupabaseService {
         );
       }
 
-      // 2. Sync TODA Terminal Geofence Radii (Objective 4 & 5b)
+      // 2. Sync TODA Terminals & Geofence Radii from Admin Web Portal
       final terminals = await sb
           .from('toda_terminals')
           .select()
+          .order('name', ascending: true)
           .timeout(const Duration(seconds: 4));
-      for (final row in terminals) {
-        final id = row['id'] as String?;
-        final radius = (row['radius_meters'] as num?)?.toDouble();
-        if (id != null && radius != null) {
-          TodaQueueService.updateAdminPilaRadius(id, radius, syncToCloud: false);
-        }
-      }
+      TodaQueueService.replaceTerminalsFromSupabase(
+        List<Map<String, dynamic>>.from(terminals),
+      );
 
       // 3. Sync 1:1 Face Verification Records (Objective 2 & 5b)
       final usersRows = await sb

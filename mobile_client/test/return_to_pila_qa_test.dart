@@ -4,6 +4,27 @@ import 'package:mobile_client/core/services/toda_queue_service.dart';
 import 'package:mobile_client/core/services/driver_stats_service.dart';
 
 void main() {
+  setUpAll(() {
+    TodaQueueService.replaceTerminalsFromSupabase([
+      {
+        'id': 'term_01',
+        'name': 'Laoag Central Terminal & Public Market TODA',
+        'toda_code': 'CENTRAL-TODA',
+        'latitude': LocationService.laoagLandmarks[0].latitude,
+        'longitude': LocationService.laoagLandmarks[0].longitude,
+        'radius_meters': 25.0,
+      },
+      {
+        'id': 'term_03',
+        'name': 'MMSU Laoag Campus TODA',
+        'toda_code': 'MMSU-TODA',
+        'latitude': LocationService.laoagLandmarks[1].latitude,
+        'longitude': LocationService.laoagLandmarks[1].longitude,
+        'radius_meters': 15.0,
+      },
+    ]);
+  });
+
   group('QA Test Suite: Return to TODA Pila & Settlement Flow', () {
     test('Dropoff at MMSU Campus accurately selects Laoag Central Terminal for return trip', () {
       const dropoffLat = 18.203595;

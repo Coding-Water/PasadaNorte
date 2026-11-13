@@ -1086,6 +1086,10 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       return nearest.terminal;
     }
 
+    if (TodaQueueService.laoagTerminals.isEmpty) {
+      _returnTerminal = nearest.terminal;
+      return nearest.terminal;
+    }
     // Otherwise, dropoff is at/near that terminal (e.g., MMSU Campus).
     // In Laoag paratransit, the tricycle returns to its mother station (Central Terminal / Pickup Origin):
     final homeTerminal = TodaQueueService.laoagTerminals.firstWhere(
