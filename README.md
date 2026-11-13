@@ -18,19 +18,21 @@
                        │          Laoag City MINC & TODA Command Center         │
                        │            (web_client — Flutter Web / PC)             │
                        │                                                        │
+                       │  • Driver & Passenger Applications Review Portals      │
+                       │  • TODA Pila Map Builder & Per-Station Calibration     │
+                       │  • Laoag 10-Zone Interactive FlutterMap & Heatmap      │
                        │  • Live Dispatch Audit & Anti-Overcharging Sentinel    │
-                       │  • Emergency SOS Live Incident Response (PNP Patrol)   │
-                       │  • ML Demand Scenario Simulator (Poisson / SARIMA)     │
-                       │  • TODA Geofence Tuning (10m–50m) & NTP Calibration    │
-                       │  • Dual Dataset Export (JSON & Scikit/Pandas CSV)      │
+                       │  • Emergency SOS Live Sentinel (Dispatch Paused: Test) │
+                       │  • ML Demand Scenario Simulator & Dataset Export       │
                        └───────────────────────────▲────────────────────────────┘
                                                    │
                                       Real-Time WebSocket & PostGIS
                                                    │
                        ┌───────────────────────────┴────────────────────────────┐
                        │           Supabase Cloud Backend (PostgreSQL)          │
-                       │  • Geofenced Terminals (ST_DWithin)                    │
-                       │  • Realtime Driver Distress Beacons (emergency_sos)    │
+                       │  • Dynamic TODA Pilas (toda_terminals + Realtime)      │
+                       │  • Driver & Passenger Applications + Storage Buckets   │
+                       │  • Realtime Distress Beacons (emergency_sos_alerts)    │
                        │  • City Ordinance 2023-005 Fare Matrix Table           │
                        │  • 1:1 Face Verification Biometrics (ISO/IEC 19795-1)  │
                        └───────────────────────────▲────────────────────────────┘
@@ -42,11 +44,12 @@
  ┌──────────────────────────────────────┐                   ┌──────────────────────────────────────┐
  │       Mobile Driver Experience       │                   │       Mobile Rider Experience        │
  │                                      │                   │                                      │
+ │ • Requirements Checklist & Status    │                   │ • Avatar or Photo Profile Selection  │
+ │ • Live Admin-Pinned TODA Pilas Map   │                   │ • <= 1hr Passenger Review Status     │
  │ • Hands-Free Auto-Follow Camera      │                   │ • Upfront Ordinance 2023-005 Fare    │
  │ • Dynamic Rerouting & Detour Engine  │                   │ • 20% Statutory Discount Validator   │
  │ • Digital Pila FIFO Auto-Queuing     │                   │ • Live Tricycle GPS Turn-by-Turn     │
- │ • Dual Trip Completion (Pila Route)  │                   │ • Emergency SOS Panic Beacon         │
- │ • Emergency SOS Distress Button      │                   │ • Non-Freezing Offline Recovery      │
+ │ • Emergency SOS Distress Button      │                   │ • Emergency SOS Panic Beacon         │
  └──────────────────────────────────────┘                   └──────────────────────────────────────┘
 ```
 
@@ -54,38 +57,57 @@
 
 ## 🚀 Key Modules & Capabilities
 
-### 1. Driver Active Navigation HUD & Hands-Free Safety (RA 10913)
-- **Hands-Free Auto-Follow Camera:** Automatically glides the camera along the road path following vehicle telemetry, preventing manual map swiping while driving.
-- **Dynamic Auto-Reroute Sentinel:** Monitors lateral deviation (`> 38m`). If road repairs or traffic jams occur (e.g., detouring from J.P. Rizal to A. Mabini), alternate Laoag street paths are recalculated in real time.
-- **Dual Trip Completion:** 
-  - `CONFIRM & RE-ENTER TODA PILA`: Automatically navigates back to the nearest terminal and queues the driver upon entering the 25m geofence.
-  - `FINISH TRIP ONLY (OFFLINE)`: Allows driver rest without queue interference.
-- **Overhead Notification HUD:** Slide-to-confirm notifications appear at the top of the viewport to keep lower controls accessible.
+### 1. Driver & Passenger Onboarding + Web Admin Review Portals
+- **Driver Applications (`DriverRequirementsChecklistScreen` -> `DriverApplicationStatusScreen`):**
+  - Collects real profile photo, Professional Driver's License, NBI/Police/Barangay clearances, Fit-to-Work (age 50–55), LTO OR/CR, 4-angle tricycle photos, and 1:1 Face Bio Scan.
+  - Web Admin reviews each document (`Inspect`, `Resubmit` with reason selector, `Pass` persisted in `SharedPreferences`), assigns **TODA Pila** on approval, or moves to **Rejected (Trash)** with permanent delete.
+- **Passenger Applications (`PassengerApplicationStatusScreen`):**
+  - Accepts either illustration avatars or real profile photos and skips driver requirements.
+  - Web Admin verifies **Submitted ID** and **1:1 Face Bio Scan** (`<= 1 hour` SLA).
+  - Mobile app polls/streams live status and dispatches native Android Notification Center alerts for **Approved**, **Resubmission Required** (with inline ID re-upload and 1:1 Face Bio Scan redo), or **Rejected**.
 
-### 2. Municipal Fare Sentinel (Laoag City Ordinance No. 2023-005)
-- **Automated GPS Fare Calculation:**
-  $$\text{Expected Fare} = \text{Base} + (\text{Distance} - 1.0\text{ km}) \times \text{Rate} - \text{Discounts}$$
-- **Anti-Overcharging Discrepancy Flag:** Highlights any transaction where collected cash exceeds Ordinance limits with an immediate `OVERCHARGED` badge.
-- **One-Click MINC Summons Notice:** Generates an official regulatory warning citing City Ordinance No. 2023-005 with 72-hour formal adjudication notice.
-
-### 3. Digital Pila Geofence & NTP Clock Synchronization
-- **FIFO Terminal Queuing:** PostGIS circular geofences (10m–50m radius) detect queue entry and dwell times (`join speed <= 5 km/h`, `dwell >= 30s`).
+### 2. TODA Stations & Digital Pila Map Builder (Live Driver Sync)
+- **Interactive Map Pin-Picker (`web_client`):** Administrators click anywhere on the Laoag City `FlutterMap` (Streets or Satellite) or use **Create TODA Pila** to name a station, set its TODA code, pin its coordinates, and calibrate individual geofence radius (`10m–150m`), join speed (`2–15 km/h`), and dwell time (`10–120s`).
+- **Live Driver Map Sync (`mobile_client`):** `DriverMapDutyScreen` streams `toda_terminals` in real time from Supabase, rendering every admin-pinned Pila name, marker, and calibrated geofence circle directly on the driver's map.
 - **Academic Benchmark Validation (Objective 4):**
   - **Recall (TPR):** `95.0%` (Target $\ge 90\%$)
   - **False Positive Rate (FPR):** `6.0%` (Target $\le 10\%$)
   - **F1-Score:** `94.5%`
   - **NTP Clock Sync:** Eliminates millisecond drift ($\pm 2\text{ ms}$) between field researcher ground truth and cloud telemetry.
 
-### 4. Machine Learning Demand Radar & Scenario Simulator
-- **10 Paratransit Zones Tracked:** Z01 (Public Market), Z02 (MMSU CTE/CIT), Z03 (Bell Tower), Z04 (LCGH), Z05 (GRBASMH), Z06 (Capitol), Z07 (NWU), Z08 (Robinsons), Z09 (Partas), Z10 (Airport).
+### 3. Driver Active Navigation HUD & Hands-Free Safety (RA 10913)
+- **Hands-Free Auto-Follow Camera:** Automatically glides the camera along the road path following vehicle telemetry, preventing manual map swiping while driving.
+- **Dynamic Auto-Reroute Sentinel:** Monitors lateral deviation (`> 38m`). If road repairs or traffic jams occur, alternate Laoag street paths are recalculated in real time.
+- **Dual Trip Completion:**
+  - `CONFIRM & RE-ENTER TODA PILA`: Navigates back to the terminal and queues the driver upon entering the calibrated geofence.
+  - `FINISH TRIP ONLY (OFFLINE)`: Allows driver rest without queue interference.
+
+### 4. Municipal Fare Sentinel (Laoag City Ordinance No. 2023-005)
+- **Automated GPS Fare Calculation:**
+  $$\text{Expected Fare} = \text{Base} + (\text{Distance} - 1.0\text{ km}) \times \text{Rate} - \text{Discounts}$$
+- **Anti-Overcharging Discrepancy Flag:** Highlights any transaction where collected cash exceeds Ordinance limits with an immediate `OVERCHARGED` badge and one-click MINC Summons Notice.
+
+### 5. Interactive Laoag 10-Zone Spatial Map & ML Demand Radar
+- **Real Interactive `FlutterMap` (`web_client`):** Replaces static schematics with live Google Streets/Satellite map tiles, zoom controls, geofence demand circles, and clickable `Z01`–`Z10` markers across Laoag City.
 - **Interactive Scenarios:** Morning Rush (07:30), University Dismissal (17:00), Monsoon Rain Surge (+40% demand), and Night Shift.
-- **$k \ge 5$ Privacy Impact Assessment (PIA):** Automatically suppresses zone hours under 5 requests to prevent commuter de-anonymization (ISO/IEC 25010 privacy compliance).
+- **$k \ge 5$ Privacy Impact Assessment (PIA):** Automatically suppresses zone hours under 5 requests to prevent commuter de-anonymization (ISO/IEC 25010 / RA 10173).
 - **Dual Export:** Download training datasets in clean `.json` or Pandas/Scikit-learn `.csv`.
 
-### 5. Real-Time Emergency SOS & Incident Dispatch Command
-- **Driver Distress Beacon:** Tapping the emergency panic button transmits driver identity, plate number, live GPS coordinates, and distress reason to Supabase.
-- **Pulsating Red Sentinel Banner:** Immediate visual strobe on the Web Command Center across all views.
-- **Emergency Action Center:** One-click dispatch to **Laoag PNP (Hotline: 077-772-0256)** and TODA Terminal Marshals.
+### 6. Real-Time Emergency SOS Sentinel (Testing Mode)
+- **Live SOS Telemetry:** Real user accounts can trigger SOS distress beacons (`emergency_sos_alerts`), appearing in the Web Command Center's red sentinel banner with GPS coordinates and incident inspection modal.
+- **PNP Dispatch Calling Paused:** External PNP dispatch calling (`077-772-0256`) is currently paused (`_isPnpDispatchPaused = true`) for safe end-to-end testing; admins can still inspect telemetry and mark alerts resolved.
+
+---
+
+## 📋 Case Study & Thesis Alignment Check
+
+| Case Study / Research Objective | Current Implementation Status | Notes |
+| :--- | :--- | :--- |
+| **Obj. 1: Ordinance 2023-005 Fare Matrix & 20% Discounts** | 🟢 Aligned | Dynamic Supabase `fare_guide_table` synced to mobile & web audit. |
+| **Obj. 2: 1:1 Face Verification (ISO/IEC 19795-1 & RA 10173)** | 🟢 Aligned + Extended | Added Web Admin Driver & Passenger Application portals with resubmission loops and Android notifications. |
+| **Obj. 3: ML Demand Radar & $k \ge 5$ Privacy Masking** | 🟢 Aligned + Upgraded | Now overlaid on an interactive `FlutterMap` of Laoag City (`Z01`–`Z10`). |
+| **Obj. 4: Digital Pila Geofencing & NTP Calibration** | 🟢 Aligned + Upgraded | Expanded from static `10m–50m` presets to dynamic map-pinned TODA Pilas (`10m–150m`) synced live to Driver Maps. |
+| **Obj. 5: Emergency SOS & Dispatch Sentinel** | 🟡 Testing Mode | Live SOS beacons active; static seeded alert removed; PNP dispatch call button paused for testing. |
 
 ---
 
@@ -95,16 +117,20 @@
 PasadaNorte/
 ├── mobile_client/                    # Commuter & Driver Flutter Application
 │   ├── lib/
-│   │   ├── core/services/            # LocationService, SupabaseService, TodaQueueService
-│   │   ├── features/auth/            # OTP, Role Selection, Welcome Onboarding
+│   │   ├── core/services/            # LocationService, SupabaseService, TodaQueueService, SessionCacheService, SystemNotificationService
+│   │   ├── features/auth/views/      # PhoneInput, OTP, RoleSelection, UserDetails, IdUpload, FaceScan, DriverChecklist, Driver/Passenger Status
 │   │   ├── features/driver/views/    # DriverMapDutyScreen, DriverActiveTripScreen, TodaQueueScreen
-│   │   └── features/rider/views/     # RiderMapBookingScreen, LiveRideTrackingScreen
+│   │   └── features/rider/views/     # PassengerServiceHubScreen, RiderMapBookingScreen, LiveRideTrackingScreen
+│   ├── test/                         # 41 unit & widget tests
 │   └── pubspec.yaml
 ├── web_client/                       # Laoag City LGU & TODA Admin Command Center
 │   ├── lib/
-│   │   └── main.dart                 # Krisp UI Dashboard, SOS Sentinel, ML Radar, Dispatch Audit
+│   │   └── main.dart                 # Analytics, Laoag FlutterMap, TODA Pila Map Builder, Driver/Passenger Applications, SOS Sentinel
 │   └── pubspec.yaml
-├── DEPLOYMENT_AND_PRODUCTION_READINESS_GUIDE.md  # Production roll-out & checklist
+├── ml_forecasting/                   # Python demand forecasting scripts & experiments
+├── DEPLOYMENT_CHECKLIST.md           # Pre-production bypass removal & hardening checklist
+├── DEPLOYMENT_AND_PRODUCTION_READINESS_GUIDE.md
+├── SECURITY_AND_BACKEND_HARDENING_ARCHITECTURE.md
 └── README.md
 ```
 
@@ -137,7 +163,7 @@ flutter run -d chrome
 ## 🛡️ Security & Backend Hardening (The 5 Pillars)
 
 The PasadaNorte ecosystem is fortified against spoofing, privilege escalation, and data privacy leaks across **Five Pillars of Security**:
-1. **Pillar 1:** Supabase Row Level Security (RLS) on all 8 tables & legally tamper-proof audit trails (City Ord. 2023-005).
+1. **Pillar 1:** Supabase Row Level Security (RLS) & legally tamper-proof audit trails (City Ord. 2023-005).
 2. **Pillar 2:** Anti-GPS Spoofing & Mock Location Sentinel (`isMocked` hardware interception & FIFO Digital Pila protection).
 3. **Pillar 3:** Commuter & Driver Privacy ($k \ge 5$ Anonymization, Private Storage Buckets & 5m Signed URLs under RA 10173 & NPC Circular 2023-03).
 4. **Pillar 4:** Role-Based Access Control (RBAC 4-tier model), Anti-Privilege Escalation Triggers & OTP Rate Limiting Defense.
@@ -147,15 +173,17 @@ The PasadaNorte ecosystem is fortified against spoofing, privilege escalation, a
 
 ---
 
-## 🧪 Static Analysis & Code Quality
+## 🧪 Static Analysis & Tests
 
-Both clients maintain strict compliance with Dart/Flutter linting standards:
 ```bash
-cd mobile_client && flutter analyze lib/
-# Result: No issues found! (0 errors, 0 warnings)
+cd mobile_client && dart analyze
+# Result: No issues found!
 
-cd web_client && flutter analyze lib/
-# Result: No issues found! (0 errors, 0 warnings)
+cd web_client && dart analyze
+# Result: No issues found!
+
+cd mobile_client && flutter test
+# Result: 41/41 tests passed!
 ```
 
 ---
