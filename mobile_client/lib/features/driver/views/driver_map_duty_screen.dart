@@ -109,18 +109,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
       _isOnline = !_isOnline;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isOnline
-              ? 'You are ONLINE. Passive GPS Digital Pila & Heatmap active.'
-              : 'You are OFFLINE.',
-        ),
-        backgroundColor: _isOnline ? AppTheme.accentEmerald : AppTheme.primarySlate,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+      }
 
   void _handleIncomingRealRideRequest(Map<String, dynamic> request) {
     if (_isDispatchDialogOpen) return;
@@ -163,13 +152,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 _isDispatchDialogOpen = false;
                 if (Navigator.canPop(dialogContext)) {
                   Navigator.pop(dialogContext);
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(
-                      content: Text('15s elapsed. Booking passed to Rank #2 driver.'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                }
+                                  }
               } else {
                 setDialogState(() {
                   remainingSeconds--;
@@ -1064,15 +1047,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 reason: 'DUTY_MAP_SOS_ALERT',
               );
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('🚨 SOS ALERT SENT: Laoag PNP & TODA Dispatch alerted with your GPS location!'),
-                    backgroundColor: Colors.redAccent,
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 5),
-                  ),
-                );
-              }
+                              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade700,
@@ -1092,13 +1067,6 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     } else {
       return '${diff.inHours}h ${diff.inMinutes % 60}m ago';
     }
-  }
-
-  String _formatHour(int h) {
-    if (h == 0) return '12:00 AM';
-    if (h < 12) return '$h:00 AM';
-    if (h == 12) return '12:00 PM';
-    return '${h - 12}:00 PM';
   }
 
   @override
@@ -1335,20 +1303,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                               setState(() {
                                 _simulateNetworkDropFailSafe = !_simulateNetworkDropFailSafe;
                               });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    _simulateNetworkDropFailSafe
-                                        ? 'Fail-Safe Active (ISO/IEC 25010:2023): Sudden mobile data loss simulated. Queue & route cached locally without freezing UI.'
-                                        : 'Network Restored: Graceful offline-to-online state recovery complete.',
-                                  ),
-                                  backgroundColor: _simulateNetworkDropFailSafe
-                                      ? Colors.amber.shade900
-                                      : AppTheme.accentEmerald,
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            },
+                                                          },
                           ),
                         ],
                       ),
@@ -1640,18 +1595,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
               color: _showHotspots ? const Color(0xFFEF4444) : AppTheme.primarySlate,
               onTap: () {
                 setState(() => _showHotspots = !_showHotspots);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      _showHotspots
-                          ? 'Demand hotspots visible for ${_formatHour(DateTime.now().hour)} (${DateTime.now().weekday <= 5 ? "Weekday" : "Weekend"}).'
-                          : 'Demand hotspots hidden. Map clean & focused on your location.',
-                    ),
-                    duration: const Duration(seconds: 1),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
+                              },
             ),
           ),
 

@@ -79,32 +79,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   void _resendOtp() {
     if (_resendCountdown > 0 || _isLockedOut) return;
     _startCountdownTimer();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Static OTP for testing: $staticOtp (resent to ${widget.phoneNumber}).',
-        ),
-        backgroundColor: AppTheme.accentEmerald,
-      ),
-    );
-  }
+      }
 
   void _verifyOtp() async {
     if (_isLockedOut) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Account locked: maximum attempts exceeded.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+            return;
     }
 
     if (_otpCode.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the full 6-digit OTP code')),
-      );
-      return;
+            return;
     }
 
     setState(() {
@@ -136,13 +119,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         _focusNodes.first.requestFocus();
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_errorText!),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+            return;
     }
 
     setState(() {

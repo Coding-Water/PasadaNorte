@@ -175,26 +175,7 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
 
     if (!silent && mounted) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.gps_fixed_rounded, color: Colors.white, size: 18),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Map centered on your location (${_pickupPoint.name})',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+          }
 
     // 2. Fetch fresh hardware GPS fix in the background to ensure high precision
     try {

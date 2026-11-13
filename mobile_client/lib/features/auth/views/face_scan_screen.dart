@@ -119,14 +119,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
   Future<void> _enterLivenessStage() async {
     final camAllowed = await AndroidPermissionsService.ensureCameraPermission(context);
     if (!camAllowed && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Camera unavailable: Proceeding with guided 1:1 face verification.'),
-          backgroundColor: AppTheme.accentEmerald,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
+          }
 
     if (!mounted) return;
     final liveStarted = camAllowed ? await _tryStartLiveCamera() : false;
@@ -440,14 +433,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
     if (!skipPermissionCheck) {
       final camAllowed = await AndroidPermissionsService.ensureCameraPermission(context);
       if (!camAllowed && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Camera unavailable: Proceeding with simulated 1:1 face verification.'),
-            backgroundColor: AppTheme.accentEmerald,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+              }
     }
 
     if (!mounted) return;
@@ -498,14 +484,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
       profilePhotoPath: widget.profilePhotoPath,
     );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Face scan skipped for emulator testing. Account created!'),
-        backgroundColor: AppTheme.accentEmerald,
-        duration: Duration(seconds: 2),
-      ),
-    );
-
+    
     if (widget.role == UserRole.driver) {
       if (widget.isResubmissionRedo) {
         unawaited(

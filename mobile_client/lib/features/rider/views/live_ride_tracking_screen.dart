@@ -518,14 +518,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           _remainingDestinationKm = detourResult.distanceKm;
         });
         _fitDestinationRouteBounds();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('⚠️ Driver Detour: Rerouted via alternate road due to local traffic/construction (+${detourResult.distanceKm} km).'),
-            backgroundColor: Colors.amber.shade900,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+              }
     } catch (_) {}
   }
 
@@ -633,16 +626,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     }
 
     if (_selectedMoodIndex <= 1 && !skipped) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Feedback recorded for Laoag MINC & TODA review. Thank you.',
-          ),
-          backgroundColor: AppTheme.primarySlate,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
+          }
 
     Navigator.pushReplacement(
       context,
@@ -3108,13 +3092,7 @@ class _DriverInformationScreen extends StatelessWidget {
                               Clipboard.setData(
                                 ClipboardData(text: driverData['phone']!),
                               );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Driver phone number copied'),
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                            },
+                                                          },
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

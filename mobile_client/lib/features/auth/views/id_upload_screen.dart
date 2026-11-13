@@ -185,15 +185,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
           extension.isNotEmpty &&
           !allowedExtensions.contains(extension)) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Please select a PDF, DOC, DOCX, JPG, or PNG file.',
-              ),
-              backgroundColor: AppTheme.cancelRed,
-            ),
-          );
-        }
+                  }
         return null;
       }
 
@@ -207,26 +199,11 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         final fallback =
             'sample_${docLabel.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}.pdf';
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Sample $docLabel loaded ($fallback).'),
-              backgroundColor: AppTheme.accentEmerald,
-              duration: const Duration(seconds: 1),
-            ),
-          );
-        }
+                  }
         return fallback;
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'File picker plugin not ready. Please stop and re-run the app (flutter run) to rebuild native plugins.',
-            ),
-            backgroundColor: AppTheme.cancelRed,
-          ),
-        );
-      }
+              }
       return null;
     } catch (e) {
       final isWidgetTest = WidgetsBinding.instance.runtimeType
@@ -236,24 +213,11 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         final fallback =
             'sample_${docLabel.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}.pdf';
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Sample $docLabel loaded ($fallback).'),
-              backgroundColor: AppTheme.accentEmerald,
-              duration: const Duration(seconds: 1),
-            ),
-          );
-        }
+                  }
         return fallback;
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open file picker: $e'),
-            backgroundColor: AppTheme.cancelRed,
-          ),
-        );
-      }
+              }
       return null;
     }
   }
@@ -268,14 +232,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
     if (!allowed) {
       final fallback = 'sample_${docLabel.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}.jpg';
       if (!mounted) return fallback;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sample $docLabel loaded for preview/testing.'),
-          backgroundColor: AppTheme.accentEmerald,
-          duration: const Duration(seconds: 1),
-        ),
-      );
-      return fallback;
+            return fallback;
     }
 
     try {
@@ -323,17 +280,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         _vehiclePhotos['Right Side View'] ??= 'skipped_tricycle_right.jpg';
       }
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _tricyclePhotosSkipped
-              ? 'Tricycle photos skipped for now (testing mode).'
-              : 'Tricycle photos requirement restored.',
-        ),
-        backgroundColor: AppTheme.accentEmerald,
-      ),
-    );
-  }
+      }
 
   void _autoFillDemoData() {
     setState(() {
@@ -360,13 +307,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
       _biometricConsentGiven = true;
       _locationTelemetryConsentGiven = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Test identification, clearances, and vehicle specs auto-filled.'),
-        backgroundColor: AppTheme.accentEmerald,
-      ),
-    );
-  }
+      }
 
   Future<void> _selectBirthDate() async {
     final now = DateTime.now();
@@ -385,57 +326,33 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
 
   void _onNext() async {
     if (_capturedIdPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please upload your valid $_selectedIdType.')),
-      );
-      return;
+            return;
     }
 
     if (widget.role == UserRole.driver) {
       if (_birthDate == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select your Date of Birth to verify age eligibility (20–55 years old).')),
-        );
-        return;
+                return;
       }
 
       final age = _computedAge ?? 0;
       if (age < 20 || age > 55) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Age Eligibility Error: Applicant must be between 20 and 55 years old (Current age: $age).'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
+                return;
       }
 
       if (_profilePhotoPath == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please upload a clear Profile Photo / Selfie (plain white background, no caps/sunglasses).')),
-        );
-        return;
+                return;
       }
 
       if (_nbiClearancePath == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please upload your valid NBI Clearance (original or renewal receipt).')),
-        );
-        return;
+                return;
       }
 
       if (_policeOrBarangayClearancePath == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please upload your Barangay Clearance or Police Clearance.')),
-        );
-        return;
+                return;
       }
 
       if (_isFitToWorkMandatory && _fitToWorkPath == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Fit-to-Work Medical Certificate is required for drivers aged 50 to 55.')),
-        );
-        return;
+                return;
       }
 
       final brandModel = _brandModelController.text.trim();
@@ -446,68 +363,36 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
       final plate = _plateNumberController.text.trim();
 
       if (brandModel.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter your motorcycle Brand & Model (e.g. Honda TMX 125).')),
-        );
-        return;
+                return;
       }
 
       if (displacement < 110 || displacement > 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invalid Displacement: Motorcycle must be between 110cc and 200cc (Entered: $displacement cc).')),
-        );
-        return;
+                return;
       }
 
       if (year < 2016) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invalid Model Year: Motorcycle model year must be 2016 or newer (Entered: $year).')),
-        );
-        return;
+                return;
       }
 
       if (plate.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter your Motorcycle Plate Number or MV File Number.')),
-        );
-        return;
+                return;
       }
 
       if (_orPhotoPath == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please upload the Official Receipt (OR) of the motorcycle.')),
-        );
-        return;
+                return;
       }
 
       if (_crPhotoPath == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please upload the Certificate of Registration (CR) of the motorcycle.')),
-        );
-        return;
+                return;
       }
 
       if (!_isMotorcycleOwned) {
         if (_ownerAuthLetterPath == null || _ownerIdPhotoPath == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('If the motorcycle is not in your name, you must upload the Owner Authorization Letter AND Owner ID.'),
-            ),
-          );
-          return;
+                    return;
         }
       }
 
       if (!_tricyclePhotosSkipped && !_areAllVehiclePhotosUploaded) {
-        final missing = _vehiclePhotos.entries
-            .where((e) => e.value == null)
-            .map((e) => e.key)
-            .join(', ');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Driver Requirement: Please upload all 4 tricycle angles (Missing: $missing) or tap "Skip Tricycle Photos".'),
-          ),
-        );
         return;
       }
 
@@ -543,14 +428,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
     if (!mounted) return;
 
     if (!_biometricConsentGiven || !_locationTelemetryConsentGiven) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please agree to the PasadaNorte Privacy Policy and Terms of Service to continue.',
-          ),
-        ),
-      );
-      return;
+            return;
     }
 
     if (!mounted) return;

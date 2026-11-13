@@ -38,13 +38,7 @@ class _TodaQueueScreenState extends State<TodaQueueScreen> {
 
   void _refreshQueue() {
     setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('✓ Refreshed live terminal queue from PasadaNorte server.'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
+      }
 
   @override
   Widget build(BuildContext context) {

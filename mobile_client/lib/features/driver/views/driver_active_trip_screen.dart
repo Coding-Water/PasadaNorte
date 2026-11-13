@@ -161,14 +161,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Opening navigation to ${target.name}...'),
-            backgroundColor: AppTheme.accentEmerald,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+              }
     }
   }
 
@@ -207,15 +200,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                 reason: 'DRIVER_PANIC_BUTTON_ACTIVE_TRIP',
               );
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('🚨 SOS ALERT SENT: Laoag PNP & TODA Dispatch alerted with your GPS location!'),
-                    backgroundColor: Colors.redAccent,
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 5),
-                  ),
-                );
-              }
+                              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade700,
@@ -469,13 +454,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                     child: ElevatedButton.icon(
                       onPressed: () {
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Simulated Call: Connected to passenger.'),
-                            backgroundColor: AppTheme.accentEmerald,
-                          ),
-                        );
-                      },
+                                              },
                       icon: const Icon(Icons.call_rounded, size: 20),
                       label: const Text('Voice Call'),
                       style: ElevatedButton.styleFrom(
@@ -1008,14 +987,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                         if (context.mounted) {
                           Navigator.pop(ctx);
                           Navigator.pop(context, false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Trip finalized! Standing by (Not queued in Toda Pila).'),
-                              backgroundColor: AppTheme.primarySlate,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
+                                                  }
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.primarySlate,
@@ -2110,14 +2082,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
           _autoFollowResumeTimer?.cancel();
           setState(() => _isAutoFollowLocked = true);
           _mapController.move(_currentDriverLocation, _navigationZoom);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Centered on your location • Auto-follow resumed.'),
-              duration: Duration(seconds: 1),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        },
+                  },
         child: const Padding(
           padding: EdgeInsets.all(12.0),
           child: Icon(

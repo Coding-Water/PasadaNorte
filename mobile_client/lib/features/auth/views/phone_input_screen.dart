@@ -56,15 +56,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
         final roleStr = (existingUser['role'] as String?) ?? 'rider';
 
         if (roleStr == 'toda_admin' || roleStr == 'minc_admin') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('TODA & MINC Admin accounts must sign in via the PasadaNorte Web Portal (browser).'),
-              backgroundColor: AppTheme.primarySlate,
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 4),
-            ),
-          );
-          return;
+                    return;
         }
 
         if (roleStr == 'driver') {

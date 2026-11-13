@@ -24,15 +24,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
 
   void _copyToClipboard(String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label copied to clipboard'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppTheme.primarySlate,
-      ),
-    );
-  }
+      }
 
   Future<void> _handleCancelRide() async {
     final confirmed = await showDialog<bool>(
@@ -65,14 +57,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
       setState(() {
         _trip = _trip.copyWith(status: ActivityStatus.canceled);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ride has been canceled successfully.'),
-          backgroundColor: Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+          }
   }
 
   @override
@@ -432,14 +417,7 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
                         color: AppTheme.primarySlate,
                         tooltip: 'Message Driver',
                         onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening driver secure messaging chat...'),
-                              behavior: SnackBarBehavior.floating,
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
+                                                  },
                       ),
                     ),
                   ],

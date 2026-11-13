@@ -34,10 +34,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   void _verifyOtp() async {
     if (_otpCode.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the full 6-digit OTP code')),
-      );
-      return;
+            return;
     }
 
     setState(() {
@@ -149,10 +146,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   const Text("Didn't receive the code? "),
                   TextButton(
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('A new OTP has been sent via SMS.')),
-                      );
-                    },
+                                          },
                     child: const Text(
                       'Resend Code',
                       style: TextStyle(fontWeight: FontWeight.bold),

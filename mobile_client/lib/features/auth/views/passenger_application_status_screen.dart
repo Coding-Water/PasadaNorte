@@ -159,10 +159,7 @@ class _PassengerApplicationStatusScreenState
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to access file or camera.')),
-        );
-      }
+              }
       return;
     }
 
@@ -179,13 +176,7 @@ class _PassengerApplicationStatusScreenState
       _reuploadedIdPath = path;
       _isUploadingId = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Updated ID submitted! Status refreshed for review.'),
-        backgroundColor: AppTheme.accentEmerald,
-      ),
-    );
-    _fetchStatus();
+        _fetchStatus();
   }
 
   Future<void> _redoFaceScan() async {

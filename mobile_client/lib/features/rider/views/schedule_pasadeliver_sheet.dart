@@ -99,18 +99,10 @@ class _SchedulePasaDeliverSheetState extends State<SchedulePasaDeliverSheet> {
     );
 
     ActivityRepository.addTrip(newTrip);
-    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     widget.onScheduled();
 
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('PasaDeliver errand scheduled successfully!'),
-        backgroundColor: AppTheme.accentEmerald,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+      }
 
   @override
   Widget build(BuildContext context) {

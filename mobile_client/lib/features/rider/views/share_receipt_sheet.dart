@@ -26,8 +26,6 @@ class ShareReceiptSheet extends StatelessWidget {
         'Total Paid: ₱${trip.totalPaid.toStringAsFixed(2)}\n'
         'Date: ${trip.dateTime.month}/${trip.dateTime.day}/${trip.dateTime.year}\n'
         'Driver: ${trip.driverName} (${trip.driverVehicle})';
-
-    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
 
     try {
@@ -44,14 +42,7 @@ class ShareReceiptSheet extends StatelessWidget {
       );
     } catch (_) {}
 
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('Receipt shared to $platformName!'),
-        backgroundColor: AppTheme.accentEmerald,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+      }
 
   @override
   Widget build(BuildContext context) {

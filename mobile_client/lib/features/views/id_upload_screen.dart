@@ -49,17 +49,11 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
     setState(() {
       _isIdUploaded = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('ID Photo captured successfully!')),
-    );
-  }
+      }
 
   void _onNext() {
     if (!_isIdUploaded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please capture or upload your ID photo first.')),
-      );
-      return;
+            return;
     }
 
     Navigator.push(

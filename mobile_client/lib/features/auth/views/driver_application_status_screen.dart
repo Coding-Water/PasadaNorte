@@ -232,12 +232,7 @@ class _DriverApplicationStatusScreenState
 
   Future<void> _submitResubmission() async {
     if (_replacementFiles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please attach at least one updated file to resend.'),
-        ),
-      );
-      return;
+            return;
     }
 
     setState(() => _isResubmitting = true);
@@ -257,17 +252,7 @@ class _DriverApplicationStatusScreenState
       }
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Updated documents sent for MINC review!'
-              : 'Could not resend documents. Please check your connection.',
-        ),
-        backgroundColor: ok ? AppTheme.accentEmerald : AppTheme.cancelRed,
-      ),
-    );
-  }
+      }
 
   @override
   Widget build(BuildContext context) {

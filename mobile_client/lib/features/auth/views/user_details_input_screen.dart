@@ -131,10 +131,7 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to access photo on this device.')),
-        );
-      }
+              }
     }
   }
 
