@@ -14,12 +14,14 @@ class RiderMapBookingScreen extends StatefulWidget {
   final String fullName;
   final PassengerCategory lockedCategory;
   final TripType initialTripType;
+  final LocationPoint? initialDropoff;
 
   const RiderMapBookingScreen({
     super.key,
     required this.fullName,
     this.lockedCategory = PassengerCategory.regular,
     this.initialTripType = TripType.standard,
+    this.initialDropoff,
   });
 
   @override
@@ -56,9 +58,13 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
     super.initState();
     _lockedCategory = widget.lockedCategory;
     _selectedTripType = widget.initialTripType;
+    _dropoffPoint = widget.initialDropoff;
     // Automatically pinpoint live GPS pickup location on map open
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _useCurrentGpsForPickup(silent: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _useCurrentGpsForPickup(silent: true);
+      if (mounted && _dropoffPoint != null) {
+        _updateRouteAndFare();
+      }
     });
   }
 
