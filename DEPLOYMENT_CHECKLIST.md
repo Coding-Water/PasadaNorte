@@ -26,6 +26,10 @@
 - [ ] **Remove Auto-Fill Static OTP Buttons**: Remove testing auto-fill widgets and testing banners.
 - [ ] **Activate Production SMS Gateway**: Connect live Philippine telco SMS API (Semaphore / Twilio) to dispatch 6-digit one-time PINs via real cellular SMS with 60-second cooldown and 3-attempt lockout.
 
+### 5. Input Validation & Name Sanitization
+- [ ] **Reject Numbers & Special Symbols in Name Fields**: Update `Last Name`, `First Name`, and `Middle Name` inputs in `mobile_client/lib/features/auth/views/user_details_input_screen.dart` to reject numeric digits (`0-9`) and invalid symbols (`!`, `>`, `?`, `@`, `#`, `$`, `%`, etc.) using `FilteringTextInputFormatter` and form `validator` rules (allowing only letters including `ñ`/`Ñ`, spaces, hyphens `-`, and apostrophes `'`).
+- [ ] **Add Name Validation Tests**: Add widget tests verifying that numeric and symbol inputs in name fields are blocked or trigger clear validation errors.
+
 ---
 
 ## 📋 Status Tracking Table
@@ -36,3 +40,4 @@
 | **Tricycle Photos** | `id_upload_screen.dart` | Skip button enabled for rapid testing | Mandatory 4-angle physical photos | 🟡 Ready to Enforce |
 | **Driver ID Type** | `id_upload_screen.dart` | Professional Driver's License only | Professional Driver's License only | 🟢 Completed |
 | **SMS OTP** | `otp_verification_screen.dart` | Static OTP `123456` enabled for testing | Live Philippine cellular SMS gateway | 🟡 Testing Enabled |
+| **Name Validation** | `user_details_input_screen.dart` | Accepts free-text input without blocking digits/symbols | Block numbers & invalid symbols (`!`, `>`, `?`, etc.) | 🔴 Pending Fix |
