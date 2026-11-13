@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/services/session_cache_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../models/user_model.dart';
@@ -308,6 +309,15 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
 
   void _onContinue() {
     if (_formKey.currentState!.validate()) {
+      SessionCacheService.savePassengerProfileDetails(
+        lastName: _lastNameController.text.trim(),
+        firstName: _firstNameController.text.trim(),
+        middleName: _middleNameController.text.trim(),
+        gender: _selectedGender ?? '',
+        dob: _dobController.text.trim(),
+        phoneNumber: widget.phoneNumber,
+        photoPath: _selectedAvatarAsset ?? _pickedPhotoPath,
+      );
       if (widget.role == UserRole.driver) {
         Navigator.push(
           context,

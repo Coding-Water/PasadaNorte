@@ -28,6 +28,7 @@ void main() {
     // Verify Bottom Navigation Bar Tabs
     expect(find.byType(BottomNavigationBar), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Address'), findsOneWidget);
     expect(find.text('Activity'), findsOneWidget);
     expect(find.text('Account'), findsOneWidget);
 
@@ -52,8 +53,11 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify Account screen rendered
-    expect(find.text('Government ID & Fare Status'), findsOneWidget);
+    expect(find.text('Saved Addresses'), findsOneWidget);
     expect(find.text('Payment Methods'), findsOneWidget);
+    expect(find.text('Account & Security'), findsOneWidget);
+    expect(find.text('Help & Support'), findsOneWidget);
+    expect(find.text('Logout'), findsOneWidget);
   });
 
   testWidgets('PassengerActivityScreen filters trips and navigates to Ride Details for Completed, Ongoing, and Canceled',

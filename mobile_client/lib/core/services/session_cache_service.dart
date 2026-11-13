@@ -25,6 +25,12 @@ class SessionCacheService {
   static const String _kRole = 'pn_session_role';
   static const String _kPendingReview = 'pn_session_driver_pending_review';
   static const String _kIdType = 'pn_session_id_type';
+  static const String _kLastName = 'pn_profile_last_name';
+  static const String _kFirstName = 'pn_profile_first_name';
+  static const String _kMiddleName = 'pn_profile_middle_name';
+  static const String _kGender = 'pn_profile_gender';
+  static const String _kDob = 'pn_profile_dob';
+  static const String _kPhotoPath = 'pn_profile_photo_path';
 
   static Future<void> saveDriverSession({
     required String phoneNumber,
@@ -87,6 +93,55 @@ class SessionCacheService {
       debugPrint('SessionCacheService.getSavedSession error: $e');
       return null;
     }
+  }
+
+  static Future<void> savePassengerProfileDetails({
+    required String lastName,
+    required String firstName,
+    required String middleName,
+    required String gender,
+    required String dob,
+    required String phoneNumber,
+    String? photoPath,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kLastName, lastName);
+      await prefs.setString(_kFirstName, firstName);
+      await prefs.setString(_kMiddleName, middleName);
+      await prefs.setString(_kGender, gender);
+      await prefs.setString(_kDob, dob);
+      await prefs.setString(_kPhone, phoneNumber);
+      if (photoPath != null && photoPath.isNotEmpty) {
+        await prefs.setString(_kPhotoPath, photoPath);
+      }
+    } catch (e) {
+      debugPrint('SessionCacheService.savePassengerProfileDetails error: $e');
+    }
+  }
+
+  static Future<Map<String, String>> getPassengerProfileDetails() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return {
+        'lastName': prefs.getString(_kLastName) ?? '',
+        'firstName': prefs.getString(_kFirstName) ?? '',
+        'middleName': prefs.getString(_kMiddleName) ?? '',
+        'gender': prefs.getString(_kGender) ?? '',
+        'dob': prefs.getString(_kDob) ?? '',
+        'phone': prefs.getString(_kPhone) ?? '',
+        'photoPath': prefs.getString(_kPhotoPath) ?? '',
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> updateProfilePhoto(String photoPath) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kPhotoPath, photoPath);
+    } catch (_) {}
   }
 
   static Future<void> clearSession() async {

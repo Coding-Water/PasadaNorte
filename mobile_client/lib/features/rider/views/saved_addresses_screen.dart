@@ -14,11 +14,13 @@ const String kSavedAddressesPrefsKey = 'pasada_saved_addresses_v1';
 class SavedAddressesScreen extends StatefulWidget {
   final String fullName;
   final PassengerCategory lockedCategory;
+  final bool showBackButton;
 
   const SavedAddressesScreen({
     super.key,
     required this.fullName,
     this.lockedCategory = PassengerCategory.regular,
+    this.showBackButton = false,
   });
 
   @override
@@ -324,7 +326,17 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: widget.showBackButton,
+        leading: widget.showBackButton
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: AppTheme.primarySlate,
+                  size: 18,
+                ),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         centerTitle: true,
         title: const Text(
           'Saved Addresses',

@@ -331,8 +331,12 @@ void main() {
         ),
       );
 
+      final helpTile = find.text('Help & Support');
+      await tester.scrollUntilVisible(helpTile, 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(helpTile);
+      await tester.pumpAndSettle();
+
       final privacyTile = find.text('Privacy Policy');
-      await tester.scrollUntilVisible(privacyTile, 300, scrollable: find.byType(Scrollable).first);
       await tester.tap(privacyTile);
       await tester.pumpAndSettle();
 
@@ -343,7 +347,6 @@ void main() {
       await tester.pumpAndSettle();
 
       final termsTile = find.text('Terms of Service');
-      await tester.scrollUntilVisible(termsTile, 300, scrollable: find.byType(Scrollable).first);
       await tester.tap(termsTile);
       await tester.pumpAndSettle();
 
