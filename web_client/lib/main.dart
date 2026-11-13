@@ -462,6 +462,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         'toda': a['toda_code'] ?? 'TODA-01',
                         'phone': a['phone_number'] ?? '',
                         'plateNo': a['plate_or_mv_file'] ?? 'PENDING',
+                        'profile_photo_url': a['profile_photo_url'] ?? '',
                         'status': 'Active Duty',
                         'verification': 100.0,
                         'trips': 0,
@@ -805,6 +806,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       'toda': a['toda_code'] ?? 'TODA-01',
                       'phone': a['phone_number'] ?? '',
                       'plateNo': a['plate_or_mv_file'] ?? 'PENDING',
+                      'profile_photo_url': a['profile_photo_url'] ?? '',
                       'status': 'Active Duty',
                       'verification': 100.0,
                       'trips': 0,
@@ -2524,13 +2526,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: const Color(0xFF059669).withValues(alpha: 0.12),
-                  child: Text(
-                    driver['bodyNo'].toString().replaceAll('T-', '#'),
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Color(0xFF059669)),
-                  ),
+                _buildDriverAvatar(
+                  {
+                    'full_name': driver['name'],
+                    'profile_photo_url': driver['profile_photo_url'],
+                  },
+                  true,
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -5184,6 +5185,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         'toda': selectedToda,
         'phone': app['phone_number'] ?? '',
         'plateNo': app['plate_or_mv_file'] ?? '1204-IN',
+        'profile_photo_url': app['profile_photo_url'] ?? '',
         'status': 'Active & Compliant',
         'complianceRating': 100,
         'tripsToday': 0,
