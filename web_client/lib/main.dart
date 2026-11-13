@@ -4298,24 +4298,33 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                               style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
                             ),
                           ),
-                        ] else
+                        ] else ...[
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
                               color: const Color(0xFFDCFCE7),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Row(
+                            child: Row(
                               children: [
-                                Icon(Icons.verified_rounded, size: 14, color: Color(0xFF15803D)),
-                                SizedBox(width: 6),
+                                const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF15803D)),
+                                const SizedBox(width: 6),
                                 Text(
-                                  'Franchise Active in Toda Directory',
-                                  style: TextStyle(fontSize: 11.5, color: Color(0xFF15803D), fontWeight: FontWeight.bold),
+                                  'Franchise Active (${app['toda_code'] ?? 'TODA-01'})',
+                                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF15803D), fontWeight: FontWeight.bold),
                                 ),
                               ],
                             ),
                           ),
+                          OutlinedButton.icon(
+                            onPressed: () => _approveDriverApp(app, isReassign: true),
+                            icon: const Icon(Icons.edit_location_alt_rounded, size: 14, color: Color(0xFF059669)),
+                            label: const Text(
+                              'Assign TODA Pila',
+                              style: TextStyle(fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -5025,34 +5034,181 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     }
   }
 
-  Future<void> _approveDriverApp(Map<String, dynamic> app) async {
-    final todaCode = app['toda_code']?.toString() ?? 'TODA-01';
-    final pilaSlot = 'Pila #${_driverDirectory.length + 1}';
+  Future<void> _approveDriverApp(
+    Map<String, dynamic> app, {
+    bool isReassign = false,
+  }) async {
+    final terminalCodes = _terminals
+        .map((t) => (t['code'] ?? 'TODA-01').toString())
+        .toList();
+    final initialToda = (app['toda_code'] ?? 'TODA-01').toString();
+    String selectedToda = terminalCodes.contains(initialToda)
+        ? initialToda
+        : (terminalCodes.isNotEmpty ? terminalCodes.first : 'TODA-01');
+    final pilaController = TextEditingController(
+      text: 'Pila #${_driverDirectory.length + 1}',
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            title: Text(
+              isReassign
+                  ? 'Assign / Update TODA Pila'
+                  : 'Approve & Assign TODA Pila',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            content: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select the TODA terminal and Pila slot for ${app['full_name']}:',
+                    style: const TextStyle(fontSize: 12.5, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'TODA Terminal',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedToda,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    items: _terminals.map((t) {
+                      final code = (t['code'] ?? 'TODA-01').toString();
+                      final name = (t['name'] ?? code).toString();
+                      return DropdownMenuItem(
+                        value: code,
+                        child: Text(
+                          '$code — $name',
+                          style: const TextStyle(fontSize: 12.5),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedToda = val);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'TODA Pila Slot / Number',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: pilaController,
+                    decoration: InputDecoration(
+                      hintText: 'e.g. Pila #1',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (pilaController.text.trim().isEmpty) return;
+                  Navigator.pop(ctx, true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(
+                  isReassign ? 'Save TODA Pila' : 'Confirm & Approve',
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final pilaSlot = pilaController.text.trim();
+    pilaController.dispose();
+    if (confirmed != true || pilaSlot.isEmpty || !mounted) return;
+
+    final matchedTerminal = _terminals.cast<Map<String, dynamic>?>().firstWhere(
+      (t) => t?['code'] == selectedToda,
+      orElse: () => null,
+    );
+    final terminalName = (matchedTerminal?['name'] ?? selectedToda).toString();
     final note =
-        'Approved by Laoag MINC Officer. Assigned TODA Pila: $todaCode ($pilaSlot).';
+        'Approved by Laoag MINC Officer. Assigned TODA Pila: $selectedToda ($pilaSlot) — $terminalName.';
+
     setState(() {
       app['application_status'] = 'approved';
+      app['toda_code'] = selectedToda;
       app['admin_notes'] = note;
-      _driverDirectory.add({
+
+      final existingIdx = _driverDirectory.indexWhere(
+        (d) =>
+            d['phone'] == app['phone_number'] || d['name'] == app['full_name'],
+      );
+      final dirEntry = {
         'bodyNo': pilaSlot,
         'name': app['full_name'],
-        'toda': todaCode,
+        'toda': selectedToda,
+        'phone': app['phone_number'] ?? '',
         'plateNo': app['plate_or_mv_file'] ?? '1204-IN',
         'status': 'Active & Compliant',
         'complianceRating': 100,
         'tripsToday': 0,
-      });
+      };
+      if (existingIdx >= 0) {
+        _driverDirectory[existingIdx] = {
+          ..._driverDirectory[existingIdx],
+          ...dirEntry,
+        };
+      } else {
+        _driverDirectory.add(dirEntry);
+      }
+
       _systemAuditLogs.insert(0, {
         'time': 'Just now',
         'actor': 'MINC Officer Santos',
         'action':
-            'Approved Driver Application for ${app['full_name']} (Assigned $todaCode $pilaSlot)',
+            '${isReassign ? 'Updated' : 'Approved'} Driver ${app['full_name']} (Assigned $selectedToda $pilaSlot)',
       });
     });
 
     try {
       await _updateDriverApplicationInSupabase(app, {
         'application_status': 'approved',
+        'toda_code': selectedToda,
         'admin_notes': note,
       });
     } catch (e) {
@@ -5071,7 +5227,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '✓ Application for ${app['full_name']} APPROVED. Assigned $todaCode ($pilaSlot).',
+          '✓ ${app['full_name']} assigned to $selectedToda ($pilaSlot).',
         ),
         backgroundColor: const Color(0xFF059669),
       ),
