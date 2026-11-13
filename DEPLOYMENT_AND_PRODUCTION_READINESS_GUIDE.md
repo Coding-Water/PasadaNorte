@@ -25,13 +25,14 @@
 
 ## 1. Transitioning from Static Data to Real Passengers & Drivers
 
-### The "Cold-Start" Solution (Why Static Data Was Used)
-When an app has zero users on Day 1, algorithms cannot forecast passenger volume. The **6,720 zone-hour dataset** and **4,565 trip logs** built into the prototype served as the **seed calibration model** representing authentic Laoag City paratransit rhythms between university gates, commercial complexes, and terminals.
+### Live-First Architecture (Zero Fake Red/Green Zones)
+When the app has zero live users, the **Live (1h)** heatmap accurately displays `0.0 req/h` in neutral slate (`#94A3B8`) instead of hardcoded red/green hotspots. Meanwhile, the **6,720 zone-hour calibration dataset** (`pasada_norte_zone_hour_dataset_6720.csv`) serves as the cold-start baseline for the **ML Forecast** mode until real trip volume accumulates.
 
-### What Happens When You Remove Static Data?
-1. **Pila Queues & Map:** The map will initially be clean. As registered tricycle drivers log in and flip their toggle to **Online**, their locations and TODA FIFO ranks appear in real time.
-2. **GPS Accuracy:** Road routes and fares will be generated using live hardware GPS chips rather than simulated routes.
-3. **Data Privacy ($k \ge 5$ PIA Rule):** If an hour has fewer than 5 real ride requests in a suburban zone (e.g., Z10 Gabu Airport), the map automatically keeps that zone suppressed to prevent de-anonymizing individual commuters.
+### What Happens in Production?
+1. **Dynamic TODA Pilas:** All static/mock TODA Pilas are wiped. Admins create, name, pin, and calibrate each TODA Pila (`10–150 m` geofence radius, join speed, min dwell time) directly on the Web Admin map, synced in real time to driver mobile maps via Supabase `toda_terminals`.
+2. **Configurable 10 Laoag Zones:** Admins can rename, set drop-off match keywords, and re-pin any of `Z01–Z10` in Supabase `laoag_zones`.
+3. **Passenger & Driver Verification:** Passengers (with profile photo or illustration avatar) undergo ID + 1:1 face scan review (`<= 1 hour` SLA), while drivers undergo full clearances + 4-angle tricycle photos + Pila assignment, both with native Android status notifications.
+4. **Data Privacy ($k \ge 5$ PIA Rule):** Any zone with fewer than 5 requests per hour is automatically flagged/suppressed under RA 10173 to prevent de-anonymizing individual commuters.
 
 ---
 
@@ -39,26 +40,27 @@ When an app has zero users on Day 1, algorithms cannot forecast passenger volume
 
 ```mermaid
 flowchart TD
-    A[Real Commuter Opens App & Taps Book Ride] --> B[Supabase Logs Ride Event with Lat, Lng, Timestamp]
-    B --> C[PostGIS Automatically Maps Coordinate to 1 of 10 Laoag Zones]
-    C --> D[Hourly Aggregator Groups Requests by Zone-Hour]
-    D --> E{Zone-Hour Count >= 5?}
-    E -- Yes --> F[Broadcast High-Confidence Hotspot to Drivers]
-    E -- No --> G[Suppress on Driver Map per k=5 PIA Privacy Rule]
-    D --> H[Weekly Scheduled Script Retrains Poisson & SARIMA Models]
-    H --> I[Model Weights Continuously Improve with Real Commute Patterns]
+    A[Real Commuter Completes Ride] --> B[Supabase Logs completed_trips with Dropoff & Timestamp]
+    B --> C[GitHub Actions Hourly Cron Runs sync_ml_to_supabase.py]
+    C --> D[Reads Configured laoag_zones + Live Open-Meteo Weather]
+    D --> E[Blends Historical Baseline + Live 1h Requests & Computes MASE/RMSE/WMAPE]
+    E --> F[Upserts zone_demand_forecasts & ml_model_metrics in Supabase]
+    F --> G{Zone Count >= 5?}
+    G -- Yes --> H[Broadcast High-Confidence Hotspot on Web & Mobile Maps]
+    G -- No --> I[Suppress / Mask per k=5 PIA Privacy Rule]
 ```
 
 ### The Continuous Learning Cycle
-* **Week 1 (Launch):** The model uses the calibrated baseline weights. Every ride booked is saved into `ride_requests`.
-* **Week 2 to 4:** An automated weekly cron job runs `train_demand_forecast_model.py` on the real trip records.
-* **Month 2 Onwards:** The system is 100% driven by real commuter habits, seasonal university schedules, market days, and rainfall patterns.
+* **Hourly Auto-Refresh (GitHub Actions):** [.github/workflows/ml_demand_refresh.yml](file:///c:/Users/MSI/Desktop/Flutter/PasadaNorte/.github/workflows/ml_demand_refresh.yml) runs `ml_forecasting/sync_ml_to_supabase.py` every hour (`cron: '0 * * * *'`) using only Python stdlib, pulling live `completed_trips`, `laoag_zones`, and Laoag City rainfall/temperature from Open-Meteo.
+* **Live vs. Forecast Toggle:** Web admins can switch between **Live (1h)** (actual recent `completed_trips`) and **ML Forecast** (hourly predictions + evaluation metrics from `ml_model_metrics`).
 
 ---
 
 ## 3. Pre-Deployment Master Checklist (Ready for Launch)
 
 ### Phase 1: Database & Cloud Infrastructure (Supabase PostGIS)
+- [x] **Deploy ML & Zone Configuration Tables:**
+  Execute [20261114_ml_demand_forecasts.sql](file:///c:/Users/MSI/Desktop/Flutter/PasadaNorte/supabase/migrations/20261114_ml_demand_forecasts.sql) (`zone_demand_forecasts`, `ml_model_metrics`) and [20261114_laoag_zones.sql](file:///c:/Users/MSI/Desktop/Flutter/PasadaNorte/supabase/migrations/20261114_laoag_zones.sql) (`laoag_zones`) in the Supabase SQL Editor.
 - [ ] **Purge Prototype Records:**
   Execute the database cleanup script in the Supabase SQL Editor:
   ```sql
@@ -97,28 +99,20 @@ flowchart TD
 
 ---
 
-### Phase 3: Backend API & AI Inference Deployment *(Selected Architecture: Option 1 — Deferred to Pre-Launch)*
-> **Status:** ⏸️ **Decided & Deferred to Pre-Launch.**  
-> **Chosen Architecture (Option 1):** Hybrid architecture keeping **Supabase Cloud (PostgreSQL + PostGIS + Storage + Realtime)** as primary engine, and deploying the lightweight **Python FastAPI (`backend/main.py`) microservice** to a **$0.00/month free-tier cloud container**.
-> During development, FastAPI runs locally at `http://127.0.0.1:8000` while database/auth/storage runs live on Supabase Cloud (`https://zrkkbknndavvprejskjy.supabase.co`).
+### Phase 3: Serverless AI & ML Architecture *(Implemented — $0.00/mo, No Separate Server Needed)*
+> **Status:** ✅ **Implemented & Active.**  
+> **Chosen Architecture (100% Serverless):**
+> 1. **1:1 Face Biometrics (On-Device ML Kit):** `mobile_client` runs `google_mlkit_face_detection` (`FaceDetectorMode.accurate`) directly on the phone in `FaceVerificationService` (`< 1s` latency, `$0` hosting, no `127.0.0.1:8000` FastAPI dependency), computing normalized landmark cosine similarity (`>= 85.0%` target) before syncing verification records to Supabase.
+> 2. **Hourly ML Demand Forecasting (GitHub Actions + Supabase):** `.github/workflows/ml_demand_refresh.yml` runs `ml_forecasting/sync_ml_to_supabase.py` every hour (`cron: '0 * * * *'`), blending `completed_trips`, `laoag_zones`, and live Laoag City weather (Open-Meteo) and upserting `zone_demand_forecasts` + `ml_model_metrics`.
 
-- [ ] **Select Free-Tier Cloud Container Host for FastAPI:**
-  - **Choice A (Recommended for AI/ML):** [Hugging Face Spaces](https://huggingface.co/spaces) — **$0.00/mo**, 16 GB RAM, 2 vCPUs, native Docker support, no credit card required, permanent HTTPS endpoint.
-  - **Choice B (Serverless Scale-to-Zero):** [Google Cloud Run](https://cloud.google.com/run) — **$0.00/mo** under Always Free Tier (2M requests/month free, up to 2GB RAM instances, scales to 0 when idle).
-  - **Choice C:** [Render](https://render.com) or [Koyeb](https://koyeb.com) (Free 512MB RAM tier).
-- [ ] **Deploy FastAPI Service (`backend/main.py`):**
-  - **Docker / Python Environment:** Python 3.10+ with `fastapi`, `uvicorn`, `scikit-learn`, `supabase`, `pydantic`, `deepface`/`opencv`.
-  - **Containerize:** Provide `Dockerfile` in `backend/` exposing port 8000.
-- [ ] **Configure Production Environment Secrets:**
-  ```env
-  SUPABASE_URL=https://zrkkbknndavvprejskjy.supabase.co
-  SUPABASE_SERVICE_ROLE_KEY=eyJh...
-  API_SECRET_KEY=pasadanorte_prod_key_2026
-  FAR_THRESHOLD=0.85
-  ```
-- [ ] **Update Client Endpoints in Flutter:**
-  Point `mobile_client` and `web_client` AI service URL from `http://127.0.0.1:8000` to the deployed HTTPS container URL (e.g., `https://your-user-pasadanorte-api.hf.space`).
-- [ ] **Restrict CORS:** Set `allow_origins` to your production Web Admin domain and mobile app origins.
+- [x] **Configure GitHub Actions Repository Secrets:**
+  `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` added under **Settings → Secrets and variables → Actions**.
+- [x] **Verify Automated Hourly ML Sync:**
+  `Hourly ML Demand Forecast Refresh` workflow tested and succeeding (`sync-ml-forecasts`).
+- [ ] **Final Production Hardening (Before Public Launch):**
+  - Remove testing bypasses (`_skipFaceScan`, `_skipTricyclePhotos`, static OTP `123456`) per `DEPLOYMENT_CHECKLIST.md`.
+  - Enforce name input sanitization (`user_details_input_screen.dart`).
+  - Re-enable PNP Emergency Dispatch when field testing is ready (`_isPnpDispatchPaused = false` in `web_client/lib/main.dart`).
 
 ---
 
