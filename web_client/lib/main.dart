@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -282,6 +284,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   // Flagged 1:1 Face Verifications Queue (populated live from Supabase)
   final List<Map<String, dynamic>> _flaggedVerifications = [];
   String _passengerAppFilter = 'All';
+  final MapController _laoagMapController = MapController();
+  bool _isLaoagMapSatellite = false;
 
   // Driver Applications & Vehicle Compliance Queue (populated live from Supabase)
   String _driverAppFilter = 'All'; // 'All', 'submitted', 'under_review', 'approved', 'resubmission_requested', 'rejected'
@@ -2164,135 +2168,323 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         ),
         const SizedBox(height: 18),
 
-        // Interactive Map Canvas
+        // Interactive Real Map (Laoag City)
         Container(
           width: double.infinity,
-          height: 420,
+          height: 460,
           decoration: BoxDecoration(
             color: const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.grey.shade300),
           ),
-          child: Stack(
-            children: [
-              // Custom Map Painter (River, Arterials, Zones)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: CustomPaint(
-                  size: const Size(double.infinity, 420),
-                  painter: _LaoagMapPainter(
-                    zones: _mlZones,
-                    selectedCode: _selectedZoneCode,
-                    getDemand: _getDynamicZoneDemand,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _laoagMapController,
+                  options: MapOptions(
+                    initialCenter: LatLng(
+                      (selectedZone['lat'] as num?)?.toDouble() ?? 18.1960,
+                      (selectedZone['lng'] as num?)?.toDouble() ?? 120.5937,
+                    ),
+                    initialZoom: 14.0,
+                    minZoom: 12.0,
+                    maxZoom: 18.0,
                   ),
-                ),
-              ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: _isLaoagMapSatellite
+                          ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                          : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                      userAgentPackageName: 'com.pasadanorte.web_admin',
+                    ),
+                    CircleLayer(
+                      circles: _mlZones.map((z) {
+                        final demand = _getDynamicZoneDemand(z);
+                        final isSelected = z['code'] == _selectedZoneCode;
+                        Color haloColor = const Color(0xFF10B981);
+                        if (demand >= 25) {
+                          haloColor = const Color(0xFFEF4444);
+                        } else if (demand >= 15) {
+                          haloColor = const Color(0xFFF59E0B);
+                        } else if (demand < 5) {
+                          haloColor = const Color(0xFF94A3B8);
+                        }
+                        return CircleMarker(
+                          point: LatLng(
+                            (z['lat'] as num).toDouble(),
+                            (z['lng'] as num).toDouble(),
+                          ),
+                          radius: isSelected ? 220 : 150,
+                          useRadiusInMeter: true,
+                          color: haloColor.withValues(
+                            alpha: isSelected ? 0.30 : 0.16,
+                          ),
+                          borderColor: haloColor.withValues(alpha: 0.65),
+                          borderStrokeWidth: isSelected ? 2 : 1,
+                        );
+                      }).toList(),
+                    ),
+                    MarkerLayer(
+                      markers: _mlZones.map((z) {
+                        final demand = _getDynamicZoneDemand(z);
+                        final isSelected = z['code'] == _selectedZoneCode;
+                        final point = LatLng(
+                          (z['lat'] as num).toDouble(),
+                          (z['lng'] as num).toDouble(),
+                        );
 
-              // Interactive Zone Click Overlay
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return Stack(
-                    children: _mlZones.map((z) {
-                      final demand = _getDynamicZoneDemand(z);
-                      final px = z['x'] * constraints.maxWidth;
-                      final py = z['y'] * constraints.maxHeight;
-                      final isSelected = z['code'] == _selectedZoneCode;
-
-                      return Positioned(
-                        left: px - 28,
-                        top: py - 28,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedZoneCode = z['code']),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFF059669) : Colors.white.withValues(alpha: 0.90),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.15),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
+                        return Marker(
+                          point: point,
+                          width: 58,
+                          height: 58,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _selectedZoneCode = z['code']);
+                              _laoagMapController.move(
+                                point,
+                                _laoagMapController.camera.zoom,
+                              );
+                            },
+                            child: Tooltip(
+                              message: '${z['code']} — ${z['name']}',
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? const Color(0xFF059669)
+                                      : Colors.white.withValues(alpha: 0.94),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : (z['color'] as Color),
+                                    width: isSelected ? 3 : 2,
+                                  ),
                                 ),
-                              ],
-                              border: Border.all(
-                                color: isSelected ? Colors.white : (z['color'] as Color),
-                                width: isSelected ? 3 : 2,
-                              ),
-                            ),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    z['code'],
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 11,
-                                      color: isSelected ? Colors.white : const Color(0xFF0F172A),
-                                    ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        z['code'],
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 11,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : const Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      Text(
+                                        demand < 5 ? '<5' : '${demand.toInt()}',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                          color: isSelected
+                                              ? Colors.white70
+                                              : (demand < 5
+                                                  ? Colors.orange.shade800
+                                                  : Colors.grey.shade700),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                   Text(
-                                    demand < 5 ? '<5' : '${demand.toInt()}',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w700,
-                                      color: isSelected
-                                          ? Colors.white70
-                                          : (demand < 5 ? Colors.orange.shade800 : Colors.grey.shade700),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  );
-                },
-              ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
 
-              // Map Legend Box
-              Positioned(
-                bottom: 16,
-                left: 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.95),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
+                // Top-right Map Style & Zoom Controls
+                Positioned(
+                  top: 14,
+                  right: 14,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text('Laoag City Geographic Legend', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        Container(width: 14, height: 4, color: const Color(0xFF38BDF8)),
-                        const SizedBox(width: 8),
-                        const Text('Padsan River & Gilbert Bridge', style: TextStyle(fontSize: 10)),
-                      ]),
-                      const SizedBox(height: 4),
-                      Row(children: [
-                        Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle)),
-                        const SizedBox(width: 8),
-                        const Text('High Demand (>25 req/h)', style: TextStyle(fontSize: 10)),
-                      ]),
-                      const SizedBox(height: 4),
-                      Row(children: [
-                        Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(0xFF94A3B8), shape: BoxShape.circle)),
-                        const SizedBox(width: 8),
-                        const Text('k < 5 req/h: Privacy Masked (RA 10173)', style: TextStyle(fontSize: 10, color: Color(0xFF475569))),
-                      ]),
+                      Material(
+                        color: Colors.white.withValues(alpha: 0.95),
+                        elevation: 2,
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => setState(
+                            () => _isLaoagMapSatellite = !_isLaoagMapSatellite,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isLaoagMapSatellite
+                                      ? Icons.map_outlined
+                                      : Icons.satellite_alt_rounded,
+                                  size: 16,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _isLaoagMapSatellite ? 'Streets' : 'Satellite',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Material(
+                        color: Colors.white.withValues(alpha: 0.95),
+                        elevation: 2,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Column(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.add_rounded, size: 18),
+                              tooltip: 'Zoom In',
+                              onPressed: () {
+                                final cam = _laoagMapController.camera;
+                                _laoagMapController.move(
+                                  cam.center,
+                                  (cam.zoom + 0.8).clamp(12.0, 18.0),
+                                );
+                              },
+                            ),
+                            Divider(height: 1, color: Colors.grey.shade300),
+                            IconButton(
+                              icon: const Icon(Icons.remove_rounded, size: 18),
+                              tooltip: 'Zoom Out',
+                              onPressed: () {
+                                final cam = _laoagMapController.camera;
+                                _laoagMapController.move(
+                                  cam.center,
+                                  (cam.zoom - 0.8).clamp(12.0, 18.0),
+                                );
+                              },
+                            ),
+                            Divider(height: 1, color: Colors.grey.shade300),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.my_location_rounded,
+                                size: 18,
+                              ),
+                              tooltip: 'Center on Laoag City',
+                              onPressed: () {
+                                _laoagMapController.move(
+                                  const LatLng(18.1960, 120.5937),
+                                  14.0,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-            ],
+
+                // Map Legend Box
+                Positioned(
+                  bottom: 16,
+                  left: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Laoag City Geographic Legend',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFEF4444),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'High Demand (>25 req/h)',
+                            style: TextStyle(fontSize: 10),
+                          ),
+                        ]),
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Active Zone Geofence',
+                            style: TextStyle(fontSize: 10),
+                          ),
+                        ]),
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF94A3B8),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'k < 5 req/h: Privacy Masked (RA 10173)',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF475569),
+                            ),
+                          ),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -6951,91 +7143,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 }
 
 // =============================================================================
-// MAP PAINTER: LAOAG 10-ZONE ROAD & RIVER NETWORK
-// =============================================================================
-class _LaoagMapPainter extends CustomPainter {
-  final List<Map<String, dynamic>> zones;
-  final String selectedCode;
-  final double Function(Map<String, dynamic>) getDemand;
-
-  _LaoagMapPainter({
-    required this.zones,
-    required this.selectedCode,
-    required this.getDemand,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // 1. Draw Padsan River (blue curve)
-    final riverPaint = Paint()
-      ..color = const Color(0xFFBAE6FD)
-      ..strokeWidth = 24
-      ..style = PaintingStyle.stroke;
-
-    final riverPath = Path()
-      ..moveTo(0, size.height * 0.72)
-      ..cubicTo(
-        size.width * 0.35,
-        size.height * 0.65,
-        size.width * 0.65,
-        size.height * 0.58,
-        size.width,
-        size.height * 0.60,
-      );
-    canvas.drawPath(riverPath, riverPaint);
-
-    // 2. Draw Gilbert Bridge (Crossing Padsan River to San Nicolas)
-    final bridgePaint = Paint()
-      ..color = const Color(0xFF64748B)
-      ..strokeWidth = 8
-      ..style = PaintingStyle.stroke;
-    canvas.drawLine(
-      Offset(size.width * 0.44, size.height * 0.58),
-      Offset(size.width * 0.47, size.height * 0.68),
-      bridgePaint,
-    );
-
-    // 3. Draw Road Arterials (J.P. Rizal St., Gen. Luna, Airport Rd.)
-    final roadPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke;
-
-    // J.P. Rizal Street (East-West spine)
-    canvas.drawLine(Offset(0, size.height * 0.44), Offset(size.width, size.height * 0.44), roadPaint);
-    // Gen. Antonio Luna St. (North-South spine)
-    canvas.drawLine(Offset(size.width * 0.50, 0), Offset(size.width * 0.50, size.height), roadPaint);
-    // Airport Road (Diagonal to Gabu West)
-    canvas.drawLine(Offset(size.width * 0.44, size.height * 0.44), Offset(0, size.height * 0.75), roadPaint);
-
-    // 4. Draw Zones Geofence Glows
-    for (final z in zones) {
-      final demand = getDemand(z);
-      final px = (z['x'] as double) * size.width;
-      final py = (z['y'] as double) * size.height;
-      final isSelected = z['code'] == selectedCode;
-
-      Color haloColor = const Color(0xFF10B981);
-      if (demand >= 25) {
-        haloColor = const Color(0xFFEF4444);
-      } else if (demand >= 15) {
-        haloColor = const Color(0xFFF59E0B);
-      } else if (demand < 5) {
-        haloColor = const Color(0xFF94A3B8);
-      }
-
-      final glowPaint = Paint()
-        ..color = haloColor.withValues(alpha: isSelected ? 0.35 : 0.15)
-        ..style = PaintingStyle.fill;
-
-      canvas.drawCircle(Offset(px, py), isSelected ? 42 : 32, glowPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _LaoagMapPainter oldDelegate) => true;
-}
-
 // =============================================================================
 // KRISP TREND CHART PAINTER
 // =============================================================================
