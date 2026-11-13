@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const String kSupabaseUrl = 'https://zrkkbknndavvprejskjy.supabase.co';
@@ -317,12 +318,82 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   StreamSubscription? _sosSubscription;
   StreamSubscription? _driverAppSubscription;
 
+  static const String _kDocReviewStatusKey = 'pn_web_doc_review_status';
+  static const String _kDocReviewReasonsKey = 'pn_web_doc_review_reasons';
+
   @override
   void initState() {
     super.initState();
+    _loadDocReviewCache();
     _syncFromSupabase();
     _listenToSosAlerts();
     _listenToDriverApplications();
+  }
+
+  Future<void> _loadDocReviewCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final statusRaw = prefs.getString(_kDocReviewStatusKey);
+      final reasonsRaw = prefs.getString(_kDocReviewReasonsKey);
+      if (!mounted) return;
+      setState(() {
+        if (statusRaw != null && statusRaw.isNotEmpty) {
+          final decoded = jsonDecode(statusRaw) as Map<String, dynamic>;
+          _docReviewStatus.clear();
+          decoded.forEach((appKey, val) {
+            if (val is Map) {
+              _docReviewStatus[appKey] =
+                  val.map((k, v) => MapEntry(k.toString(), v.toString()));
+            }
+          });
+        }
+        if (reasonsRaw != null && reasonsRaw.isNotEmpty) {
+          final decoded = jsonDecode(reasonsRaw) as Map<String, dynamic>;
+          _docReviewReasons.clear();
+          decoded.forEach((appKey, val) {
+            if (val is Map) {
+              _docReviewReasons[appKey] =
+                  val.map((k, v) => MapEntry(k.toString(), v.toString()));
+            }
+          });
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveDocReviewCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kDocReviewStatusKey, jsonEncode(_docReviewStatus));
+      await prefs.setString(
+        _kDocReviewReasonsKey,
+        jsonEncode(_docReviewReasons),
+      );
+    } catch (_) {}
+  }
+
+  void _reconcileResubmittedApps() {
+    bool changed = false;
+    for (final app in _driverApplications) {
+      if ((app['application_status'] ?? '').toString() == 'submitted') {
+        final appKey = _getAppKey(app);
+        final statuses = _docReviewStatus[appKey];
+        if (statuses != null) {
+          final resubmitCols = statuses.entries
+              .where((e) => e.value == 'resubmit')
+              .map((e) => e.key)
+              .toList();
+          for (final col in resubmitCols) {
+            statuses.remove(col);
+            _docReviewReasons[appKey]?.remove(col);
+            changed = true;
+          }
+        }
+      }
+    }
+    if (changed) {
+      unawaited(_saveDocReviewCache());
+    }
   }
 
   @override
@@ -378,6 +449,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           _driverApplications
             ..clear()
             ..addAll(data.map(_parseDriverApplicationRow));
+          _reconcileResubmittedApps();
           _driverDirectory
             ..clear()
             ..addAll(
@@ -720,6 +792,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         _driverApplications
           ..clear()
           ..addAll(driverAppRows.map(_parseDriverApplicationRow));
+        _reconcileResubmittedApps();
         _driverDirectory
           ..clear()
           ..addAll(
@@ -4115,21 +4188,33 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       children: [
                         if (!isApproved) ...[
                           OutlinedButton.icon(
-                            onPressed: () => _requestResubmissionDriverApp(app),
+                            onPressed: flaggedResubmitCount > 0
+                                ? () => _requestResubmissionDriverApp(app)
+                                : null,
                             style: flaggedResubmitCount > 0
                                 ? OutlinedButton.styleFrom(
                                     backgroundColor: const Color(0xFFFFFBEB),
                                     side: const BorderSide(color: Color(0xFFD97706)),
                                   )
-                                : null,
-                            icon: const Icon(Icons.history_edu_rounded, size: 14, color: Color(0xFFD97706)),
+                                : OutlinedButton.styleFrom(
+                                    side: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                            icon: Icon(
+                              Icons.history_edu_rounded,
+                              size: 14,
+                              color: flaggedResubmitCount > 0
+                                  ? const Color(0xFFD97706)
+                                  : Colors.grey.shade400,
+                            ),
                             label: Text(
                               flaggedResubmitCount > 0
                                   ? 'Send Resubmission ($flaggedResubmitCount Flagged)'
                                   : 'Request Resubmission',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11.5,
-                                color: Color(0xFFD97706),
+                                color: flaggedResubmitCount > 0
+                                    ? const Color(0xFFD97706)
+                                    : Colors.grey.shade400,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -4231,6 +4316,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       _docReviewStatus.putIfAbsent(appKey, () => {})[columnKey] = 'pass';
       _docReviewReasons[appKey]?.remove(columnKey);
     });
+    unawaited(_saveDocReviewCache());
   }
 
   Future<void> _openItemResubmitReasonDialog(
@@ -4342,6 +4428,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       _docReviewStatus.putIfAbsent(appKey, () => {})[columnKey] = 'resubmit';
       _docReviewReasons.putIfAbsent(appKey, () => {})[columnKey] = result;
     });
+    unawaited(_saveDocReviewCache());
   }
 
   Widget _buildDocStatusRow({
