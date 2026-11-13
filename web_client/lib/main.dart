@@ -71,9 +71,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   double _baseDistKm = 1.00;
   double _succKm = 5.00;
 
-  // ML Demand Simulator State
-  double _simulatedHour = 12.0;
-  String _activeScenario = 'Normal';
+  // Live Telemetry & ML Forecast State (Synced from Supabase & GitHub Actions)
+  String _heatmapMode = 'live'; // 'live' or 'forecast'
+  final Map<String, double> _liveZoneDemand = {};
+  final Map<String, double> _forecastZoneDemand = {};
+  Map<String, dynamic>? _mlMetrics;
+  String _mlForecastLastUpdated = '';
   String _selectedZoneCode = 'Z01';
 
   // Search & Filter State
@@ -892,10 +895,89 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           });
         }
       } catch (_) {}
+      // Sync live 1-hour completed_trips per zone
+      try {
+        final oneHourAgo =
+            DateTime.now().toUtc().subtract(const Duration(hours: 1));
+        final tripRows = await Supabase.instance.client
+            .from('completed_trips')
+            .select('dropoff_location, completed_at')
+            .gte('completed_at', oneHourAgo.toIso8601String())
+            .limit(500);
+        final counts = <String, double>{
+          for (final z in _mlZones) z['code'].toString(): 0.0,
+        };
+        for (final row in tripRows) {
+          final code = _mapDropoffToZoneCode(
+            row['dropoff_location']?.toString() ?? '',
+          );
+          counts[code] = (counts[code] ?? 0.0) + 1.0;
+        }
+        if (mounted) {
+          setState(() {
+            _liveZoneDemand
+              ..clear()
+              ..addAll(counts);
+          });
+        }
+      } catch (_) {}
+
+      // Sync hourly ML demand forecasts (populated by GitHub Actions Python job)
+      try {
+        final forecastRows = await Supabase.instance.client
+            .from('zone_demand_forecasts')
+            .select()
+            .order('zone_code');
+        if (mounted && forecastRows.isNotEmpty) {
+          String latestTs = '';
+          final fMap = <String, double>{};
+          for (final row in forecastRows) {
+            final code = row['zone_code']?.toString() ?? '';
+            if (code.isNotEmpty) {
+              fMap[code] =
+                  (row['predicted_demand'] as num?)?.toDouble() ?? 0.0;
+            }
+            final ts = row['updated_at']?.toString() ?? '';
+            if (ts.isNotEmpty) latestTs = ts;
+          }
+          setState(() {
+            _forecastZoneDemand
+              ..clear()
+              ..addAll(fMap);
+            _mlForecastLastUpdated = latestTs;
+          });
+        }
+      } catch (_) {}
+
+      // Sync ML evaluation metrics
+      try {
+        final metricRow = await Supabase.instance.client
+            .from('ml_model_metrics')
+            .select()
+            .eq('id', 'latest')
+            .maybeSingle();
+        if (mounted && metricRow != null) {
+          setState(() => _mlMetrics = Map<String, dynamic>.from(metricRow));
+        }
+      } catch (_) {}
     } catch (_) {}
     if (mounted) {
       setState(() => _isSyncing = false);
     }
+  }
+
+  String _mapDropoffToZoneCode(String dropoff) {
+    final text = dropoff.toLowerCase();
+    if (text.contains('mmsu') || text.contains('cit') || text.contains('cte') || text.contains('gomez')) return 'Z02';
+    if (text.contains('bell tower') || text.contains('plaza') || text.contains('aurora')) return 'Z03';
+    if (text.contains('lcgh') || text.contains('general hospital')) return 'Z04';
+    if (text.contains('roque') || text.contains('ablan') || text.contains('memorial')) return 'Z05';
+    if (text.contains('capitol') || text.contains('provincial')) return 'Z06';
+    if (text.contains('northwestern') || text.contains('nwu')) return 'Z07';
+    if (text.contains('robinsons') || text.contains('san nicolas')) return 'Z08';
+    if (text.contains('gilbert')) return 'Z09';
+    if (text.contains('airport') || text.contains('gabu')) return 'Z10';
+    return 'Z01';
   }
 
   Future<void> _saveFareGuideToSupabase() async {
@@ -930,78 +1012,61 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     if (mounted) setState(() => _isSyncing = false);
   }
 
-  // Calculate dynamic simulated hourly demand based on Hour + Scenario
+  double _getLiveZoneDemand(Map<String, dynamic> zone) {
+    final code = zone['code']?.toString() ?? '';
+    return _liveZoneDemand[code] ?? 0.0;
+  }
+
+  double _getForecastZoneDemand(Map<String, dynamic> zone) {
+    final code = zone['code']?.toString() ?? '';
+    return _forecastZoneDemand[code] ?? 0.0;
+  }
+
+  // Returns active heatmap demand based on selected mode ('live' or 'forecast')
   double _getDynamicZoneDemand(Map<String, dynamic> zone) {
-    final base = (zone['baseForecast'] as num).toDouble();
-    double hourFactor = 1.0;
-
-    // Time-of-day curve (Laoag paratransit mobility cycle)
-    if (_simulatedHour >= 6 && _simulatedHour < 8.5) {
-      hourFactor = 1.45; // Morning school/market rush
-    } else if (_simulatedHour >= 8.5 && _simulatedHour < 11.5) {
-      hourFactor = 0.95; // Mid-morning baseline
-    } else if (_simulatedHour >= 11.5 && _simulatedHour < 13.5) {
-      hourFactor = 1.25; // Lunch surge
-    } else if (_simulatedHour >= 13.5 && _simulatedHour < 16.5) {
-      hourFactor = 0.90; // Mid-afternoon
-    } else if (_simulatedHour >= 16.5 && _simulatedHour < 18.5) {
-      hourFactor = 1.50; // University & office dismissal peak
-    } else if (_simulatedHour >= 18.5 && _simulatedHour < 21.0) {
-      hourFactor = 0.65; // Evening cooldown
-    } else {
-      hourFactor = 0.15; // Night hours
-    }
-
-    // Scenario modifiers
-    double scenarioFactor = 1.0;
-    if (_activeScenario == 'Morning Rush (07:30)') {
-      if (zone['code'] == 'Z01' || zone['code'] == 'Z02' || zone['code'] == 'Z09') {
-        scenarioFactor = 1.55;
-      }
-    } else if (_activeScenario == 'University Dismissal (17:00)') {
-      if (zone['code'] == 'Z02' || zone['code'] == 'Z07' || zone['code'] == 'Z03') {
-        scenarioFactor = 1.65;
-      }
-    } else if (_activeScenario == 'Monsoon Rain Surge') {
-      scenarioFactor = 1.40; // Heavy rainfall surge
-    } else if (_activeScenario == 'Night Shift (k=5 PIA)') {
-      scenarioFactor = 0.12;
-    }
-
-    final calculated = base * hourFactor * scenarioFactor;
-    return double.parse(calculated.toStringAsFixed(1));
+    return _heatmapMode == 'live'
+        ? _getLiveZoneDemand(zone)
+        : _getForecastZoneDemand(zone);
   }
 
   // Export ML dataset in JSON and CSV
   void _exportMlDataset(String format) {
+    final currentHour = DateTime.now().hour;
     final buffer = StringBuffer();
     if (format == 'CSV') {
-      buffer.writeln('zone_code,zone_name,latitude,longitude,hour,demand_forecast,actual_pilot_trips,k5_privacy_status');
+      buffer.writeln(
+          'zone_code,zone_name,latitude,longitude,hour,live_1h_requests,ml_forecast,k5_privacy_status');
       for (final z in _mlZones) {
-        final demand = _getDynamicZoneDemand(z);
-        final k5 = demand < 5 ? 'SUPPRESSED_K5' : 'VISIBLE';
-        buffer.writeln('${z['code']},"${z['name']}",${z['lat']},${z['lng']},${_simulatedHour.toInt()},$demand,${z['trips']},$k5');
+        final live = _getLiveZoneDemand(z);
+        final forecast = _getForecastZoneDemand(z);
+        final active = _heatmapMode == 'live' ? live : forecast;
+        final k5 = active < 5 ? 'SUPPRESSED_K5' : 'VISIBLE';
+        buffer.writeln(
+            '${z['code']},"${z['name']}",${z['lat']},${z['lng']},$currentHour,$live,$forecast,$k5');
       }
     } else {
       final list = _mlZones.map((z) {
-        final demand = _getDynamicZoneDemand(z);
+        final live = _getLiveZoneDemand(z);
+        final forecast = _getForecastZoneDemand(z);
+        final active = _heatmapMode == 'live' ? live : forecast;
         return {
           'zone_code': z['code'],
           'zone_name': z['name'],
           'latitude': z['lat'],
           'longitude': z['lng'],
-          'hour': _simulatedHour.toInt(),
-          'predicted_demand': demand,
-          'k5_anonymized': demand < 5,
+          'hour': currentHour,
+          'live_1h_requests': live,
+          'ml_forecast': forecast,
+          'k5_anonymized': active < 5,
         };
       }).toList();
       buffer.write(const JsonEncoder.withIndent('  ').convert({
         'metadata': {
           'city': 'Laoag City, Ilocos Norte',
           'ordinance': 'Laoag City Ord. 2023-005',
-          'total_zone_hours': 6720,
-          'mase': 0.5726,
-          'wmape': 0.0694,
+          'mode': _heatmapMode,
+          'mase': _mlMetrics?['mase'] ?? 0.0,
+          'wmape_percent': _mlMetrics?['wmape_percent'] ?? 0.0,
         },
         'records': list,
       }));
@@ -1025,7 +1090,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Successfully generated $format dataset for Hour ${_simulatedHour.toInt()}:00 across all 10 Laoag zones. Data copied to clipboard!'),
+              Text('Successfully generated $format dataset for Hour ${currentHour.toString().padLeft(2, '0')}:00 across all 10 Laoag zones. Data copied to clipboard!'),
               const SizedBox(height: 12),
               Container(
                 height: 180,
@@ -1337,7 +1402,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 
                       const SizedBox(height: 16),
                       _buildSidebarSectionLabel('PARATRANSIT OPERATIONS'),
-                      _buildSidebarItem(Icons.psychology_outlined, 'ML Demand Simulator'),
+                      _buildSidebarItem(Icons.psychology_outlined, 'ML Demand Forecasts'),
                       _buildSidebarItem(Icons.map_outlined, 'Laoag 10-Zone Map & Heatmap'),
                       _buildSidebarItem(Icons.local_taxi_outlined, 'TODA Stations'),
                       _buildSidebarItem(Icons.payments_outlined, 'Fare Matrix (Ord. 2023-005)'),
@@ -1661,7 +1726,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return Icons.assignment_outlined;
       case 'TODA Pila Queue Board':
         return Icons.format_list_numbered_rounded;
-      case 'ML Demand Simulator':
+      case 'ML Demand Forecasts':
         return Icons.psychology_outlined;
       case 'Laoag 10-Zone Map & Heatmap':
         return Icons.map_outlined;
@@ -1687,7 +1752,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   Widget _buildCurrentSectionView() {
     switch (_selectedSection) {
       case 'Analytics':
-        if (_analyticsSubTab == 1) return _buildMlSimulatorView();
+        if (_analyticsSubTab == 1) return _buildMlDemandView();
         if (_analyticsSubTab == 2) return _buildTodaQueueBoardView();
         if (_analyticsSubTab == 3) return _buildDispatchAuditView();
         if (_analyticsSubTab == 4) return _buildDirectoryView();
@@ -1699,8 +1764,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return _buildDispatchAuditView();
       case 'TODA Pila Queue Board':
         return _buildTodaQueueBoardView();
-      case 'ML Demand Simulator':
-        return _buildMlSimulatorView();
+      case 'ML Demand Forecasts':
+        return _buildMlDemandView();
       case 'Laoag 10-Zone Map & Heatmap':
         return _buildLaoagMapCanvasView();
       case 'TODA Stations':
@@ -1902,9 +1967,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           children: [
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: () => setState(() => _selectedSection = 'ML Demand Simulator'),
+                onPressed: () => setState(() => _selectedSection = 'ML Demand Forecasts'),
                 icon: const Icon(Icons.psychology_outlined),
-                label: const Text('Open Interactive ML Demand Simulator'),
+                label: const Text('Open Live ML Demand Forecasts'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
                   foregroundColor: Colors.white,
@@ -1933,13 +1998,30 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   }
 
   // ===========================================================================
-  // 2. INTERACTIVE ML DEMAND SCENARIO SIMULATOR (Recommendation 3)
+  // 2. LIVE ZONE DEMAND & ML FORECASTS (Synced via Supabase & GitHub Actions)
   // ===========================================================================
-  Widget _buildMlSimulatorView() {
+  Widget _buildMlDemandView() {
+    final currentHour = DateTime.now().hour;
+    final maseStr = _mlMetrics != null
+        ? (_mlMetrics!['mase'] as num).toStringAsFixed(4)
+        : '--';
+    final rmseStr = _mlMetrics != null
+        ? (_mlMetrics!['rmse'] as num).toStringAsFixed(4)
+        : '--';
+    final wmapeStr = _mlMetrics != null
+        ? '${(_mlMetrics!['wmape_percent'] as num).toStringAsFixed(2)}%'
+        : '--';
+    final mapeStr = _mlMetrics != null
+        ? '${(_mlMetrics!['nonzero_mape_percent'] as num).toStringAsFixed(2)}%'
+        : '--';
+    final syncLabel = _mlForecastLastUpdated.isEmpty
+        ? 'Awaiting GitHub Actions ML sync'
+        : 'Last ML sync: $_mlForecastLastUpdated';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Simulator Controls Header Card
+        // Live & ML Status Header Card
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(22),
@@ -1948,67 +2030,63 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.grey.shade200),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Live Zone Demand & ML Forecasts',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Real-time 1-hour Supabase trip counts paired with hourly GitHub Actions ML predictions ($syncLabel).',
+                      style: const TextStyle(fontSize: 12.5, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Interactive ML Demand Scenario Simulator',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Simulate spatial-temporal passenger demand for 10 Laoag City zones across operating hours.',
-                        style: TextStyle(fontSize: 12.5, color: Colors.grey),
-                      ),
-                    ],
-                  ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: const Color(0xFFECFDF5),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFA7F3D0)),
                     ),
                     child: Text(
-                      'Hour ${_simulatedHour.toInt().toString().padLeft(2, '0')}:00 • ${_simulatedHour >= 12 ? 'PM' : 'AM'}',
-                      style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF059669), fontSize: 16),
+                      'Hour ${currentHour.toString().padLeft(2, '0')}:00 • ${currentHour >= 12 ? 'PM' : 'AM'}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF059669),
+                        fontSize: 14,
+                      ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Hour Slider
-              const Text('Time-of-Day Slider (00:00 to 23:00):', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              Slider(
-                value: _simulatedHour,
-                min: 0.0,
-                max: 23.0,
-                divisions: 23,
-                activeColor: const Color(0xFF059669),
-                label: '${_simulatedHour.toInt()}:00',
-                onChanged: (val) => setState(() => _simulatedHour = val),
-              ),
-
-              // Scenario Presets Buttons
-              const SizedBox(height: 10),
-              const Text('Scenario Presets:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _buildScenarioChip('Normal', Icons.schedule_rounded),
-                  _buildScenarioChip('Morning Rush (07:30)', Icons.wb_sunny_rounded),
-                  _buildScenarioChip('University Dismissal (17:00)', Icons.school_rounded),
-                  _buildScenarioChip('Monsoon Rain Surge', Icons.cloud_rounded),
-                  _buildScenarioChip('Night Shift (k=5 PIA)', Icons.nightlight_round),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    onPressed: _syncFromSupabase,
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('Refresh Live'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -2016,7 +2094,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         ),
         const SizedBox(height: 18),
 
-        // 4 Evaluation Metrics Badges
+        // 4 Evaluation Metrics Badges (Synced from ml_model_metrics)
         LayoutBuilder(
           builder: (context, constraints) {
             final isWide = constraints.maxWidth > 850;
@@ -2028,17 +2106,31 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               mainAxisSpacing: 12,
               childAspectRatio: isWide ? 2.5 : 2.0,
               children: [
-                _buildMlMetricBadge('MASE Score', '0.5726', 'Target < 1.00 (Beats Baseline)', const Color(0xFF10B981)),
-                _buildMlMetricBadge('RMSE Error', '1.7146', 'Root Mean Square Error', const Color(0xFF3B82F6)),
-                _buildMlMetricBadge('WMAPE %', '6.94%', 'Target <= 20.0% satisfied', const Color(0xFF8B5CF6)),
-                _buildMlMetricBadge('Non-Zero MAPE', '9.26%', 'High-demand zone precision', const Color(0xFFF59E0B)),
+                _buildMlMetricBadge(
+                    'MASE Score',
+                    maseStr,
+                    _mlMetrics == null
+                        ? 'Pending ML sync'
+                        : 'Target < 1.00 (Beats Baseline)',
+                    const Color(0xFF10B981)),
+                _buildMlMetricBadge('RMSE Error', rmseStr,
+                    'Root Mean Square Error', const Color(0xFF3B82F6)),
+                _buildMlMetricBadge(
+                    'WMAPE %',
+                    wmapeStr,
+                    _mlMetrics == null
+                        ? 'Pending ML sync'
+                        : 'Target <= 20.0% satisfied',
+                    const Color(0xFF8B5CF6)),
+                _buildMlMetricBadge('Non-Zero MAPE', mapeStr,
+                    'High-demand zone precision', const Color(0xFFF59E0B)),
               ],
             );
           },
         ),
         const SizedBox(height: 20),
 
-        // 10 Zones Dynamic Table with Privacy Suppression Indicator
+        // 10 Zones Dynamic Table with Live 1h + ML Forecast + Privacy Status
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(22),
@@ -2053,11 +2145,15 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Laoag City 10 Zone Demand Forecasts (Live Evaluated)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                  const Text(
+                    'Laoag City 10-Zone Live Demand & Hourly ML Forecasts',
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
                   OutlinedButton.icon(
                     onPressed: () => _exportMlDataset('CSV'),
                     icon: const Icon(Icons.download_rounded, size: 16),
-                    label: const Text('Export Simulated CSV'),
+                    label: const Text('Export CSV'),
                   ),
                 ],
               ),
@@ -2067,48 +2163,114 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(minWidth: constraints.maxWidth > 700 ? constraints.maxWidth : 700),
+                      constraints: BoxConstraints(
+                          minWidth: constraints.maxWidth > 700
+                              ? constraints.maxWidth
+                              : 700),
                       child: Table(
                         columnWidths: const {
                           0: FixedColumnWidth(65),
                           1: FlexColumnWidth(3),
-                          2: FlexColumnWidth(1.2),
-                          3: FlexColumnWidth(1.6),
+                          2: FlexColumnWidth(1.4),
+                          3: FlexColumnWidth(1.4),
                           4: FlexColumnWidth(2.0),
                         },
                         children: [
                           TableRow(
-                            decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
+                            decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8)),
                             children: const [
-                              Padding(padding: EdgeInsets.all(10), child: Text('ZONE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
-                              Padding(padding: EdgeInsets.all(10), child: Text('LANDMARK CLUSTER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
-                              Padding(padding: EdgeInsets.all(10), child: Text('PILOT TOTAL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
-                              Padding(padding: EdgeInsets.all(10), child: Text('HOUR DEMAND', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
-                              Padding(padding: EdgeInsets.all(10), child: Text('ISO 25010 PRIVACY STATUS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
+                              Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: Text('ZONE',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800))),
+                              Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: Text('LANDMARK CLUSTER',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800))),
+                              Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: Text('LIVE (1H)',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800))),
+                              Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: Text('ML FORECAST',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800))),
+                              Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: Text('ISO 25010 PRIVACY STATUS',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800))),
                             ],
                           ),
                           ..._mlZones.map((z) {
-                            final demand = _getDynamicZoneDemand(z);
-                            final isK5Suppressed = demand < 5.0;
+                            final live = _getLiveZoneDemand(z);
+                            final forecast = _getForecastZoneDemand(z);
+                            final active =
+                                _heatmapMode == 'live' ? live : forecast;
+                            final isK5Suppressed = active < 5.0;
 
                             return TableRow(
                               children: [
-                                Padding(padding: const EdgeInsets.all(10), child: Text(z['code'], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))),
-                                Padding(padding: const EdgeInsets.all(10), child: Text(z['name'], style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
-                                Padding(padding: const EdgeInsets.all(10), child: Text('${z['trips']}', style: const TextStyle(fontSize: 12))),
-                                Padding(padding: const EdgeInsets.all(10), child: Text('${demand.toStringAsFixed(1)} req/h', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                                Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Text(z['code'],
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12))),
+                                Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Text(z['name'],
+                                        style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w600))),
+                                Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Text(
+                                        '${live.toStringAsFixed(1)} req/h',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: live > 0
+                                              ? const Color(0xFF059669)
+                                              : const Color(0xFF64748B),
+                                        ))),
+                                Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Text(
+                                        '${forecast.toStringAsFixed(1)} req/h',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700))),
                                 Padding(
                                   padding: const EdgeInsets.all(10),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: isK5Suppressed ? const Color(0xFFFEF3C7) : const Color(0xFFD1FAE5),
+                                      color: isK5Suppressed
+                                          ? const Color(0xFFFEF3C7)
+                                          : const Color(0xFFD1FAE5),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
-                                      isK5Suppressed ? '🔒 Protected (k < 5 PIA)' : '✓ High-Confidence Broadcast',
+                                      isK5Suppressed
+                                          ? '🔒 Protected (k < 5 PIA)'
+                                          : '✓ High-Confidence Broadcast',
                                       style: TextStyle(
-                                        color: isK5Suppressed ? const Color(0xFFB45309) : const Color(0xFF059669),
+                                        color: isK5Suppressed
+                                            ? const Color(0xFFB45309)
+                                            : const Color(0xFF059669),
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -2128,27 +2290,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildScenarioChip(String label, IconData icon) {
-    final isSelected = _activeScenario == label;
-    return ChoiceChip(
-      avatar: Icon(icon, size: 16, color: isSelected ? Colors.white : const Color(0xFF059669)),
-      label: Text(label),
-      selected: isSelected,
-      selectedColor: const Color(0xFF059669),
-      labelStyle: TextStyle(color: isSelected ? Colors.white : const Color(0xFF0F172A), fontWeight: FontWeight.w700, fontSize: 12),
-      onSelected: (val) {
-        if (val) {
-          setState(() {
-            _activeScenario = label;
-            if (label == 'Morning Rush (07:30)') _simulatedHour = 7.5;
-            if (label == 'University Dismissal (17:00)') _simulatedHour = 17.0;
-            if (label == 'Night Shift (k=5 PIA)') _simulatedHour = 22.0;
-          });
-        }
-      },
     );
   }
 
@@ -2173,10 +2314,33 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 Text('Visualizing paratransit demand corridors, Padsan River crossings, and TODA geofences.', style: TextStyle(color: Colors.grey)),
               ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-              child: Text('Selected: ${selectedZone['code']} — ${selectedZone['name']}', style: const TextStyle(color: Color(0xFF0369A1), fontWeight: FontWeight.w800, fontSize: 12)),
+            Row(
+              children: [
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment<String>(
+                      value: 'live',
+                      icon: Icon(Icons.sensors_rounded, size: 15),
+                      label: Text('Live (1h)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
+                    ButtonSegment<String>(
+                      value: 'forecast',
+                      icon: Icon(Icons.psychology_outlined, size: 15),
+                      label: Text('ML Forecast', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                  selected: {_heatmapMode},
+                  onSelectionChanged: (selection) {
+                    setState(() => _heatmapMode = selection.first);
+                  },
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
+                  child: Text('Selected: ${selectedZone['code']} — ${selectedZone['name']}', style: const TextStyle(color: Color(0xFF0369A1), fontWeight: FontWeight.w800, fontSize: 12)),
+                ),
+              ],
             ),
           ],
         ),
@@ -7764,7 +7928,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   }
 
   Widget _buildTrainingDataExportTab() {
-    return _buildMlSimulatorView();
+    return _buildMlDemandView();
   }
 
   // ===========================================================================
