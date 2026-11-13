@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/services/android_permissions_service.dart';
@@ -40,12 +41,35 @@ class FaceScanScreen extends StatefulWidget {
   State<FaceScanScreen> createState() => _FaceScanScreenState();
 }
 
-class _FaceScanScreenState extends State<FaceScanScreen> {
+class _FaceScanScreenState extends State<FaceScanScreen>
+    with SingleTickerProviderStateMixin {
   bool _inLivenessStage = false;
   _LivenessStep _livenessStep = _LivenessStep.tiltLeft;
   bool _isScanning = false;
   bool _simulateLowConfidence = false;
   FaceVerificationResult? _result;
+  Timer? _livenessTimer;
+  late final AnimationController _progressController;
+  late Animation<double> _progressAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _progressAnimation = Tween<double>(begin: 0.0, end: 0.33).animate(
+      CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _livenessTimer?.cancel();
+    _progressController.dispose();
+    super.dispose();
+  }
 
   Future<void> _enterLivenessStage() async {
     final camAllowed = await AndroidPermissionsService.ensureCameraPermission(context);
@@ -60,30 +84,43 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
     }
 
     if (!mounted) return;
+    _startAutomaticLiveness();
+  }
+
+  void _startAutomaticLiveness() {
+    _livenessTimer?.cancel();
     setState(() {
       _inLivenessStage = true;
       _livenessStep = _LivenessStep.tiltLeft;
+      _isScanning = false;
       _result = null;
+    });
+    _animateProgressTo(0.0, 0.33);
+
+    _livenessTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      setState(() => _livenessStep = _LivenessStep.tiltRight);
+      _animateProgressTo(0.33, 0.67);
+
+      _livenessTimer = Timer(const Duration(milliseconds: 1200), () {
+        if (!mounted) return;
+        setState(() => _livenessStep = _LivenessStep.blinkOnce);
+        _animateProgressTo(0.67, 1.0);
+
+        _livenessTimer = Timer(const Duration(milliseconds: 1200), () {
+          if (!mounted) return;
+          setState(() => _livenessStep = _LivenessStep.completed);
+          _startFaceVerification(skipPermissionCheck: true);
+        });
+      });
     });
   }
 
-  Future<void> _advanceLivenessStep() async {
-    if (_isScanning) return;
-
-    if (_livenessStep == _LivenessStep.tiltLeft) {
-      setState(() => _livenessStep = _LivenessStep.tiltRight);
-      return;
-    }
-
-    if (_livenessStep == _LivenessStep.tiltRight) {
-      setState(() => _livenessStep = _LivenessStep.blinkOnce);
-      return;
-    }
-
-    if (_livenessStep == _LivenessStep.blinkOnce) {
-      setState(() => _livenessStep = _LivenessStep.completed);
-      await _startFaceVerification(skipPermissionCheck: true);
-    }
+  void _animateProgressTo(double from, double to) {
+    _progressAnimation = Tween<double>(begin: from, end: to).animate(
+      CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
+    );
+    _progressController.forward(from: 0.0);
   }
 
   Future<void> _startFaceVerification({bool skipPermissionCheck = false}) async {
@@ -126,6 +163,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
   }
 
   void _skipFaceScan() {
+    _livenessTimer?.cancel();
     const result = FaceVerificationResult(
       similarityScorePercent: 95.0,
       processingTimeMs: 120,
@@ -295,6 +333,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.primarySlate, size: 20),
           onPressed: () {
             if (_inLivenessStage && !_isScanning) {
+              _livenessTimer?.cancel();
               setState(() {
                 _inLivenessStage = false;
                 _livenessStep = _LivenessStep.tiltLeft;
@@ -420,207 +459,212 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
 
   Widget _buildLivenessStage() {
     final isComplete = _result != null;
-    final stepTitle = switch (_livenessStep) {
-      _LivenessStep.tiltLeft => 'Tilt your head left',
-      _LivenessStep.tiltRight => 'Tilt your head right',
-      _LivenessStep.blinkOnce => 'Blink once',
-      _LivenessStep.completed => isComplete ? 'Verification Complete' : 'Capturing Selfie...',
-    };
-    final stepSubtitle = switch (_livenessStep) {
-      _LivenessStep.tiltLeft => 'Slowly tilt your head slightly to the left inside the frame.',
-      _LivenessStep.tiltRight => 'Now tilt your head slightly to the right inside the frame.',
-      _LivenessStep.blinkOnce => 'Look straight into the camera and blink once.',
-      _LivenessStep.completed => 'Comparing your live selfie with your ${widget.idType} portrait.',
-    };
-    final actionLabel = switch (_livenessStep) {
-      _LivenessStep.tiltLeft => 'Confirm Head Tilt Left',
-      _LivenessStep.tiltRight => 'Confirm Head Tilt Right',
-      _LivenessStep.blinkOnce => 'Confirm Blink & Verify',
-      _LivenessStep.completed => _isScanning ? 'Verifying...' : 'Re-run Face Verification',
+    final bottomPrompt = switch (_livenessStep) {
+      _LivenessStep.tiltLeft => 'Tilt left',
+      _LivenessStep.tiltRight => 'Now tilt right',
+      _LivenessStep.blinkOnce => 'Face forward and blink',
+      _LivenessStep.completed => isComplete
+          ? '${_result!.similarityScorePercent.toStringAsFixed(1)}% Match'
+          : 'Verifying your selfie...',
     };
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _buildStepChip('1. Tilt Left', _livenessStep.index > 0, _livenessStep == _LivenessStep.tiltLeft),
-              const SizedBox(width: 8),
-              _buildStepChip('2. Tilt Right', _livenessStep.index > 1, _livenessStep == _LivenessStep.tiltRight),
-              const SizedBox(width: 8),
-              _buildStepChip('3. Blink Once', _livenessStep.index > 2, _livenessStep == _LivenessStep.blinkOnce),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Text(
-            stepTitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.primarySlate,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: math.max(0, constraints.maxHeight - 32.0),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            stepSubtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13.5,
-              color: Color(0xFF4B5563),
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 28),
-          Center(
-            child: Container(
-              width: 220,
-              height: 268,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7F8FA),
-                borderRadius: BorderRadius.circular(134),
-                border: Border.all(
-                  color: isComplete
-                      ? (_result!.isApproved ? AppTheme.accentEmerald : Colors.amber)
-                      : AppTheme.accentEmerald,
-                  width: 4,
-                ),
-              ),
+            child: IntrinsicHeight(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (_isScanning) ...[
-                    const CircularProgressIndicator(color: AppTheme.accentEmerald),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Verifying 1:1 Face Match...',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppTheme.primarySlate,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                  const SizedBox(height: 16),
+                  Center(
+                    child: SizedBox(
+                      width: 240,
+                      height: 296,
+                      child: AnimatedBuilder(
+                        animation: _progressController,
+                        builder: (context, child) {
+                          return CustomPaint(
+                            painter: _OvalProgressBorderPainter(
+                              progress: _progressAnimation.value,
+                              trackColor: const Color(0xFFE5E7EB),
+                              progressColor: isComplete && !_result!.isApproved
+                                  ? Colors.amber
+                                  : AppTheme.accentEmerald,
+                            ),
+                            child: child,
+                          );
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF7F8FA),
+                            borderRadius: BorderRadius.circular(140),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (_isScanning) ...[
+                                const CircularProgressIndicator(color: AppTheme.accentEmerald),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Checking 1:1 match...',
+                                  style: TextStyle(
+                                    color: AppTheme.primarySlate,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ] else if (isComplete) ...[
+                                Icon(
+                                  _result!.isApproved
+                                      ? Icons.check_circle_rounded
+                                      : Icons.flaky_rounded,
+                                  color: _result!.isApproved
+                                      ? AppTheme.accentEmerald
+                                      : Colors.amber,
+                                  size: 64,
+                                ),
+                              ] else ...[
+                                Icon(
+                                  switch (_livenessStep) {
+                                    _LivenessStep.tiltLeft => Icons.rotate_left_rounded,
+                                    _LivenessStep.tiltRight => Icons.rotate_right_rounded,
+                                    _LivenessStep.blinkOnce => Icons.remove_red_eye_outlined,
+                                    _LivenessStep.completed => Icons.face_rounded,
+                                  },
+                                  color: AppTheme.accentEmerald,
+                                  size: 72,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ] else if (isComplete) ...[
-                    Icon(
-                      _result!.isApproved ? Icons.check_circle_rounded : Icons.flaky_rounded,
-                      color: _result!.isApproved ? AppTheme.accentEmerald : Colors.amber,
-                      size: 62,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '${_result!.similarityScorePercent.toStringAsFixed(1)}% Match',
-                      style: const TextStyle(
-                        color: AppTheme.primarySlate,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                  ),
+                  const Spacer(),
+                  const SizedBox(height: 24),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentEmeraldLight,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppTheme.accentEmerald.withValues(alpha: 0.35),
                       ),
                     ),
-                  ] else ...[
-                    Icon(
-                      switch (_livenessStep) {
-                        _LivenessStep.tiltLeft => Icons.rotate_left_rounded,
-                        _LivenessStep.tiltRight => Icons.rotate_right_rounded,
-                        _LivenessStep.blinkOnce => Icons.remove_red_eye_outlined,
-                        _LivenessStep.completed => Icons.face_rounded,
-                      },
-                      color: AppTheme.accentEmerald,
-                      size: 68,
+                    child: Column(
+                      children: [
+                        Text(
+                          bottomPrompt,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.accentEmeraldDark,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Keep your face inside the oval frame',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: AppTheme.accentEmeraldDark.withValues(alpha: 0.8),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      stepTitle,
-                      style: const TextStyle(
-                        color: AppTheme.primarySlate,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    dense: true,
+                    activeThumbColor: AppTheme.accentEmerald,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    title: const Text(
+                      'Simulate Low-Confidence Scan (< 85% Match)',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                     ),
-                  ],
+                    value: _simulateLowConfidence,
+                    onChanged: (val) => setState(() => _simulateLowConfidence = val),
+                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          SwitchListTile(
-            dense: true,
-            activeThumbColor: AppTheme.accentEmerald,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-            title: const Text(
-              'Simulate Low-Confidence Scan (< 85% Match)',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-            ),
-            subtitle: const Text(
-              'Routes registration to TODA/MINC Web Portal for manual admin review',
-              style: TextStyle(fontSize: 11),
-            ),
-            value: _simulateLowConfidence,
-            onChanged: (val) => setState(() => _simulateLowConfidence = val),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton(
-              onPressed: _isScanning
-                  ? null
-                  : (_livenessStep == _LivenessStep.completed
-                      ? () => _startFaceVerification(skipPermissionCheck: true)
-                      : _advanceLivenessStep),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.accentEmerald,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: const StadiumBorder(),
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              child: Text(actionLabel),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-      ),
+        );
+      },
     );
   }
+}
 
-  Widget _buildStepChip(String label, bool done, bool active) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(
-          color: done || active ? AppTheme.accentEmeraldLight : const Color(0xFFF7F8FA),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: done || active ? AppTheme.accentEmerald : const Color(0xFFE5E7EB),
-            width: active ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (done) ...[
-              const Icon(Icons.check_circle_rounded, color: AppTheme.accentEmerald, size: 14),
-              const SizedBox(width: 4),
-            ],
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: done || active ? AppTheme.accentEmeraldDark : const Color(0xFF6B7280),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+class _OvalProgressBorderPainter extends CustomPainter {
+  final double progress;
+  final Color trackColor;
+  final Color progressColor;
+
+  const _OvalProgressBorderPainter({
+    required this.progress,
+    required this.trackColor,
+    required this.progressColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(3, 3, size.width - 6, size.height - 6);
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(size.width / 2));
+
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5.5;
+    canvas.drawRRect(rrect, trackPaint);
+
+    final progressPaint = Paint()
+      ..color = progressColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5.5
+      ..strokeCap = StrokeCap.round;
+
+    final fullPath = Path()..addRRect(rrect);
+    final metrics = fullPath.computeMetrics();
+    for (final metric in metrics) {
+      final startOffset = metric.length * 0.75;
+      final drawLength = metric.length * progress.clamp(0.0, 1.0);
+      if (drawLength <= 0) continue;
+
+      if (startOffset + drawLength <= metric.length) {
+        canvas.drawPath(
+          metric.extractPath(startOffset, startOffset + drawLength),
+          progressPaint,
+        );
+      } else {
+        final firstPart = metric.length - startOffset;
+        final remaining = drawLength - firstPart;
+        canvas.drawPath(
+          metric.extractPath(startOffset, metric.length),
+          progressPaint,
+        );
+        canvas.drawPath(
+          metric.extractPath(0, remaining),
+          progressPaint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OvalProgressBorderPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.trackColor != trackColor ||
+        oldDelegate.progressColor != progressColor;
   }
 }
 

@@ -352,21 +352,17 @@ void main() {
       expect(find.text('Take a selfie to verify your identity'), findsOneWidget);
       await tester.ensureVisible(find.text('Next'));
       await tester.tap(find.text('Next'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
 
-      expect(find.text('Tilt your head left'), findsWidgets);
-      await tester.ensureVisible(find.text('Confirm Head Tilt Left'));
-      await tester.tap(find.text('Confirm Head Tilt Left'));
-      await tester.pumpAndSettle();
+      expect(find.text('Tilt left'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1250));
+      expect(find.text('Now tilt right'), findsOneWidget);
 
-      expect(find.text('Tilt your head right'), findsWidgets);
-      await tester.ensureVisible(find.text('Confirm Head Tilt Right'));
-      await tester.tap(find.text('Confirm Head Tilt Right'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 1250));
+      expect(find.text('Face forward and blink'), findsOneWidget);
 
-      expect(find.text('Blink once'), findsWidgets);
-      await tester.ensureVisible(find.text('Confirm Blink & Verify'));
-      await tester.tap(find.text('Confirm Blink & Verify'));
+      await tester.pump(const Duration(milliseconds: 1250));
       await tester.pumpAndSettle();
 
       expect(find.text('1:1 Face Match Verified'), findsOneWidget);
