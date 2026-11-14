@@ -66,24 +66,17 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
     try {
       final session = await SessionCacheService.getSavedSession();
       final savedPhone = session?.phoneNumber.trim() ?? '';
-      final targetName = widget.fullName.trim().toLowerCase();
 
-      _driverAppSub = Supabase.instance.client
+      final baseStream = Supabase.instance.client
           .from('driver_applications')
-          .stream(primaryKey: ['id']).listen((rows) {
-        Map<String, dynamic>? matched;
-        for (final row in rows) {
-          final rowPhone = (row['phone_number'] ?? '').toString().trim();
-          final rowName = (row['full_name'] ?? '').toString().trim().toLowerCase();
-          if (savedPhone.isNotEmpty && rowPhone == savedPhone) {
-            matched = row;
-            break;
-          }
-          if (targetName.isNotEmpty && rowName == targetName) {
-            matched = row;
-          }
-        }
-        if (matched == null) return;
+          .stream(primaryKey: ['id']);
+      final filteredStream = savedPhone.isNotEmpty
+          ? baseStream.eq('phone_number', savedPhone)
+          : baseStream.eq('full_name', widget.fullName.trim());
+
+      _driverAppSub = filteredStream.listen((rows) {
+        if (rows.isEmpty) return;
+        final matched = rows.first;
 
         final todaCode = (matched['toda_code'] ?? '').toString().trim();
         final plateNo = (matched['plate_or_mv_file'] ?? '').toString().trim();

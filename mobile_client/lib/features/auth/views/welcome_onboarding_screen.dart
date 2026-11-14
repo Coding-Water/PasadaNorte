@@ -123,32 +123,37 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                   setState(() => _currentPage = idx),
                               itemBuilder: (context, index) {
                                 final slide = _slides[index];
-                                return Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      slide['title']!,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 23,
-                                        fontWeight: FontWeight.w800,
-                                        color: _darkHeading,
-                                        letterSpacing: -0.5,
-                                        height: 1.25,
-                                      ),
+                                return Center(
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          slide['title']!,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 23,
+                                            fontWeight: FontWeight.w800,
+                                            color: _darkHeading,
+                                            letterSpacing: -0.5,
+                                            height: 1.25,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          slide['subtitle']!,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w400,
+                                            color: _subtitleGrey,
+                                            height: 1.45,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      slide['subtitle']!,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                        color: _subtitleGrey,
-                                        height: 1.45,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 );
                               },
                             ),

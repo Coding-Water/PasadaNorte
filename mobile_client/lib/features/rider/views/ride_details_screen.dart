@@ -85,13 +85,6 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
             fontSize: 18,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded, color: AppTheme.primarySlate),
-            tooltip: 'Options',
-            onPressed: () {},
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

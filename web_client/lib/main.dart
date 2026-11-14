@@ -590,8 +590,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               ),
             ],
           ),
-          content: SizedBox(
-            width: 580,
+          content: Container(
+            constraints: const BoxConstraints(maxWidth: 580),
+            width: double.maxFinite,
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -961,8 +962,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ),
           ],
         ),
-        content: SizedBox(
-          width: 580,
+        content: Container(
+          constraints: const BoxConstraints(maxWidth: 580),
+          width: double.maxFinite,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1144,8 +1146,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ],
           ),
         ),
-        content: SizedBox(
-          width: 580,
+        content: Container(
+          constraints: const BoxConstraints(maxWidth: 580),
+          width: double.maxFinite,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1706,8 +1709,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             Text('ML Dataset Exported ($format)', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           ],
         ),
-        content: SizedBox(
-          width: 580,
+        content: Container(
+          constraints: const BoxConstraints(maxWidth: 580),
+          width: double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1848,8 +1852,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             Text('City of Laoag — MINC Summons Notice', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           ],
         ),
-        content: SizedBox(
-          width: 540,
+        content: Container(
+          constraints: const BoxConstraints(maxWidth: 540),
+          width: double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2213,8 +2218,15 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                               if (_sosAlerts.any((a) => a['status'] == 'ACTIVE_DISPATCHED'))
                                 GestureDetector(
                                   onTap: () {
-                                    final alert = _sosAlerts.firstWhere((a) => a['status'] == 'ACTIVE_DISPATCHED');
-                                    _showSosIncidentModal(alert);
+                                    final alert = _sosAlerts
+                                        .cast<Map<String, dynamic>?>()
+                                        .firstWhere(
+                                          (a) => a?['status'] == 'ACTIVE_DISPATCHED',
+                                          orElse: () => null,
+                                        );
+                                    if (alert != null) {
+                                      _showSosIncidentModal(alert);
+                                    }
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -8454,8 +8466,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   : 'Approve & Assign TODA Pila',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            content: SizedBox(
-              width: 440,
+            content: Container(
+              constraints: const BoxConstraints(maxWidth: 440),
+              width: double.maxFinite,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -8673,8 +8686,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               'Request Document Resubmission',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            content: SizedBox(
-              width: 440,
+            content: Container(
+              constraints: const BoxConstraints(maxWidth: 440),
+              width: double.maxFinite,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -8808,8 +8822,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 color: Color(0xFFDC2626),
               ),
             ),
-            content: SizedBox(
-              width: 440,
+            content: Container(
+              constraints: const BoxConstraints(maxWidth: 440),
+              width: double.maxFinite,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
