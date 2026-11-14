@@ -55,3 +55,13 @@ app.*.map.json
 ~$*.docx
 *.pdf
 Joyride Native App UI (Copy) (Community).pdf
+
+# Temporary files & audit outputs
+tmp/
+
+# Secrets, environment files & signing keys
+.env
+.env.*
+*.jks
+*.keystore
+key.properties
