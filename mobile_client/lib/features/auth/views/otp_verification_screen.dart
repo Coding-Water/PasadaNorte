@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 import 'role_selection_screen.dart';
 
@@ -18,9 +20,6 @@ class OtpVerificationScreen extends StatefulWidget {
 }
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
-  static const String staticOtp = '123456';
-  static const String legacyStaticOtp = '202601';
-
   final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
@@ -76,18 +75,25 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   String get _otpCode => _controllers.map((c) => c.text).join();
 
-  void _resendOtp() {
+  Future<void> _resendOtp() async {
     if (_resendCountdown > 0 || _isLockedOut) return;
     _startCountdownTimer();
+    final client = SupabaseService.client;
+    if (client == null) return;
+    try {
+      await client.auth.signInWithOtp(phone: widget.phoneNumber);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _errorText = 'Unable to resend OTP. Please try again.';
+        });
       }
-
-  void _verifyOtp() async {
-    if (_isLockedOut) {
-            return;
     }
+  }
 
-    if (_otpCode.length < 6) {
-            return;
+  Future<void> _verifyOtp() async {
+    if (_isLockedOut || _otpCode.length < 6) {
+      return;
     }
 
     setState(() {
@@ -95,11 +101,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _errorText = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 400));
+    bool isValid = false;
+    String failureMessage = 'Invalid OTP code. Please try again.';
+    final client = SupabaseService.client;
+
+    if (client == null) {
+      failureMessage =
+          'OTP verification service is unavailable. Please try again.';
+    } else {
+      try {
+        final response = await client.auth.verifyOTP(
+          phone: widget.phoneNumber,
+          token: _otpCode,
+          type: OtpType.sms,
+        );
+        isValid = response.session != null || response.user != null;
+      } on AuthException catch (e) {
+        failureMessage = e.message;
+      } catch (_) {
+        failureMessage = 'Invalid OTP code. Please try again.';
+      }
+    }
 
     if (!mounted) return;
-
-    final isValid = _otpCode == staticOtp || _otpCode == legacyStaticOtp;
 
     if (!isValid) {
       for (final controller in _controllers) {
@@ -113,13 +137,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         }
         _errorText = _isLockedOut
             ? 'Maximum attempts exceeded. Verification locked.'
-            : 'Invalid OTP code. Please try again.';
+            : failureMessage;
       });
       if (!_isLockedOut) {
         _focusNodes.first.requestFocus();
       }
-
-            return;
+      return;
     }
 
     setState(() {

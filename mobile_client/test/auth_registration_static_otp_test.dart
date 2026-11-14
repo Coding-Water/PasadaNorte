@@ -84,12 +84,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pump(const Duration(milliseconds: 600));
 
-      // Successfully verifies and navigates to RoleSelectionScreen
-      expect(find.byType(RoleSelectionScreen), findsOneWidget);
-      expect(find.text('Are you a Passenger or a Driver?'), findsOneWidget);
+      // Static 123456 must NOT bypass OTP verification when Supabase is offline
+      expect(find.byType(RoleSelectionScreen), findsNothing);
+      expect(find.byType(OtpVerificationScreen), findsOneWidget);
+      expect(
+        find.text('OTP verification service is unavailable. Please try again.'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('OtpVerificationScreen rejects invalid OTP and shows helpful hint', (tester) async {
+    testWidgets('OtpVerificationScreen rejects legacy static OTP 202601 and invalid codes', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -104,19 +108,22 @@ void main() {
         ),
       );
 
-      // Enter an invalid 6-digit code: 999999
+      // Enter legacy static code: 202601
       final textFields = find.byType(TextField);
       expect(textFields, findsNWidgets(6));
-
+      const legacyCode = '202601';
       for (int i = 0; i < 6; i++) {
-        await tester.enterText(textFields.at(i), '9');
+        await tester.enterText(textFields.at(i), legacyCode[i]);
       }
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pump(const Duration(milliseconds: 600));
 
-      // Should display invalid OTP error message
-      expect(find.text('Invalid OTP code. Please try again.'), findsWidgets);
+      expect(find.byType(RoleSelectionScreen), findsNothing);
+      expect(
+        find.text('OTP verification service is unavailable. Please try again.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('Rider Registration Flow proceeds to FaceScanScreen without Skip bypass', (tester) async {

@@ -6728,6 +6728,21 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     final isOwned = app['is_motorcycle_owned'] as bool? ?? true;
     final maskedPhone = _maskPhoneNumber(app['phone_number']?.toString() ?? '');
     final appKey = _getAppKey(app);
+    final faceMatch = _flaggedVerifications.cast<Map<String, dynamic>?>().firstWhere(
+      (u) => u?['phone_number'] == app['phone_number'],
+      orElse: () => null,
+    );
+    final double? faceSimilarity = (faceMatch?['similarity'] as num?)?.toDouble();
+    final String faceVerifyStatus = (faceMatch?['status'] ?? 'pending').toString();
+    final String faceDetail = faceSimilarity != null && faceSimilarity > 0
+        ? 'Match ${faceSimilarity.toStringAsFixed(1)}% • $faceVerifyStatus'
+        : 'Liveness & 1:1 Face Match ($faceVerifyStatus)';
+    if (!(_docReviewStatus[appKey]?.containsKey('face_bio_scan') ?? false) &&
+        faceSimilarity != null &&
+        faceSimilarity >= 85.0) {
+      (_docReviewStatus[appKey] ??= {})['face_bio_scan'] = 'pass';
+    }
+
     final requiredDocItems = _getRequiredDocSpecs(
       isFitToWorkMandatory: isFitToWorkMandatory,
       isOwned: isOwned,
@@ -6745,16 +6760,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     }).length;
     final bool allRequirementsFulfilled =
         totalRequiredDocs > 0 && passedDocsCount == totalRequiredDocs;
-
-    final faceMatch = _flaggedVerifications.cast<Map<String, dynamic>?>().firstWhere(
-      (u) => u?['phone_number'] == app['phone_number'],
-      orElse: () => null,
-    );
-    final double? faceSimilarity = (faceMatch?['similarity'] as num?)?.toDouble();
-    final String faceVerifyStatus = (faceMatch?['status'] ?? 'pending').toString();
-    final String faceDetail = faceSimilarity != null && faceSimilarity > 0
-        ? 'Match ${faceSimilarity.toStringAsFixed(1)}% • $faceVerifyStatus'
-        : 'Liveness & 1:1 Face Match ($faceVerifyStatus)';
 
     Color statusBg = const Color(0xFFFEF3C7);
     Color statusColor = const Color(0xFFB45309);
@@ -8118,6 +8123,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     final String faceDetail = similarity > 0
         ? 'Match ${similarity.toStringAsFixed(1)}% • $status'
         : 'Liveness & 1:1 Face Match ($status)';
+    if (!(_docReviewStatus[paxKey]?.containsKey('face_bio_scan') ?? false) &&
+        similarity >= 85.0) {
+      (_docReviewStatus[paxKey] ??= {})['face_bio_scan'] = 'pass';
+    }
 
     final idState = _getDocReviewState(paxKey, 'rider_id_photo_url');
     final faceState = _getDocReviewState(paxKey, 'face_bio_scan');
