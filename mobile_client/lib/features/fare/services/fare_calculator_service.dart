@@ -14,6 +14,8 @@ class FareConfig {
   double bracketTier1AddOn; // ₱3.00 for first succeeding bracket (e.g., >1.5 km to 3.0 km)
   double bracketTier2AddOn; // ₱5.00 for extended succeeding bracket (>3.0 km)
   double ltfrbPlatformShareRatio; // LTFRB MC No. 2025-10 50%-50% platform-operator discount sharing
+  double intraCityThresholdKm; // <= 8 km: Laoag City & San Nicolas Metro ordinance rate
+  double interMunicipalityKmRate; // > 8 km: Ilocos Norte inter-municipality highway / pakyaw rate
   String ordinanceLabel;
 
   FareConfig({
@@ -26,8 +28,10 @@ class FareConfig {
     this.bracketTier1AddOn = 3.00,
     this.bracketTier2AddOn = 5.00,
     this.ltfrbPlatformShareRatio = 0.50,
+    this.intraCityThresholdKm = 8.00,
+    this.interMunicipalityKmRate = 15.00,
     this.ordinanceLabel =
-        'City Ordinance No. 2023-005 (₱20 Reg / ₱15 Disc 1st km + ₱2/km; LTFRB MC 2025-10 50-50 Ready)',
+        'City Ordinance No. 2023-005 (₱20 Reg / ₱15 Disc 1st km + ₱2/km; ₱15/km > 8 km Inter-Municipality)',
   });
 
   Map<String, dynamic> toJson() => {
@@ -40,6 +44,8 @@ class FareConfig {
         'bracket_tier1_addon': bracketTier1AddOn,
         'bracket_tier2_addon': bracketTier2AddOn,
         'ltfrb_platform_share_ratio': ltfrbPlatformShareRatio,
+        'intra_city_threshold_km': intraCityThresholdKm,
+        'inter_municipality_km_rate': interMunicipalityKmRate,
         'ordinance_label': ordinanceLabel,
       };
 
@@ -53,6 +59,8 @@ class FareConfig {
         bracketTier1AddOn: (json['bracket_tier1_addon'] as num?)?.toDouble() ?? 3.00,
         bracketTier2AddOn: (json['bracket_tier2_addon'] as num?)?.toDouble() ?? 5.00,
         ltfrbPlatformShareRatio: (json['ltfrb_platform_share_ratio'] as num?)?.toDouble() ?? 0.50,
+        intraCityThresholdKm: (json['intra_city_threshold_km'] as num?)?.toDouble() ?? 8.00,
+        interMunicipalityKmRate: (json['inter_municipality_km_rate'] as num?)?.toDouble() ?? 15.00,
         ordinanceLabel: json['ordinance_label'] ??
             'City Ordinance No. 2023-005 (₱20 Reg / ₱15 Disc 1st km + ₱2/km)',
       );
@@ -72,6 +80,7 @@ class FareBreakdown {
   final PassengerCategory category;
   final TripType tripType;
   final bool usedBracketAddOns;
+  final bool isInterMunicipality;
 
   FareBreakdown({
     required this.distanceKm,
@@ -87,6 +96,7 @@ class FareBreakdown {
     required this.category,
     required this.tripType,
     this.usedBracketAddOns = false,
+    this.isInterMunicipality = false,
   });
 }
 
@@ -142,23 +152,36 @@ class FareCalculatorService {
 
     double succeedingRaw = 0.0;
     double succeedingDiscount = 0.0;
+    final bool isInterMunicipality = distanceKm > config.intraCityThresholdKm;
 
     if (distanceKm > config.baseDistanceKm) {
-      final double remainingDist = distanceKm - config.baseDistanceKm;
+      final double intraCapKm =
+          distanceKm.clamp(config.baseDistanceKm, config.intraCityThresholdKm);
+      final double intraRemainingDist = intraCapKm - config.baseDistanceKm;
+      final double extraInterTownDist = isInterMunicipality
+          ? (distanceKm - config.intraCityThresholdKm)
+          : 0.0;
+
       if (config.useProvisionalBracketAddOns) {
         // Oct 2026 SP Provisional Matrix: incremental distance add-ons of ₱3.00 and ₱5.00
         // for succeeding kilometer brackets (Ilocos Times, 2026)
-        if (remainingDist <= 1.5) {
-          succeedingRaw = config.bracketTier1AddOn;
-        } else {
-          final double extraBeyondBracket1 = remainingDist - 1.5;
-          succeedingRaw = config.bracketTier1AddOn +
-              (extraBeyondBracket1 <= 1.5
-                  ? config.bracketTier2AddOn
-                  : config.bracketTier2AddOn + ((extraBeyondBracket1 - 1.5) * config.succeedingKmRate));
+        if (intraRemainingDist > 0) {
+          if (intraRemainingDist <= 1.5) {
+            succeedingRaw = config.bracketTier1AddOn;
+          } else {
+            final double extraBeyondBracket1 = intraRemainingDist - 1.5;
+            succeedingRaw = config.bracketTier1AddOn +
+                (extraBeyondBracket1 <= 1.5
+                    ? config.bracketTier2AddOn
+                    : config.bracketTier2AddOn + ((extraBeyondBracket1 - 1.5) * config.succeedingKmRate));
+          }
         }
       } else {
-        succeedingRaw = remainingDist * config.succeedingKmRate;
+        succeedingRaw = intraRemainingDist * config.succeedingKmRate;
+      }
+
+      if (extraInterTownDist > 0) {
+        succeedingRaw += extraInterTownDist * config.interMunicipalityKmRate;
       }
 
       if (isDiscounted) {
@@ -200,6 +223,7 @@ class FareCalculatorService {
       category: category,
       tripType: tripType,
       usedBracketAddOns: config.useProvisionalBracketAddOns,
+      isInterMunicipality: isInterMunicipality,
     );
   }
 }

@@ -64,9 +64,88 @@ class LocationService {
     return !hasMockLocationViolation;
   }
 
-  // Strict bounding box for Laoag City & San Nicolas metro area (left, top, right, bottom)
+  // Hard Service-Area Geofence: Ilocos Norte Province (blocks outside PH, Manila, Vigan/Ilocos Sur, Hong Kong)
+  static const double serviceMinLat = 17.8800;
+  static const double serviceMaxLat = 18.6600;
+  static const double serviceMinLng = 120.4200;
+  static const double serviceMaxLng = 120.9600;
+
+  static bool isWithinServiceArea(double lat, double lng) {
+    return lat >= serviceMinLat &&
+        lat <= serviceMaxLat &&
+        lng >= serviceMinLng &&
+        lng <= serviceMaxLng;
+  }
+
+  static bool isWithinLaoagMetro(double lat, double lng) {
+    return lat >= 18.1300 &&
+        lat <= 18.2500 &&
+        lng >= 120.5000 &&
+        lng <= 120.6600;
+  }
+
+  // Viewbox for Ilocos Norte service area (left, top, right, bottom)
   // viewbox=lon_min,lat_max,lon_max,lat_min
-  static const String _laoagViewbox = '120.5000,18.2500,120.6600,18.1300';
+  static const String _ilocosNorteViewbox =
+      '120.4200,18.6600,120.9600,17.8800';
+
+  // Approved neighboring Ilocos Norte municipal hubs for instant offline & online search
+  static const List<LocationPoint> ilocosNorteMunicipalHubs = [
+    LocationPoint(
+      name: 'Bacarra Town Plaza & Public Market, Bacarra, Ilocos Norte',
+      latitude: 18.2533,
+      longitude: 120.6119,
+      zoneCode: 'IN-BAC',
+    ),
+    LocationPoint(
+      name: 'Sarrat Town Plaza & Santa Monica Church, Sarrat, Ilocos Norte',
+      latitude: 18.1578,
+      longitude: 120.6461,
+      zoneCode: 'IN-SAR',
+    ),
+    LocationPoint(
+      name: 'Paoay Church (San Agustin) & Plaza, Paoay, Ilocos Norte',
+      latitude: 18.0614,
+      longitude: 120.5217,
+      zoneCode: 'IN-PAO',
+    ),
+    LocationPoint(
+      name: 'Batac City Riverside & MMSU Main Campus, Batac, Ilocos Norte',
+      latitude: 18.0556,
+      longitude: 120.5639,
+      zoneCode: 'IN-BAT',
+    ),
+    LocationPoint(
+      name: 'Dingras Town Plaza & Public Market, Dingras, Ilocos Norte',
+      latitude: 18.1039,
+      longitude: 120.6994,
+      zoneCode: 'IN-DIN',
+    ),
+    LocationPoint(
+      name: 'Pasuquin Town Plaza & Public Market, Pasuquin, Ilocos Norte',
+      latitude: 18.3333,
+      longitude: 120.6186,
+      zoneCode: 'IN-PAS',
+    ),
+    LocationPoint(
+      name: 'Cape Bojeador Lighthouse & Burgos Town, Burgos, Ilocos Norte',
+      latitude: 18.5150,
+      longitude: 120.5978,
+      zoneCode: 'IN-BUR',
+    ),
+    LocationPoint(
+      name: 'Bangui Windmills & Town Center, Bangui, Ilocos Norte',
+      latitude: 18.5378,
+      longitude: 120.7667,
+      zoneCode: 'IN-BAN',
+    ),
+    LocationPoint(
+      name: 'Pagudpud Town Center & Saud Beach, Pagudpud, Ilocos Norte',
+      latitude: 18.5614,
+      longitude: 120.7931,
+      zoneCode: 'IN-PAG',
+    ),
+  ];
 
   // Automatically warms up and resolves the user's real GPS location on app open
   static Future<LocationPoint> warmUpDeviceGpsLocation() async {
@@ -320,10 +399,13 @@ class LocationService {
       } catch (_) {}
     }
 
-    // 2. Local Gazetteer Offline Fallback (all 80 Barangays + POIs + Streets)
+    // 2. Local Gazetteer Offline Fallback (80 Laoag Barangays + Ilocos Norte Municipal Hubs)
     if (combinedResults.length < 25) {
       final List<MapEntry<int, LocationPoint>> scoredLocal = [];
-      for (final place in laoagComprehensiveGazetteer) {
+      for (final place in [
+        ...laoagComprehensiveGazetteer,
+        ...ilocosNorteMunicipalHubs,
+      ]) {
         final lowerName = place.name.toLowerCase();
         final normalizedName =
             lowerName.replaceAll(RegExp(r'[^\w\s]'), ' ').trim();
@@ -414,15 +496,18 @@ class LocationService {
       } catch (_) {}
     }
 
-    // 3. Esri ArcGIS World Geocoder Live API (commercial street & POI database aligned with Google Maps)
+    // 3. Esri ArcGIS World Geocoder Live API (bounded to Ilocos Norte service area)
     if (combinedResults.length < 12) {
-      final arcgisQuery =
-          lowerQuery.contains('laoag') ? trimmed : '$trimmed, Laoag City';
+      final arcgisQuery = lowerQuery.contains('ilocos norte') ||
+              lowerQuery.contains('laoag')
+          ? trimmed
+          : '$trimmed, Ilocos Norte';
       final arcgisUri = Uri.parse(
         'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates'
         '?SingleLine=${Uri.encodeComponent(arcgisQuery)}'
-        '&searchExtent=120.5000,18.1300,120.6600,18.2500'
+        '&searchExtent=$serviceMinLng,$serviceMinLat,$serviceMaxLng,$serviceMaxLat'
         '&location=120.5938,18.1960'
+        '&countryCode=PHL'
         '&outFields=PlaceName,Place_addr,StAddr,Nbrhd,City'
         '&maxLocations=10'
         '&f=json',
@@ -440,10 +525,7 @@ class LocationService {
             final lon = (loc['x'] as num?)?.toDouble();
             final lat = (loc['y'] as num?)?.toDouble();
             if (lat == null || lon == null) continue;
-            if (lat < 18.1300 ||
-                lat > 18.2500 ||
-                lon < 120.5000 ||
-                lon > 120.6600) {
+            if (!isWithinServiceArea(lat, lon)) {
               continue;
             }
             final attrs = cMap['attributes'] as Map<String, dynamic>? ?? {};
@@ -454,6 +536,7 @@ class LocationService {
             if (pName.isEmpty || pName.toLowerCase() == 'laoag city') continue;
             final stAddr = (attrs['StAddr']?.toString() ?? '').trim();
             final nbrhd = (attrs['Nbrhd']?.toString() ?? '').trim();
+            final city = (attrs['City']?.toString() ?? '').trim();
             final parts = <String>[
               pName,
               if (stAddr.isNotEmpty &&
@@ -462,7 +545,11 @@ class LocationService {
               if (nbrhd.isNotEmpty &&
                   !pName.toLowerCase().contains(nbrhd.toLowerCase()))
                 nbrhd,
-              if (!pName.toLowerCase().contains('laoag')) 'Laoag City',
+              if (city.isNotEmpty &&
+                  !pName.toLowerCase().contains(city.toLowerCase()))
+                city
+              else if (!pName.toLowerCase().contains('ilocos'))
+                'Ilocos Norte',
             ];
             addUnique(
               LocationPoint(
@@ -477,13 +564,13 @@ class LocationService {
       } catch (_) {}
     }
 
-    // 4. Live Photon OSM Geocoder (fast POI & street coordinates in Laoag City)
+    // 4. Live Photon OSM Geocoder (bounded to Ilocos Norte service area)
     if (combinedResults.length < 10) {
       final photonUri = Uri.parse(
         'https://photon.komoot.io/api/'
-        '?q=${Uri.encodeComponent("$trimmed Laoag")}'
+        '?q=${Uri.encodeComponent("$trimmed Ilocos Norte")}'
         '&lat=18.1960&lon=120.5938'
-        '&bbox=120.5000,18.1300,120.6600,18.2500'
+        '&bbox=$serviceMinLng,$serviceMinLat,$serviceMaxLng,$serviceMaxLat'
         '&limit=10',
       );
       try {
@@ -502,11 +589,8 @@ class LocationService {
             final lon = (coords[0] as num).toDouble();
             final lat = (coords[1] as num).toDouble();
 
-            // Strictly keep within Laoag City & San Nicolas metro area
-            if (lat < 18.1300 ||
-                lat > 18.2500 ||
-                lon < 120.5000 ||
-                lon > 120.6600) {
+            // Strictly keep within Ilocos Norte service area
+            if (!isWithinServiceArea(lat, lon)) {
               continue;
             }
 
@@ -538,11 +622,12 @@ class LocationService {
       } catch (_) {}
     }
 
-    // 5. Live Nominatim Geocoder bounded strictly to Laoag City (bounded=1)
+    // 5. Live Nominatim Geocoder bounded strictly to Ilocos Norte (countrycodes=ph, bounded=1)
     if (combinedResults.length < 10) {
-      final searchQuery = lowerQuery.contains('laoag')
+      final searchQuery = lowerQuery.contains('ilocos norte') ||
+              lowerQuery.contains('laoag')
           ? trimmed
-          : '$trimmed, Laoag City, Ilocos Norte';
+          : '$trimmed, Ilocos Norte';
 
       final nominatimUri = Uri.parse(
         'https://nominatim.openstreetmap.org/search'
@@ -550,7 +635,7 @@ class LocationService {
         '&format=jsonv2'
         '&addressdetails=1'
         '&countrycodes=ph'
-        '&viewbox=$_laoagViewbox'
+        '&viewbox=$_ilocosNorteViewbox'
         '&bounded=1'
         '&limit=8',
       );
@@ -573,10 +658,7 @@ class LocationService {
             final lon = double.tryParse(map['lon']?.toString() ?? '');
             if (lat == null || lon == null) continue;
 
-            if (lat < 18.1300 ||
-                lat > 18.2500 ||
-                lon < 120.5000 ||
-                lon > 120.6600) {
+            if (!isWithinServiceArea(lat, lon)) {
               continue;
             }
 

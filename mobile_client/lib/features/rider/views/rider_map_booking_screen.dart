@@ -138,7 +138,48 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
     }
   }
 
+  void _showOutsideServiceAreaAlert() {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.location_off_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Outside PasadaNorte Service Area',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'PasadaNorte tricycles only operate within Ilocos Norte (Laoag City, San Nicolas, and neighboring Ilocos Norte municipalities). Please choose a pickup and destination inside Ilocos Norte.',
+          style: TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.accentEmerald,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _onMapTapped(TapPosition tapPosition, LatLng point) async {
+    if (!LocationService.isWithinServiceArea(point.latitude, point.longitude)) {
+      _showOutsideServiceAreaAlert();
+      return;
+    }
+
     final tempName =
         'Pinned Destination (${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)})...';
 
@@ -206,6 +247,11 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
     );
 
     if (selected != null && mounted) {
+      if (!LocationService.isWithinServiceArea(
+          selected.latitude, selected.longitude)) {
+        _showOutsideServiceAreaAlert();
+        return;
+      }
       setState(() {
         _dropoffPoint = selected;
       });
@@ -226,6 +272,17 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
   void _proceedToBillSummary() {
     if (_dropoffPoint == null || _fareBreakdown == null) {
       _openDestinationSearchSheet();
+      return;
+    }
+    if (!LocationService.isWithinServiceArea(
+          _pickupPoint.latitude,
+          _pickupPoint.longitude,
+        ) ||
+        !LocationService.isWithinServiceArea(
+          _dropoffPoint!.latitude,
+          _dropoffPoint!.longitude,
+        )) {
+      _showOutsideServiceAreaAlert();
       return;
     }
     Navigator.push(
@@ -267,6 +324,20 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
               options: MapOptions(
                 initialCenter: _pickupPoint.latLng,
                 initialZoom: 16.0,
+                minZoom: 9.5,
+                maxZoom: 19.0,
+                cameraConstraint: CameraConstraint.contain(
+                  bounds: LatLngBounds(
+                    const LatLng(
+                      LocationService.serviceMinLat,
+                      LocationService.serviceMinLng,
+                    ),
+                    const LatLng(
+                      LocationService.serviceMaxLat,
+                      LocationService.serviceMaxLng,
+                    ),
+                  ),
+                ),
                 onTap: _onMapTapped,
               ),
               children: [
@@ -705,6 +776,31 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
       latitude: 18.2020,
       longitude: 120.5870,
     ),
+    LocationPoint(
+      name: 'Bacarra Town Plaza & Public Market, Bacarra, Ilocos Norte',
+      latitude: 18.2533,
+      longitude: 120.6119,
+    ),
+    LocationPoint(
+      name: 'Paoay Church (San Agustin) & Plaza, Paoay, Ilocos Norte',
+      latitude: 18.0614,
+      longitude: 120.5217,
+    ),
+    LocationPoint(
+      name: 'Batac City Riverside & MMSU Main Campus, Batac, Ilocos Norte',
+      latitude: 18.0556,
+      longitude: 120.5639,
+    ),
+    LocationPoint(
+      name: 'Bangui Windmills & Town Center, Bangui, Ilocos Norte',
+      latitude: 18.5378,
+      longitude: 120.7667,
+    ),
+    LocationPoint(
+      name: 'Pagudpud Town Center & Saud Beach, Pagudpud, Ilocos Norte',
+      latitude: 18.5614,
+      longitude: 120.7931,
+    ),
   ];
 
   late final TextEditingController _searchController;
@@ -762,6 +858,19 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
   }
 
   Future<void> _selectPlace(LocationPoint place) async {
+    if (!LocationService.isWithinServiceArea(place.latitude, place.longitude)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Outside PasadaNorte Service Area (Ilocos Norte only).',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       final updated = [

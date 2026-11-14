@@ -12,11 +12,11 @@
 - [x] **Enforce Physical Camera Permissions**: Ensure `AndroidPermissionsService.ensureCameraPermission` strictly blocks proceeding without active camera permission on physical devices.
 - [x] **Live Facial Match Enforcement**: On-device Google ML Kit 1:1 facial landmark & cosine similarity (`>= 85.0%`) is active in `mobile_client/lib/core/services/face_verification_service.dart` per RA 10173 & NPC Circular No. 2023-03.
 
-### 2. Service Area Geofence & Inter-Municipality Tricycle Fare Matrix (Priority #2 — Needs Fixing)
-- [ ] **Enforce Hard Service-Area Geofence (Block Outside Ilocos Norte / Outside PH)**:
+### 2. Service Area Geofence & Inter-Municipality Tricycle Fare Matrix (Priority #2 — Fixed)
+- [x] **Enforce Hard Service-Area Geofence (Block Outside Ilocos Norte / Outside PH)**:
   - Validate pickup & dropoff coordinates in `mobile_client/lib/features/rider/views/rider_map_booking_screen.dart` (`_onMapTapped`, search selection, and booking CTA) so locations outside the Philippines / Ilocos Norte (e.g., Hong Kong, Manila, Vigan / Ilocos Sur) are blocked with a clear *"Outside PasadaNorte Service Area"* alert.
   - Constrain `FlutterMap` camera bounds (`CameraConstraint.contain`) to Ilocos Norte and enforce `countrycodes=ph` + Ilocos Norte viewbox filtering in `mobile_client/lib/core/services/location_service.dart`.
-- [ ] **Two-Tier Distance Pricing & Other Ilocos Norte Municipalities Support**:
+- [x] **Two-Tier Distance Pricing & Other Ilocos Norte Municipalities Support**:
   - Keep **Laoag City Ordinance No. 2023-005** (`₱20` Regular / `₱15` Discounted 1st km + `₱2/km`) for intra-city / metro rides (`<= 8 km`, Laoag City & San Nicolas).
   - Add an **Inter-Municipality / Out-of-Town Tricycle Tier** in `mobile_client/lib/features/fare/services/fare_calculator_service.dart` for trips `> 8 km` to neighboring Ilocos Norte towns (e.g., Bacarra, Sarrat, Paoay, Batac, Dingras, Pasuquin, Burgos, Bangui, Pagudpud) with a realistic highway / special pakyaw per-km rate (instead of flat `₱2/km`), and expand suggested places/geocoding across approved Ilocos Norte municipalities.
 
@@ -55,7 +55,7 @@
 | Item | Component | Current Development State | Production Requirement | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | **Face Scan** | `face_scan_screen.dart` | Skip removed & physical camera permission enforced | Mandatory real camera 1:1 match | 🟢 Completed |
-| **Service Geofence & Inter-Town Fares** | `rider_map_booking_screen.dart`, `location_service.dart`, `fare_calculator_service.dart` | Map tap allows booking outside PH (e.g., Hong Kong) and applies ₱2/km to long inter-town trips | Hard Ilocos Norte geofence + two-tier intra-city / inter-municipality tricycle fare matrix | 🔴 Priority #2 Needs Fixing |
+| **Service Geofence & Inter-Town Fares** | `rider_map_booking_screen.dart`, `location_service.dart`, `fare_calculator_service.dart` | Hard Ilocos Norte geofence, `CameraConstraint.contain`, and two-tier intra-city / inter-municipality fare matrix active | Hard Ilocos Norte geofence + two-tier intra-city / inter-municipality tricycle fare matrix | 🟢 Completed |
 | **Tricycle Photos** | `id_upload_screen.dart` | Skip removed & 4-angle uploads enforced | Mandatory 4-angle physical photos | 🟢 Completed |
 | **Driver ID Type & Duty Gate** | `id_upload_screen.dart`, `driver_map_duty_screen.dart` | Professional Driver's License + MINC approval required before going online | Strict MINC approval before duty active | 🟢 Completed |
 | **SMS OTP** | `otp_verification_screen.dart` | Static OTP `123456` / `202601` removed; wired to Supabase Auth | Activate SMSGate (`api.sms-gate.app`) or PH SMS gateway | 🟡 Static Bypass Removed / Gateway Pending |
