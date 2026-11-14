@@ -89,8 +89,28 @@ class LocationService {
   static const String _ilocosNorteViewbox =
       '120.4200,18.6600,120.9600,17.8800';
 
-  // Approved neighboring Ilocos Norte municipal hubs for instant offline & online search
+  // Approved neighboring Ilocos Norte municipal hubs & curated POIs for instant offline & online search
   static const List<LocationPoint> ilocosNorteMunicipalHubs = [
+    // San Nicolas
+    LocationPoint(
+      name: 'Robinsons Place Ilocos, San Nicolas, Ilocos Norte',
+      latitude: 18.1845,
+      longitude: 120.5912,
+      zoneCode: 'IN-SN',
+    ),
+    LocationPoint(
+      name: 'San Nicolas Public Market & Town Plaza, San Nicolas, Ilocos Norte',
+      latitude: 18.1731,
+      longitude: 120.5947,
+      zoneCode: 'IN-SN',
+    ),
+    LocationPoint(
+      name: 'Valdez Center & Venvi IT Park, San Nicolas, Ilocos Norte',
+      latitude: 18.1819,
+      longitude: 120.5906,
+      zoneCode: 'IN-SN',
+    ),
+    // Bacarra
     LocationPoint(
       name: 'Bacarra Town Plaza & Public Market, Bacarra, Ilocos Norte',
       latitude: 18.2533,
@@ -98,11 +118,31 @@ class LocationService {
       zoneCode: 'IN-BAC',
     ),
     LocationPoint(
+      name: 'Bacarra Domeless Bell Tower & St. Andrew Church, Bacarra, Ilocos Norte',
+      latitude: 18.2539,
+      longitude: 120.6111,
+      zoneCode: 'IN-BAC',
+    ),
+    LocationPoint(
+      name: 'Bacarra Municipal Hall & Bus Stop, Bacarra, Ilocos Norte',
+      latitude: 18.2528,
+      longitude: 120.6125,
+      zoneCode: 'IN-BAC',
+    ),
+    // Sarrat
+    LocationPoint(
       name: 'Sarrat Town Plaza & Santa Monica Church, Sarrat, Ilocos Norte',
       latitude: 18.1578,
       longitude: 120.6461,
       zoneCode: 'IN-SAR',
     ),
+    LocationPoint(
+      name: 'Sarrat Public Market & Terminal, Sarrat, Ilocos Norte',
+      latitude: 18.1569,
+      longitude: 120.6453,
+      zoneCode: 'IN-SAR',
+    ),
+    // Paoay
     LocationPoint(
       name: 'Paoay Church (San Agustin) & Plaza, Paoay, Ilocos Norte',
       latitude: 18.0614,
@@ -110,11 +150,62 @@ class LocationService {
       zoneCode: 'IN-PAO',
     ),
     LocationPoint(
+      name: 'Paoay Sand Dunes (Suba), Paoay, Ilocos Norte',
+      latitude: 18.1208,
+      longitude: 120.5175,
+      zoneCode: 'IN-PAO',
+    ),
+    LocationPoint(
+      name: 'Malacañang of the North (Paoay Lake), Paoay, Ilocos Norte',
+      latitude: 18.1114,
+      longitude: 120.5389,
+      zoneCode: 'IN-PAO',
+    ),
+    LocationPoint(
+      name: 'Paoay Public Market & Town Center, Paoay, Ilocos Norte',
+      latitude: 18.0625,
+      longitude: 120.5203,
+      zoneCode: 'IN-PAO',
+    ),
+    // Batac City
+    LocationPoint(
       name: 'Batac City Riverside & MMSU Main Campus, Batac, Ilocos Norte',
       latitude: 18.0556,
       longitude: 120.5639,
       zoneCode: 'IN-BAT',
     ),
+    LocationPoint(
+      name: 'Mariano Marcos Memorial Hospital & Medical Center (MMMH&MC), Batac, Ilocos Norte',
+      latitude: 18.0611,
+      longitude: 120.5586,
+      zoneCode: 'IN-BAT',
+    ),
+    LocationPoint(
+      name: 'Batac Public Market & Bus Terminal, Batac, Ilocos Norte',
+      latitude: 18.0542,
+      longitude: 120.5647,
+      zoneCode: 'IN-BAT',
+    ),
+    LocationPoint(
+      name: 'Marcos Museum & Mausoleum, Batac, Ilocos Norte',
+      latitude: 18.0553,
+      longitude: 120.5656,
+      zoneCode: 'IN-BAT',
+    ),
+    // Currimao
+    LocationPoint(
+      name: 'Currimao Port & Seaport Terminal, Currimao, Ilocos Norte',
+      latitude: 18.0156,
+      longitude: 120.4839,
+      zoneCode: 'IN-CUR',
+    ),
+    LocationPoint(
+      name: 'Currimao Town Plaza & Public Market, Currimao, Ilocos Norte',
+      latitude: 18.0189,
+      longitude: 120.4864,
+      zoneCode: 'IN-CUR',
+    ),
+    // Dingras & Solsona
     LocationPoint(
       name: 'Dingras Town Plaza & Public Market, Dingras, Ilocos Norte',
       latitude: 18.1039,
@@ -122,11 +213,31 @@ class LocationService {
       zoneCode: 'IN-DIN',
     ),
     LocationPoint(
+      name: 'Dingras District Hospital, Dingras, Ilocos Norte',
+      latitude: 18.1014,
+      longitude: 120.6967,
+      zoneCode: 'IN-DIN',
+    ),
+    LocationPoint(
+      name: 'Solsona Town Plaza & Public Market, Solsona, Ilocos Norte',
+      latitude: 18.0964,
+      longitude: 120.7711,
+      zoneCode: 'IN-SOL',
+    ),
+    // Pasuquin
+    LocationPoint(
       name: 'Pasuquin Town Plaza & Public Market, Pasuquin, Ilocos Norte',
       latitude: 18.3333,
       longitude: 120.6186,
       zoneCode: 'IN-PAS',
     ),
+    LocationPoint(
+      name: 'Pasuquin Salt Beds & Coastal Road, Pasuquin, Ilocos Norte',
+      latitude: 18.3522,
+      longitude: 120.6058,
+      zoneCode: 'IN-PAS',
+    ),
+    // Burgos
     LocationPoint(
       name: 'Cape Bojeador Lighthouse & Burgos Town, Burgos, Ilocos Norte',
       latitude: 18.5150,
@@ -134,15 +245,47 @@ class LocationService {
       zoneCode: 'IN-BUR',
     ),
     LocationPoint(
+      name: 'Kapurpurawan Rock Formation, Burgos, Ilocos Norte',
+      latitude: 18.5453,
+      longitude: 120.6156,
+      zoneCode: 'IN-BUR',
+    ),
+    // Bangui
+    LocationPoint(
       name: 'Bangui Windmills & Town Center, Bangui, Ilocos Norte',
       latitude: 18.5378,
       longitude: 120.7667,
       zoneCode: 'IN-BAN',
     ),
     LocationPoint(
+      name: 'Bangui Public Market & Highway Terminal, Bangui, Ilocos Norte',
+      latitude: 18.5364,
+      longitude: 120.7653,
+      zoneCode: 'IN-BAN',
+    ),
+    // Pagudpud
+    LocationPoint(
       name: 'Pagudpud Town Center & Saud Beach, Pagudpud, Ilocos Norte',
       latitude: 18.5614,
       longitude: 120.7931,
+      zoneCode: 'IN-PAG',
+    ),
+    LocationPoint(
+      name: 'Pagudpud Public Market & Bus Terminal, Pagudpud, Ilocos Norte',
+      latitude: 18.5597,
+      longitude: 120.7889,
+      zoneCode: 'IN-PAG',
+    ),
+    LocationPoint(
+      name: 'Blue Lagoon (Maira-ira Beach), Pagudpud, Ilocos Norte',
+      latitude: 18.6131,
+      longitude: 120.8692,
+      zoneCode: 'IN-PAG',
+    ),
+    LocationPoint(
+      name: 'Patapat Viaduct Scenic View, Pagudpud, Ilocos Norte',
+      latitude: 18.5756,
+      longitude: 120.8803,
       zoneCode: 'IN-PAG',
     ),
   ];
