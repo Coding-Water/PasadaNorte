@@ -130,7 +130,9 @@ class SupabaseService {
         'statutory_discount_share_rate': config.succeedingDiscountRate,
         'updated_at': DateTime.now().toIso8601String(),
       });
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Supabase upsertFareConfig error: $e');
+    }
   }
 
   // Saves updated TODA Geofence Radius to Supabase PostGIS table
@@ -141,7 +143,9 @@ class SupabaseService {
           .from('toda_terminals')
           .update({'radius_meters': radiusMeters})
           .eq('id', terminalId);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Supabase updateTerminalRadius error: $e');
+    }
   }
 
   // Local in-memory registry for rapid registration & login testing
@@ -259,7 +263,9 @@ class SupabaseService {
               .from('users')
               .update(mediaUpdates)
               .eq('phone_number', phoneNumber);
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('Supabase users media update error: $e');
+        }
       }
 
       if (inserted != null && inserted['id'] != null) {
@@ -274,7 +280,9 @@ class SupabaseService {
         });
         return userId;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Supabase registerOrUpdateUser error: $e');
+    }
     return _localRegisteredUsers[phoneNumber]!['id'] as String;
   }
 
@@ -292,7 +300,9 @@ class SupabaseService {
           _localRegisteredUsers[phoneNumber] = row;
           return row;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Supabase fetchRiderApplicationByPhone error: $e');
+      }
     }
     return _localRegisteredUsers[phoneNumber];
   }
@@ -319,9 +329,13 @@ class SupabaseService {
             await Supabase.instance.client.from('users').update({
               'id_photo_url': uploadedUrl,
             }).eq('phone_number', phoneNumber);
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('Supabase resubmitRiderIdDocument url update error: $e');
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Supabase resubmitRiderIdDocument error: $e');
+      }
     }
     if (_localRegisteredUsers.containsKey(phoneNumber)) {
       _localRegisteredUsers[phoneNumber]!['verification_status'] = 'pending';
@@ -345,7 +359,9 @@ class SupabaseService {
           'verification_status': 'pending',
           'admin_review_note': 'Passenger redid 1:1 Face Bio Scan for admin re-review.',
         }).eq('phone_number', phoneNumber);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Supabase resubmitRiderFaceScan error: $e');
+      }
     }
     if (_localRegisteredUsers.containsKey(phoneNumber)) {
       _localRegisteredUsers[phoneNumber]!['verification_status'] = 'pending';
@@ -640,7 +656,9 @@ class SupabaseService {
           'action_type': 'ADMIN_REVIEW_${dbStatus.toUpperCase()}',
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Supabase updateRiderReviewStatus error: $e');
+    }
   }
 
   // 1. Broadcasts live Driver GPS telemetry to Supabase active_rides table with velocity sanity checks
@@ -733,7 +751,9 @@ class SupabaseService {
         'dropoff_location': destination,
         'completed_at': DateTime.now().toIso8601String(),
       });
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Supabase recordCompletedTrip error: $e');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -786,7 +806,9 @@ class SupabaseService {
         'action_type': actionType,
         'logged_at': DateTime.now().toIso8601String(),
       });
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Supabase logBiometricAccess error: $e');
+    }
   }
 
   static RealtimeChannel? _dispatchChannel;
@@ -871,7 +893,9 @@ class SupabaseService {
           event: 'ride_requested',
           payload: payload,
         );
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Supabase broadcastRideRequested error: $e');
+      }
     }
   }
 
@@ -911,7 +935,9 @@ class SupabaseService {
           event: 'ride_accepted',
           payload: payload,
         );
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Supabase broadcastRideAccepted error: $e');
+      }
     }
   }
 }

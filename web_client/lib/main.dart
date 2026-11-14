@@ -2495,7 +2495,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          '🚨 SOS: ${_sosAlerts.firstWhere((a) => a['status'] == 'ACTIVE_DISPATCHED')['driver_name']} (#0042)',
+                                          '🚨 SOS: ${(_sosAlerts.firstWhere((a) => a['status'] == 'ACTIVE_DISPATCHED', orElse: () => <String, dynamic>{})['driver_name'] ?? 'Driver')} (#0042)',
                                           style: const TextStyle(
                                             color: Color(0xFFDC2626),
                                             fontWeight: FontWeight.w800,
