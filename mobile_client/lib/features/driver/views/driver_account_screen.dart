@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/session_cache_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import '../../legal/views/privacy_policy_screen.dart';
@@ -181,6 +183,390 @@ class _DriverAccountScreenState extends State<DriverAccountScreen> {
     }
   }
 
+  Widget _buildDocumentRenewalAlertCard(Map<String, dynamic> alert) {
+    final isOnReview = alert['renewal_status'] == 'on_review';
+    final docsRaw = (alert['expired_docs'] as List?) ?? const [];
+    final docLabels = docsRaw.isEmpty
+        ? ["Professional Driver's License", 'LTO OR/CR']
+        : docsRaw
+            .map((d) => (d is Map ? d['label'] : d).toString())
+            .toList();
+    final graceUntil = (alert['grace_until'] ?? '').toString().split('T').first;
+    final submittedFiles = alert['renewed_files'] is Map
+        ? Map<String, dynamic>.from(alert['renewed_files'] as Map)
+        : const <String, dynamic>{};
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isOnReview ? const Color(0xFFFFFBEB) : const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isOnReview ? const Color(0xFFF59E0B) : const Color(0xFFFCA5A5),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isOnReview
+                      ? const Color(0xFFFEF3C7)
+                      : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  isOnReview
+                      ? Icons.hourglass_top_rounded
+                      : Icons.warning_amber_rounded,
+                  color: isOnReview
+                      ? const Color(0xFFD97706)
+                      : const Color(0xFFDC2626),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isOnReview
+                      ? 'On Review — Renewed Documents Submitted'
+                      : 'Expired Documents — Renewal Required',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                    color: isOnReview
+                        ? const Color(0xFF92400E)
+                        : const Color(0xFF991B1B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            isOnReview
+                ? 'Your renewed documents have been sent and are currently On Review by MINC Admin:'
+                : 'MINC Admin notified you that the following document(s) are expired or due for renewal:',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade800),
+          ),
+          const SizedBox(height: 8),
+          ...docLabels.map(
+            (label) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    isOnReview
+                        ? Icons.check_circle_outline_rounded
+                        : Icons.error_outline_rounded,
+                    size: 15,
+                    color: isOnReview
+                        ? const Color(0xFFD97706)
+                        : const Color(0xFFDC2626),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      isOnReview && submittedFiles[label] != null
+                          ? '$label (${submittedFiles[label]})'
+                          : label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                        color: isOnReview
+                            ? const Color(0xFF78350F)
+                            : const Color(0xFF7F1D1D),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (!isOnReview && graceUntil.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Grace Period Deadline: $graceUntil',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+                color: Color(0xFFB45309),
+              ),
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            isOnReview
+                ? 'Waiting for MINC Admin approval. Once approved, you can accept passengers again.'
+                : 'You cannot go online or accept passengers until you resend your renewed files.',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: isOnReview
+                  ? const Color(0xFFB45309)
+                  : const Color(0xFFB91C1C),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (isOnReview)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFF59E0B)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.hourglass_top_rounded, size: 18, color: Color(0xFFB45309)),
+                  SizedBox(width: 8),
+                  Text(
+                    'On Review • Waiting for MINC Admin',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => _showResendRenewedFilesSheet(docLabels),
+                icon: const Icon(Icons.upload_file_rounded, size: 18),
+                label: const Text(
+                  'Click here to resend files',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showResendRenewedFilesSheet(List<String> docLabels) async {
+    final Map<String, String> attachedFiles = {};
+    bool isSubmitting = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final allAttached = docLabels.every((d) => attachedFiles.containsKey(d));
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Resend Renewed Documents',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Upload updated copies of your expired documents to end your grace period and resume passenger trips.',
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 14),
+                ...docLabels.map((label) {
+                  final fileName = attachedFiles[label];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: fileName != null
+                          ? const Color(0xFFECFDF5)
+                          : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: fileName != null
+                            ? const Color(0xFF6EE7B7)
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          fileName != null
+                              ? Icons.check_circle_rounded
+                              : Icons.description_outlined,
+                          color: fileName != null
+                              ? AppTheme.accentEmeraldDark
+                              : Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                label,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                fileName ?? 'No renewed file selected',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: fileName != null
+                                      ? AppTheme.accentEmeraldDark
+                                      : Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Camera',
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.camera_alt_rounded, size: 20, color: AppTheme.accentEmeraldDark),
+                              onPressed: () async {
+                                try {
+                                  final photo = await ImagePicker().pickImage(
+                                    source: ImageSource.camera,
+                                    imageQuality: 85,
+                                  );
+                                  if (photo != null) {
+                                    setSheetState(() {
+                                      attachedFiles[label] = photo.name;
+                                    });
+                                  }
+                                } catch (_) {}
+                              },
+                            ),
+                            IconButton(
+                              tooltip: 'Image Gallery',
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.photo_library_rounded, size: 20, color: AppTheme.accentEmeraldDark),
+                              onPressed: () async {
+                                try {
+                                  final photo = await ImagePicker().pickImage(
+                                    source: ImageSource.gallery,
+                                    imageQuality: 85,
+                                  );
+                                  if (photo != null) {
+                                    setSheetState(() {
+                                      attachedFiles[label] = photo.name;
+                                    });
+                                  }
+                                } catch (_) {}
+                              },
+                            ),
+                            IconButton(
+                              tooltip: 'Choose File',
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.upload_file_rounded, size: 20, color: AppTheme.accentEmeraldDark),
+                              onPressed: () async {
+                                try {
+                                  final picked = await FilePicker.pickFiles(
+                                    type: FileType.custom,
+                                    allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+                                  );
+                                  if (picked.isNotEmpty) {
+                                    setSheetState(() {
+                                      attachedFiles[label] = picked.first.name;
+                                    });
+                                  }
+                                } catch (_) {}
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.accentEmerald,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: (!allAttached || isSubmitting)
+                        ? null
+                        : () async {
+                            setSheetState(() => isSubmitting = true);
+                            await SupabaseService.submitRenewedDriverDocuments(
+                              phoneNumber: _phoneNumber,
+                              driverName: widget.fullName,
+                              renewedFileNames: attachedFiles,
+                            );
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  backgroundColor: Color(0xFFD97706),
+                                  content: Text(
+                                    'Renewed documents submitted! Status is now On Review — waiting for MINC Admin approval.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Submit Renewed Files',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _openDriverDetails() {
     Navigator.push(
       context,
@@ -220,6 +606,13 @@ class _DriverAccountScreenState extends State<DriverAccountScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
+          ValueListenableBuilder<Map<String, dynamic>?>(
+            valueListenable: SupabaseService.activeRenewalAlertNotifier,
+            builder: (context, alert, _) {
+              if (alert == null) return const SizedBox.shrink();
+              return _buildDocumentRenewalAlertCard(alert);
+            },
+          ),
           // Profile Card
           Material(
             color: Colors.white,

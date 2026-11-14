@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/models/user_model.dart';
 import '../../features/fare/services/fare_calculator_service.dart';
+import 'document_expiry_service.dart';
+import 'driver_stats_service.dart';
 import 'face_verification_service.dart';
 import 'location_service.dart';
+import 'system_notification_service.dart';
 import 'toda_queue_service.dart';
 
 class SupabaseService {
@@ -465,6 +468,10 @@ class SupabaseService {
     String? ownerAuthLetterUrl,
     String? ownerIdPhotoUrl,
     Map<String, String>? vehiclePhotos,
+    DateTime? licenseExpiryDate,
+    DateTime? orcrExpiryDate,
+    DateTime? mtopExpiryDate,
+    DateTime? nbiExpiryDate,
   }) async {
     // Upload actual files/photos to Supabase Storage when connected
     final uploaded = await Future.wait<String?>([
@@ -506,6 +513,14 @@ class SupabaseService {
       'vehicle_back_photo_url': uploaded[10],
       'vehicle_left_photo_url': uploaded[11],
       'vehicle_right_photo_url': uploaded[12],
+      if (licenseExpiryDate != null)
+        'license_expiry_date': licenseExpiryDate.toIso8601String().split('T').first,
+      if (orcrExpiryDate != null)
+        'orcr_expiry_date': orcrExpiryDate.toIso8601String().split('T').first,
+      if (mtopExpiryDate != null)
+        'mtop_expiry_date': mtopExpiryDate.toIso8601String().split('T').first,
+      if (nbiExpiryDate != null)
+        'nbi_expiry_date': nbiExpiryDate.toIso8601String().split('T').first,
       'application_status': 'submitted',
       'created_at': DateTime.now().toIso8601String(),
     };
@@ -812,9 +827,13 @@ class SupabaseService {
   }
 
   static RealtimeChannel? _dispatchChannel;
+  static final ValueNotifier<Map<String, dynamic>?> activeRenewalAlertNotifier =
+      ValueNotifier<Map<String, dynamic>?>(null);
   static final StreamController<Map<String, dynamic>> _rideAcceptedStreamController =
       StreamController<Map<String, dynamic>>.broadcast();
   static final StreamController<Map<String, dynamic>> _rideRequestedStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  static final StreamController<Map<String, dynamic>> _renewalNoticeStreamController =
       StreamController<Map<String, dynamic>>.broadcast();
 
   /// Reactive stream for ride acceptance events
@@ -824,6 +843,149 @@ class SupabaseService {
   /// Reactive stream for incoming ride requests (Passenger -> Drivers)
   static Stream<Map<String, dynamic>> get onRideRequested =>
       _rideRequestedStreamController.stream;
+
+  /// Reactive stream for admin document renewal / grace-period notices
+  static Stream<Map<String, dynamic>> get onDocumentRenewalNotice =>
+      _renewalNoticeStreamController.stream;
+
+  /// Syncs an incoming renewal notice payload into local driver state and fires notification.
+  static Future<void> handleIncomingRenewalNotice(
+    Map<String, dynamic> payload, {
+    String? currentDriverPhone,
+    String? currentDriverName,
+  }) async {
+    final targetPhone = (payload['phone_number'] ?? '').toString().trim();
+    final targetName = (payload['driver_name'] ?? '').toString().trim();
+    final matchesPhone = currentDriverPhone == null ||
+        currentDriverPhone.isEmpty ||
+        targetPhone.isEmpty ||
+        targetPhone == currentDriverPhone;
+    final matchesName = currentDriverName == null ||
+        currentDriverName.isEmpty ||
+        targetName.isEmpty ||
+        targetName.toLowerCase().contains(currentDriverName.toLowerCase()) ||
+        currentDriverName.toLowerCase().contains(targetName.toLowerCase());
+
+    if (!matchesPhone && !matchesName) return;
+
+    if (targetPhone.isNotEmpty && _localDriverApplications.containsKey(targetPhone)) {
+      _localDriverApplications[targetPhone] = {
+        ..._localDriverApplications[targetPhone]!,
+        'renewal_grace_until': payload['grace_until'],
+        'renewal_notice_sent_at': DateTime.now().toIso8601String(),
+        'renewal_notice_message': payload['message'],
+      };
+    }
+
+    activeRenewalAlertNotifier.value = payload;
+    _renewalNoticeStreamController.add(payload);
+
+    final graceDays = (payload['grace_days'] as num?)?.toInt() ?? 14;
+    final graceUntilStr = (payload['grace_until'] ?? '').toString().split('T').first;
+    final docsRaw = (payload['expired_docs'] as List?) ?? const [];
+    final docNames = docsRaw.isEmpty
+        ? "Professional Driver's License, LTO OR/CR"
+        : docsRaw.map((d) => (d is Map ? d['label'] : d).toString()).join(', ');
+
+    await SystemNotificationService.notifyDriverDocumentRenewalGrace(
+      driverName: targetName.isNotEmpty ? targetName : (currentDriverName ?? 'Driver'),
+      documentsSummary: docNames,
+      graceDays: graceDays,
+      graceDeadlineLabel: graceUntilStr.isNotEmpty ? graceUntilStr : '$graceDays days',
+    );
+  }
+
+  /// Submits renewed documents from the mobile driver app for MINC Admin review.
+  /// Moves local state to `on_review` (Yellow) and broadcasts `document_renewal_submitted`.
+  static Future<void> submitRenewedDriverDocuments({
+    required String phoneNumber,
+    required String driverName,
+    required Map<String, String> renewedFileNames,
+  }) async {
+    final existing = activeRenewalAlertNotifier.value ?? <String, dynamic>{};
+    final onReviewPayload = <String, dynamic>{
+      ...existing,
+      'phone_number': phoneNumber,
+      'driver_name': driverName,
+      'renewal_status': 'on_review',
+      'renewed_files': renewedFileNames,
+      'submitted_at': DateTime.now().toIso8601String(),
+    };
+
+    if (_localDriverApplications.containsKey(phoneNumber)) {
+      _localDriverApplications[phoneNumber] = {
+        ..._localDriverApplications[phoneNumber]!,
+        'renewal_status': 'on_review',
+        'renewed_files': renewedFileNames,
+      };
+    }
+    activeRenewalAlertNotifier.value = onReviewPayload;
+
+    if (_isConnected && phoneNumber.isNotEmpty) {
+      try {
+        await Supabase.instance.client
+            .from('driver_applications')
+            .update({
+              'renewal_notice_message':
+                  'ON_REVIEW: Driver submitted renewed files (${renewedFileNames.values.join(', ')})',
+            })
+            .eq('phone_number', phoneNumber);
+      } catch (e) {
+        debugPrint('Supabase submitRenewedDriverDocuments error: $e');
+      }
+      try {
+        final channel = getDispatchChannel();
+        await channel?.sendBroadcastMessage(
+          event: 'document_renewal_submitted',
+          payload: {
+            'phone_number': phoneNumber,
+            'driver_name': driverName,
+            'renewed_files': renewedFileNames,
+            'submitted_at': DateTime.now().toIso8601String(),
+          },
+        );
+      } catch (e) {
+        debugPrint('Supabase broadcast document_renewal_submitted error: $e');
+      }
+    }
+    DocumentExpiryService.mockSmsOutbox.removeWhere((e) => e.phoneNumber == phoneNumber);
+  }
+
+  /// Handles `document_renewal_approved` from web_client MINC Admin.
+  /// Clears the yellow On Review ping & unlocks passenger acceptance.
+  static Future<void> handleIncomingRenewalApproved(
+    Map<String, dynamic> payload,
+  ) async {
+    final phone = (payload['phone_number'] ?? '').toString().trim();
+    final validUntil = (payload['valid_until'] ??
+            DateTime.now().add(const Duration(days: 365)).toIso8601String().split('T').first)
+        .toString();
+
+    if (phone.isNotEmpty && _localDriverApplications.containsKey(phone)) {
+      _localDriverApplications[phone] = {
+        ..._localDriverApplications[phone]!,
+        'license_expiry_date': validUntil,
+        'orcr_expiry_date': validUntil,
+        'mtop_expiry_date': validUntil,
+        'nbi_expiry_date': validUntil,
+        'renewal_grace_until': null,
+        'renewal_notice_sent_at': null,
+        'renewal_notice_message': null,
+        'renewal_status': 'approved',
+        'application_status': 'approved',
+      };
+    }
+
+    DriverStatsService.isFranchiseActive = true;
+    DriverStatsService.lastInspectionStatus = 'Passed (MINC Verified)';
+    activeRenewalAlertNotifier.value = null;
+
+    await SystemNotificationService.showDriverApplicationNotification(
+      title: 'Renewed Documents Approved! ✅',
+      body: 'MINC Admin approved your renewed documents. You can now go online and accept passengers.',
+      payload: 'document_renewal_approved',
+    );
+  }
 
   /// Initializes or retrieves the shared Supabase Realtime dispatch channel
   static RealtimeChannel? getDispatchChannel() {
@@ -841,6 +1003,16 @@ class SupabaseService {
         event: 'ride_requested',
         callback: (payload) {
           _rideRequestedStreamController.add(payload);
+        },
+      ).onBroadcast(
+        event: 'document_renewal_notice',
+        callback: (payload) {
+          handleIncomingRenewalNotice(payload);
+        },
+      ).onBroadcast(
+        event: 'document_renewal_approved',
+        callback: (payload) {
+          handleIncomingRenewalApproved(payload);
         },
       ).subscribe();
       return _dispatchChannel;

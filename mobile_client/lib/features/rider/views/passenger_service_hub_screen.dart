@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:async';
+import 'package:flutter/material.dart';
+import '../../../core/services/system_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import 'passenger_account_screen.dart';
@@ -27,11 +29,37 @@ class PassengerServiceHubScreen extends StatefulWidget {
 
 class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
   late int _currentIndex;
+  StreamSubscription<String>? _notifTapSub;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialTabIndex;
+    _notifTapSub =
+        SystemNotificationService.onNotificationTap.listen(_handleNotificationTabSwitch);
+    if (SystemNotificationService.pendingPayload != null) {
+      final p = SystemNotificationService.pendingPayload!;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _handleNotificationTabSwitch(p));
+    }
+  }
+
+  void _handleNotificationTabSwitch(String payload) {
+    if (!mounted) return;
+    if (payload == 'trip_completed') {
+      setState(() => _currentIndex = 2);
+    } else if (payload == 'trip_accepted' ||
+        payload == 'driver_arrived' ||
+        payload == 'trip_in_transit' ||
+        payload == 'driver_application_status') {
+      setState(() => _currentIndex = 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _notifTapSub?.cancel();
+    super.dispose();
   }
 
 

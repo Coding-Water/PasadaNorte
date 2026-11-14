@@ -1,10 +1,26 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class SystemNotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
+
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+  static final StreamController<String> _tapController =
+      StreamController<String>.broadcast();
+  static Stream<String> get onNotificationTap => _tapController.stream;
+  static String? pendingPayload;
+  static void Function(String payload)? onRoutePayload;
+
+  static void handleNotificationPayload(String? payload) {
+    final trimmed = payload?.trim() ?? '';
+    if (trimmed.isEmpty) return;
+    pendingPayload = trimmed;
+    _tapController.add(trimmed);
+    onRoutePayload?.call(trimmed);
+  }
 
   static bool _isInitialized = false;
   static int _notificationIdCounter = 1000;
@@ -39,8 +55,21 @@ class SystemNotificationService {
         onDidReceiveNotificationResponse: (NotificationResponse response) {
           debugPrint(
               'User tapped system notification with payload: ${response.payload}');
+          handleNotificationPayload(response.payload);
         },
       );
+
+      final launchDetails =
+          await _notificationsPlugin.getNotificationAppLaunchDetails();
+      if (launchDetails?.didNotificationLaunchApp == true) {
+        final launchPayload = launchDetails?.notificationResponse?.payload;
+        if (launchPayload != null && launchPayload.trim().isNotEmpty) {
+          pendingPayload = launchPayload.trim();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            handleNotificationPayload(pendingPayload);
+          });
+        }
+      }
 
       // Create high-importance Android notification channel with default system sound
       final androidImplementation = _notificationsPlugin
@@ -250,6 +279,23 @@ class SystemNotificationService {
       title: title,
       body: body,
       payload: payload,
+    );
+  }
+
+  /// Fires a native Android/iOS notification when MINC flags an expired/expiring
+  /// driver document and grants a renewal grace period.
+  static Future<void> notifyDriverDocumentRenewalGrace({
+    required String driverName,
+    required String documentsSummary,
+    required int graceDays,
+    required String graceDeadlineLabel,
+  }) async {
+    await showNotification(
+      customId: 302,
+      title: 'Document Renewal Required ($graceDays-Day Grace)',
+      body:
+          'Hi $driverName, please renew $documentsSummary by $graceDeadlineLabel to keep active duty.',
+      payload: 'document_renewal_grace',
     );
   }
 }

@@ -54,7 +54,7 @@ app.*.map.json
 *.doc
 ~$*.docx
 *.pdf
-Joyride Native App UI (Copy) (Community).pdf
+
 
 # Temporary files & audit outputs
 tmp/

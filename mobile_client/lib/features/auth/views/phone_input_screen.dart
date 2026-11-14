@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/session_cache_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
@@ -65,6 +66,11 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           if (!mounted) return;
           final appStatus = (appRow?['application_status'] ?? '').toString();
           final isPendingReview = appRow != null && appStatus != 'approved';
+          DriverStatsService.isFranchiseActive = !isPendingReview;
+          final plate = (appRow?['plate_or_mv_file'] ?? '').toString().trim();
+          final toda = (appRow?['toda_code'] ?? '').toString().trim();
+          if (plate.isNotEmpty) DriverStatsService.plateNumber = plate;
+          if (toda.isNotEmpty) DriverStatsService.todaAssociation = toda;
 
           await SessionCacheService.saveDriverSession(
             phoneNumber: fullPhoneNumber,
@@ -376,7 +382,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
 
                 // Bottom Mode Switcher
                 Center(

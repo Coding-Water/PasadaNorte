@@ -51,15 +51,86 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   StreamSubscription<Map<String, dynamic>>? _rideRequestedSubscription;
   StreamSubscription<List<Map<String, dynamic>>>? _todaTerminalsSub;
   StreamSubscription<List<Map<String, dynamic>>>? _driverAppSub;
+  StreamSubscription<String>? _notifTapSub;
   bool _isDispatchDialogOpen = false;
 
   @override
   void initState() {
     super.initState();
+    SupabaseService.activeRenewalAlertNotifier.addListener(_onRenewalAlertChanged);
+    _notifTapSub = SystemNotificationService.onNotificationTap.listen(_handleNotificationTabSwitch);
+    if (SystemNotificationService.pendingPayload != null) {
+      final p = SystemNotificationService.pendingPayload!;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handleNotificationTabSwitch(p));
+    }
     _loadForecast();
     _listenToRealtimeDispatches();
     _listenToTodaTerminals();
     _listenToDriverApplication();
+    _syncInitialRenewalState();
+  }
+
+  void _handleNotificationTabSwitch(String payload) {
+    if (!mounted) return;
+    if (payload == 'document_renewal_grace') {
+      setState(() => _currentIndex = 2);
+    } else if (payload == 'document_renewal_approved' || payload == 'dispatch_offer') {
+      setState(() => _currentIndex = 0);
+    } else if (payload == 'trip_completed') {
+      setState(() => _currentIndex = 1);
+    }
+  }
+
+  void _onRenewalAlertChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (SupabaseService.activeRenewalAlertNotifier.value != null) {
+        _isOnline = false;
+      }
+    });
+  }
+
+  Future<void> _syncInitialRenewalState() async {
+    final session = await SessionCacheService.getSavedSession();
+    final phone = session?.phoneNumber.trim() ?? '';
+    if (phone.isEmpty) return;
+    final appRow = await SupabaseService.getDriverApplicationByPhone(phone);
+    if (!mounted || appRow == null) return;
+    if (appRow['toda_code'] != null &&
+        appRow['toda_code'].toString().trim().isNotEmpty) {
+      DriverStatsService.todaAssociation = appRow['toda_code'].toString().trim();
+      DriverStatsService.bodyNumber = appRow['toda_code'].toString().trim();
+    }
+    if (appRow['plate_or_mv_file'] != null &&
+        appRow['plate_or_mv_file'].toString().trim().isNotEmpty) {
+      DriverStatsService.plateNumber = appRow['plate_or_mv_file'].toString().trim();
+    }
+    final appStatus =
+        (appRow['application_status'] ?? '').toString().trim().toLowerCase();
+    if (appStatus == 'approved') {
+      DriverStatsService.isFranchiseActive = true;
+      DriverStatsService.lastInspectionStatus = 'Passed (MINC Verified)';
+      if (mounted) setState(() {});
+    }
+    if (appRow['renewal_notice_sent_at'] != null ||
+        appRow['renewal_grace_until'] != null) {
+      await SupabaseService.handleIncomingRenewalNotice(
+        {
+          'phone_number': phone,
+          'driver_name': appRow['full_name'] ?? widget.fullName,
+          'expired_docs': appRow['expired_docs'] ??
+              [
+                {'label': "Professional Driver's License"},
+                {'label': 'LTO OR/CR'},
+                {'label': 'MTOP / Tricycle Franchise'},
+              ],
+          'grace_until': appRow['renewal_grace_until'],
+          'message': appRow['renewal_notice_message'],
+        },
+        currentDriverPhone: phone,
+        currentDriverName: widget.fullName,
+      );
+    }
   }
 
   Future<void> _listenToDriverApplication() async {
@@ -107,6 +178,21 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
           DriverStatsService.isFranchiseActive = false;
           _isOnline = false;
         }
+        if (matched['renewal_notice_sent_at'] != null ||
+            matched['renewal_grace_until'] != null) {
+          unawaited(
+            SupabaseService.handleIncomingRenewalNotice(
+              {
+                'phone_number': savedPhone,
+                'driver_name': matched['full_name'] ?? widget.fullName,
+                'grace_until': matched['renewal_grace_until'],
+                'message': matched['renewal_notice_message'],
+              },
+              currentDriverPhone: savedPhone,
+              currentDriverName: widget.fullName,
+            ),
+          );
+        }
         if (mounted) setState(() {});
       }, onError: (_) {});
     } catch (_) {}
@@ -138,6 +224,8 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
 
   @override
   void dispose() {
+    SupabaseService.activeRenewalAlertNotifier.removeListener(_onRenewalAlertChanged);
+    _notifTapSub?.cancel();
     _rideRequestedSubscription?.cancel();
     _todaTerminalsSub?.cancel();
     _driverAppSub?.cancel();
@@ -161,6 +249,18 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   }
 
   void _toggleDutyStatus() {
+    if (SupabaseService.activeRenewalAlertNotifier.value != null) {
+      setState(() => _isOnline = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Document renewal required: Open Account (bottom right) to resend expired files before accepting passengers.',
+          ),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
     if (!DriverStatsService.isFranchiseActive) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -178,6 +278,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   }
 
   void _handleIncomingRealRideRequest(Map<String, dynamic> request) {
+    if (SupabaseService.activeRenewalAlertNotifier.value != null) return;
     if (_isDispatchDialogOpen) return;
     _isDispatchDialogOpen = true;
 
@@ -1710,26 +1811,58 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
               fontSize: 11.5,
             ),
             type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(
+            items: [
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.home_outlined),
                 activeIcon: Icon(Icons.home_rounded),
                 label: 'Home',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.receipt_long_outlined),
                 activeIcon: Icon(Icons.receipt_long_rounded),
                 label: 'Activity',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline_rounded),
-                activeIcon: Icon(Icons.person_rounded),
+                icon: _buildAccountNavIcon(active: false),
+                activeIcon: _buildAccountNavIcon(active: true),
                 label: 'Account',
               ),
             ],
           ),
         ),
     ),
+    );
+  }
+
+  Widget _buildAccountNavIcon({required bool active}) {
+    final alert = SupabaseService.activeRenewalAlertNotifier.value;
+    final icon = Icon(
+      active ? Icons.person_rounded : Icons.person_outline_rounded,
+    );
+    if (alert == null) return icon;
+
+    final isOnReview = alert['renewal_status'] == 'on_review';
+    final dotColor =
+        isOnReview ? const Color(0xFFF59E0B) : const Color(0xFFDC2626);
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        icon,
+        Positioned(
+          right: -3,
+          top: -2,
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: dotColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.5),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

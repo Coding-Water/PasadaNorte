@@ -63,22 +63,68 @@ class _WebAdminAuthGateState extends State<_WebAdminAuthGate> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMsg;
+  int _failedAttempts = 0;
+  DateTime? _lockedUntil;
+  Timer? _lockoutTimer;
+
+  bool get _isLockedOut =>
+      _lockedUntil != null && DateTime.now().isBefore(_lockedUntil!);
+
+  int get _remainingLockoutSeconds {
+    if (_lockedUntil == null) return 0;
+    final diff = _lockedUntil!.difference(DateTime.now()).inSeconds;
+    return diff > 0 ? diff : 0;
+  }
 
   @override
   void dispose() {
+    _lockoutTimer?.cancel();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
 
   bool _isMincAdminSession(Session session) {
-    final user = session.user;
-    final appRole = user.appMetadata['role']?.toString();
-    final userRole = user.userMetadata?['role']?.toString();
-    return appRole == 'minc_admin' || userRole == 'minc_admin';
+    final appRole = session.user.appMetadata['role']?.toString();
+    return appRole == 'minc_admin';
+  }
+
+  void _recordFailedAttempt(String baseMessage) {
+    _failedAttempts++;
+    if (_failedAttempts >= 5) {
+      final multiplier = 1 << (_failedAttempts - 5).clamp(0, 4); // 30s, 60s, 120s, 240s, 480s
+      final cooldownSeconds = 30 * multiplier;
+      _lockedUntil = DateTime.now().add(Duration(seconds: cooldownSeconds));
+      _lockoutTimer?.cancel();
+      _lockoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (!_isLockedOut) {
+          timer.cancel();
+          setState(() {
+            _lockedUntil = null;
+            _errorMsg = null;
+          });
+        } else {
+          setState(() {});
+        }
+      });
+    }
+    if (mounted) {
+      setState(() => _errorMsg = baseMessage);
+    }
   }
 
   Future<void> _signIn() async {
+    if (_isLockedOut) {
+      setState(() {
+        _errorMsg =
+            'Too many failed attempts. Please wait ${_remainingLockoutSeconds}s.';
+      });
+      return;
+    }
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     if (email.isEmpty || password.isEmpty) {
@@ -94,10 +140,13 @@ class _WebAdminAuthGateState extends State<_WebAdminAuthGate> {
         email: email,
         password: password,
       );
+      _failedAttempts = 0;
+      _lockedUntil = null;
+      _lockoutTimer?.cancel();
     } on AuthException catch (e) {
-      if (mounted) setState(() => _errorMsg = e.message);
+      _recordFailedAttempt(e.message);
     } catch (e) {
-      if (mounted) setState(() => _errorMsg = 'Sign-in failed: $e');
+      _recordFailedAttempt('Sign-in failed: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -231,7 +280,9 @@ class _WebAdminAuthGateState extends State<_WebAdminAuthGate> {
                     TextField(
                       controller: _passwordCtrl,
                       obscureText: _obscurePassword,
-                      onSubmitted: (_) => _signIn(),
+                      onSubmitted: (_) {
+                        if (!_isLoading && !_isLockedOut) _signIn();
+                      },
                       decoration: InputDecoration(
                         labelText: 'Password',
                         border: const OutlineInputBorder(),
@@ -248,10 +299,12 @@ class _WebAdminAuthGateState extends State<_WebAdminAuthGate> {
                         ),
                       ),
                     ),
-                    if (_errorMsg != null) ...[
+                    if (_isLockedOut || _errorMsg != null) ...[
                       const SizedBox(height: 12),
                       Text(
-                        _errorMsg!,
+                        _isLockedOut
+                            ? 'Too many failed sign-in attempts. Try again in ${_remainingLockoutSeconds}s.'
+                            : _errorMsg!,
                         style: const TextStyle(
                           color: Color(0xFFDC2626),
                           fontSize: 12.5,
@@ -263,7 +316,7 @@ class _WebAdminAuthGateState extends State<_WebAdminAuthGate> {
                     SizedBox(
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _signIn,
+                        onPressed: (_isLoading || _isLockedOut) ? null : _signIn,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF059669),
                           foregroundColor: Colors.white,
@@ -280,9 +333,11 @@ class _WebAdminAuthGateState extends State<_WebAdminAuthGate> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text(
-                                'Sign In',
-                                style: TextStyle(fontWeight: FontWeight.w700),
+                            : Text(
+                                _isLockedOut
+                                    ? 'Locked (${_remainingLockoutSeconds}s)'
+                                    : 'Sign In',
+                                style: const TextStyle(fontWeight: FontWeight.w700),
                               ),
                       ),
                     ),
@@ -464,6 +519,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 
   // MINC Registered Drivers & Operators Directory (populated from approved Supabase driver applications)
   final List<Map<String, dynamic>> _driverDirectory = [];
+  final List<Map<String, dynamic>> _mockSmsDispatchLogs = [];
 
   // TODA Pila FIFO Queue Inspector Data (populated live from terminal queues)
   final Map<String, List<Map<String, dynamic>>> _pilaQueues = {
@@ -513,6 +569,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   final List<Map<String, dynamic>> _sosAlerts = [];
   StreamSubscription? _sosSubscription;
   StreamSubscription? _driverAppSubscription;
+  RealtimeChannel? _dispatchChannel;
+  Timer? _graceCountdownTimer;
 
   // Resolved Incident Reports & History State
   final List<Map<String, dynamic>> _incidentReports = [];
@@ -526,10 +584,238 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   @override
   void initState() {
     super.initState();
+    _mergeSeededDriversIntoDirectory();
     _loadDocReviewCache();
     _syncFromSupabase();
     _listenToSosAlerts();
     _listenToDriverApplications();
+    _listenToRealtimeDispatchChannel();
+  }
+
+  List<Map<String, dynamic>> _buildSeededDriverAccounts() {
+    final now = DateTime.now();
+    String fmtDays(int daysOffset) =>
+        now.add(Duration(days: daysOffset)).toIso8601String().split('T').first;
+
+    return [
+      // 8 Normal / Compliant Driver Accounts (no expired docs)
+      {
+        'id': 'seed_driver_001',
+        'bodyNo': 'TODA-01 #011',
+        'mtop': 'MINC-10411',
+        'name': 'Mateo Villanueva',
+        'toda': 'TODA-01',
+        'phone': '+639171110101',
+        'plateNo': 'IN-1101',
+        'profile_photo_url': '',
+        'status': 'Active Duty',
+        'verification': 100.0,
+        'trips': 64,
+        'rating': 4.9,
+        'license_expiry_date': fmtDays(320),
+        'orcr_expiry_date': fmtDays(290),
+        'mtop_expiry_date': fmtDays(240),
+        'nbi_expiry_date': fmtDays(210),
+        'isSeededDemo': true,
+      },
+      {
+        'id': 'seed_driver_002',
+        'bodyNo': 'TODA-01 #015',
+        'mtop': 'MINC-10415',
+        'name': 'Ramon Pascual',
+        'toda': 'TODA-01',
+        'phone': '+639171110102',
+        'plateNo': 'IN-1102',
+        'profile_photo_url': '',
+        'status': 'Active Duty',
+        'verification': 100.0,
+        'trips': 51,
+        'rating': 4.8,
+        'license_expiry_date': fmtDays(350),
+        'orcr_expiry_date': fmtDays(260),
+        'mtop_expiry_date': fmtDays(300),
+        'nbi_expiry_date': fmtDays(185),
+        'isSeededDemo': true,
+      },
+      {
+        'id': 'seed_driver_003',
+        'bodyNo': 'TODA-02 #008',
+        'mtop': 'MINC-20808',
+        'name': 'Danilo Agbayani',
+        'toda': 'TODA-02',
+        'phone': '+639171110103',
+        'plateNo': 'IN-2203',
+        'profile_photo_url': '',
+        'status': 'Active Duty',
+        'verification': 100.0,
+        'trips': 47,
+        'rating': 4.9,
+        'license_expiry_date': fmtDays(280),
+        'orcr_expiry_date': fmtDays(310),
+        'mtop_expiry_date': fmtDays(220),
+        'nbi_expiry_date': fmtDays(195),
+        'isSeededDemo': true,
+      },
+      {
+        'id': 'seed_driver_004',
+        'bodyNo': 'TODA-02 #014',
+        'mtop': 'MINC-20814',
+        'name': 'Carlo Bumanglag',
+        'toda': 'TODA-02',
+        'phone': '+639171110104',
+        'plateNo': 'IN-2204',
+        'profile_photo_url': '',
+        'status': 'Active Duty',
+        'verification': 100.0,
+        'trips': 73,
+        'rating': 5.0,
+        'license_expiry_date': fmtDays(400),
+        'orcr_expiry_date': fmtDays(330),
+        'mtop_expiry_date': fmtDays(275),
+        'nbi_expiry_date': fmtDays(230),
+        'isSeededDemo': true,
+      },
+      {
+        'id': 'seed_driver_005',
+        'bodyNo': 'TODA-03 #003',
+        'mtop': 'MINC-30303',
+        'name': 'Ernesto Corpuz',
+        'toda': 'TODA-03',
+        'phone': '+639171110105',
+        'plateNo': 'IN-3305',
+        'profile_photo_url': '',
+        'status': 'Active Duty',
+        'verification': 100.0,
+        'trips': 39,
+        'rating': 4.7,
+        'license_expiry_date': fmtDays(265),
+        'orcr_expiry_date': fmtDays(245),
+        'mtop_expiry_date': fmtDays(190),
+        'nbi_expiry_date': fmtDays(180),
+        'isSeededDemo': true,
+      },
+      {
+        'id': 'seed_driver_006',
+        'bodyNo': 'TODA-03 #009',
+        'mtop': 'MINC-30309',
+        'name': 'Noel Marcos',
+        'toda': 'TODA-03',
+        'phone': '+639171110106',
+        'plateNo': 'IN-3306',
+        'profile_photo_url': '',
+        'status': 'Active Duty',
+        'verification': 100.0,
+        'trips': 58,
+        'rating': 4.8,
+        'license_expiry_date': fmtDays(315),
+        'orcr_expiry_date': fmtDays(270),
+        'mtop_expiry_date': fmtDays(250),
+        'nbi_expiry_date': fmtDays(205),
+        'isSeededDemo': true,
+      },
+      {
+        'id': 'seed_driver_007',
+        'bodyNo': 'TODA-01 #021',
+        'mtop': 'MINC-10421',
+        'name': 'Rogelio Tunac',
+        'toda': 'TODA-01',
+        'phone': '+639171110107',
+        'plateNo': 'IN-1107',
+        'profile_photo_url': '',
+        'status': 'Active Duty',
+        'verification': 100.0,
+        'trips': 82,
+        'rating': 4.9,
+        'license_expiry_date': fmtDays(365),
+        'orcr_expiry_date': fmtDays(305),
+        'mtop_expiry_date': fmtDays(285),
+        'nbi_expiry_date': fmtDays(240),
+        'isSeededDemo': true,
+      },
+      {
+        'id': 'seed_driver_008',
+        'bodyNo': 'TODA-02 #019',
+        'mtop': 'MINC-20819',
+        'name': 'Arnel Galinato',
+        'toda': 'TODA-02',
+        'phone': '+639171110108',
+        'plateNo': 'IN-2208',
+        'profile_photo_url': '',
+        'status': 'Active Duty',
+        'verification': 100.0,
+        'trips': 44,
+        'rating': 4.8,
+        'license_expiry_date': fmtDays(295),
+        'orcr_expiry_date': fmtDays(255),
+        'mtop_expiry_date': fmtDays(215),
+        'nbi_expiry_date': fmtDays(200),
+        'isSeededDemo': true,
+      },
+      // 2 Expired Driver Accounts
+      {
+        'id': 'seed_driver_009',
+        'bodyNo': 'TODA-01 #033',
+        'mtop': 'MINC-10433',
+        'name': 'Eduardo Tamayo',
+        'toda': 'TODA-01',
+        'phone': '+639171110109',
+        'plateNo': 'IN-1109',
+        'profile_photo_url': '',
+        'status': 'Renewal Warning',
+        'verification': 100.0,
+        'trips': 41,
+        'rating': 4.7,
+        'license_expiry_date': fmtDays(-10),
+        'orcr_expiry_date': fmtDays(-3),
+        'mtop_expiry_date': fmtDays(140),
+        'nbi_expiry_date': fmtDays(120),
+        'renewal_grace_until': null,
+        'renewal_notice_sent_at': null,
+        'renewal_notice_message': null,
+        'isSeededDemo': true,
+      },
+      {
+        'id': 'seed_driver_010',
+        'bodyNo': 'TODA-03 #027',
+        'mtop': 'MINC-30327',
+        'name': 'Roberto Domingo',
+        'toda': 'TODA-03',
+        'phone': '+639171110110',
+        'plateNo': 'IN-3310',
+        'profile_photo_url': '',
+        'status': 'Renewal Warning',
+        'verification': 100.0,
+        'trips': 29,
+        'rating': 4.6,
+        'license_expiry_date': fmtDays(95),
+        'orcr_expiry_date': fmtDays(80),
+        'mtop_expiry_date': fmtDays(-7),
+        'nbi_expiry_date': fmtDays(8),
+        'renewal_grace_until': null,
+        'renewal_notice_sent_at': null,
+        'renewal_notice_message': null,
+        'isSeededDemo': true,
+      },
+    ];
+  }
+
+  void _mergeSeededDriversIntoDirectory({List<Map<String, dynamic>>? previousEntries}) {
+    final prevById = <String, Map<String, dynamic>>{};
+    if (previousEntries != null) {
+      for (final d in previousEntries) {
+        final id = d['id']?.toString();
+        if (id != null && d['isSeededDemo'] == true) {
+          prevById[id] = d;
+        }
+      }
+    }
+    for (final seeded in _buildSeededDriverAccounts()) {
+      final id = seeded['id'].toString();
+      final existingIdx = _driverDirectory.indexWhere((d) => d['id'] == id);
+      if (existingIdx < 0) {
+        _driverDirectory.add(prevById[id] ?? seeded);
+      }
+    }
   }
 
   Future<void> _loadDocReviewCache() async {
@@ -602,7 +888,55 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   void dispose() {
     _sosSubscription?.cancel();
     _driverAppSubscription?.cancel();
+    _dispatchChannel?.unsubscribe();
+    _graceCountdownTimer?.cancel();
     super.dispose();
+  }
+
+  void _listenToRealtimeDispatchChannel() {
+    try {
+      _dispatchChannel = Supabase.instance.client.channel('rides_dispatch');
+      _dispatchChannel?.onBroadcast(
+        event: 'document_renewal_submitted',
+        callback: (payload) {
+          if (!mounted) return;
+          final phone = (payload['phone_number'] ?? '').toString().trim();
+          final driverName = (payload['driver_name'] ?? '').toString().trim();
+
+          setState(() {
+            for (final d in _driverDirectory) {
+              final dPhone = (d['phone'] ?? '').toString().trim();
+              final dName = (d['name'] ?? '').toString().trim();
+              final matchesPhone = phone.isNotEmpty && dPhone == phone;
+              final matchesName = driverName.isNotEmpty &&
+                  dName.toLowerCase().contains(driverName.toLowerCase());
+              if (matchesPhone || matchesName) {
+                d['renewal_status'] = 'on_review';
+                d['renewed_files'] = payload['renewed_files'] ?? {};
+                d['renewal_submitted_at'] = payload['submitted_at'] ?? DateTime.now().toIso8601String();
+                d['status'] = 'Renewal On Review';
+              }
+            }
+            _systemAuditLogs.insert(0, {
+              'time': 'Just now',
+              'actor': driverName.isNotEmpty ? driverName : 'Driver',
+              'action': 'Uploaded renewed documents — waiting for MINC Admin review',
+            });
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFFD97706),
+              content: Text(
+                '📄 ${driverName.isNotEmpty ? driverName : 'Driver'} uploaded renewed documents — click to review & approve!',
+              ),
+            ),
+          );
+        },
+      ).subscribe();
+    } catch (e) {
+      debugPrint('Web dispatch channel init error: $e');
+    }
   }
 
   Map<String, dynamic> _parseDriverApplicationRow(Map<String, dynamic> row) {
@@ -617,6 +951,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'license_photo_url': row['license_photo_url'] ?? '',
       'license_number': row['license_number'] ?? 'N/A',
       'license_expiry_date': row['license_expiry_date'] ?? 'N/A',
+      'orcr_expiry_date': row['orcr_expiry_date'],
+      'mtop_expiry_date': row['mtop_expiry_date'],
+      'nbi_expiry_date': row['nbi_expiry_date'],
+      'renewal_grace_until': row['renewal_grace_until'],
+      'renewal_notice_sent_at': row['renewal_notice_sent_at'],
+      'renewal_notice_message': row['renewal_notice_message'],
       'nbi_clearance_url': row['nbi_clearance_url'] ?? '',
       'police_or_barangay_clearance_url': row['police_or_barangay_clearance_url'] ?? '',
       'motorcycle_brand_model': row['motorcycle_brand_model'] ?? 'Standard Tricycle',
@@ -652,12 +992,14 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ..clear()
             ..addAll(data.map(_parseDriverApplicationRow));
           _reconcileResubmittedApps();
+          final prevDir = List<Map<String, dynamic>>.from(_driverDirectory);
           _driverDirectory
             ..clear()
             ..addAll(
               _driverApplications
                   .where((a) => a['application_status'] == 'approved')
                   .map((a) => {
+                        'id': a['id'],
                         'bodyNo': a['toda_code'] ?? 'Pending',
                         'mtop': 'MINC-${a['id'].toString().substring(0, 6).toUpperCase()}',
                         'name': a['full_name'],
@@ -669,8 +1011,16 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         'verification': 100.0,
                         'trips': 0,
                         'rating': 5.0,
+                        'license_expiry_date': a['license_expiry_date'],
+                        'orcr_expiry_date': a['orcr_expiry_date'],
+                        'mtop_expiry_date': a['mtop_expiry_date'],
+                        'nbi_expiry_date': a['nbi_expiry_date'],
+                        'renewal_grace_until': a['renewal_grace_until'],
+                        'renewal_notice_sent_at': a['renewal_notice_sent_at'],
+                        'renewal_notice_message': a['renewal_notice_message'],
                       }),
             );
+          _mergeSeededDriversIntoDirectory(previousEntries: prevDir);
         });
       });
     } catch (_) {}
@@ -1638,6 +1988,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             _driverApplications
                 .where((a) => a['application_status'] == 'approved')
                 .map((a) => {
+                      'id': a['id'],
                       'bodyNo': a['toda_code'] ?? 'Pending',
                       'mtop': 'MINC-${a['id'].toString().substring(0, 6).toUpperCase()}',
                       'name': a['full_name'],
@@ -1649,8 +2000,16 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       'verification': 100.0,
                       'trips': 0,
                       'rating': 5.0,
+                      'license_expiry_date': a['license_expiry_date'],
+                      'orcr_expiry_date': a['orcr_expiry_date'],
+                      'mtop_expiry_date': a['mtop_expiry_date'],
+                      'nbi_expiry_date': a['nbi_expiry_date'],
+                      'renewal_grace_until': a['renewal_grace_until'],
+                      'renewal_notice_sent_at': a['renewal_notice_sent_at'],
+                      'renewal_notice_message': a['renewal_notice_message'],
                     }),
           );
+        _mergeSeededDriversIntoDirectory();
       });
 
       // Sync live emergency SOS alerts
@@ -4691,8 +5050,945 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   }
 
   // ===========================================================================
-  // 5. MINC DRIVERS & FRANCHISE DIRECTORY (Recommendation 1)
+  // 5. MINC DRIVERS & FRANCHISE DIRECTORY (Recommendation 1 + Expiry Alerts)
   // ===========================================================================
+
+  DateTime? _parseExpiryDateValue(dynamic raw) {
+    if (raw == null) return null;
+    final s = raw.toString().trim();
+    if (s.isEmpty || s == 'N/A') return null;
+    return DateTime.tryParse(s);
+  }
+
+  List<Map<String, dynamic>> _getDriverExpiryIssues(Map<String, dynamic> driver) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final issues = <Map<String, dynamic>>[];
+
+    void inspect(String key, String label, dynamic rawVal) {
+      final dt = _parseExpiryDateValue(rawVal);
+      if (dt == null) return;
+      final d = DateTime(dt.year, dt.month, dt.day);
+      final delta = d.difference(today).inDays;
+      if (delta < 0 || delta <= 30) {
+        issues.add({
+          'key': key,
+          'label': label,
+          'expiryDate': d.toIso8601String().split('T').first,
+          'daysDelta': delta,
+          'isExpired': delta < 0,
+          'isExpiringSoon': delta >= 0 && delta <= 30,
+        });
+      }
+    }
+
+    inspect('license_expiry_date', "Professional Driver's License", driver['license_expiry_date']);
+    inspect('orcr_expiry_date', 'LTO OR/CR', driver['orcr_expiry_date']);
+    inspect('mtop_expiry_date', 'MTOP / Tricycle Franchise', driver['mtop_expiry_date']);
+    inspect('nbi_expiry_date', 'NBI Clearance', driver['nbi_expiry_date']);
+
+    issues.sort((a, b) => (a['daysDelta'] as int).compareTo(b['daysDelta'] as int));
+    return issues;
+  }
+
+  int _expirySortPriority(Map<String, dynamic> driver) {
+    final issues = _getDriverExpiryIssues(driver);
+    if (issues.isEmpty) return 100000;
+    return issues.first['daysDelta'] as int; // negative (most expired) comes first
+  }
+
+  void _ensureGraceTimerRunning() {
+    if (_graceCountdownTimer?.isActive ?? false) return;
+    _graceCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final hasAnyGrace = _driverDirectory.any(
+        (d) => d['renewal_grace_until'] != null && d['renewal_grace_until'].toString().isNotEmpty,
+      );
+      if (hasAnyGrace) {
+        setState(() {});
+      }
+    });
+  }
+
+  /// Returns `'active'`, `'expired'`, or `'none'` and remaining [Duration].
+  Map<String, dynamic> _getGracePeriodState(Map<String, dynamic> driver) {
+    final raw = driver['renewal_grace_until']?.toString();
+    if (raw == null || raw.isEmpty) {
+      return {'state': 'none', 'remaining': Duration.zero};
+    }
+    final graceUntil = DateTime.tryParse(raw);
+    if (graceUntil == null) {
+      return {'state': 'none', 'remaining': Duration.zero};
+    }
+    final diff = graceUntil.difference(DateTime.now());
+    if (diff.isNegative || diff.inSeconds <= 0) {
+      return {'state': 'expired', 'remaining': Duration.zero};
+    }
+    return {'state': 'active', 'remaining': diff};
+  }
+
+  String _formatGraceCountdown(Duration d) {
+    final days = d.inDays;
+    final hours = (d.inHours % 24).toString().padLeft(2, '0');
+    final mins = (d.inMinutes % 60).toString().padLeft(2, '0');
+    final secs = (d.inSeconds % 60).toString().padLeft(2, '0');
+    if (days > 0) {
+      return '${days}d ${hours}h ${mins}m ${secs}s';
+    }
+    return '${hours}h ${mins}m ${secs}s';
+  }
+
+  Future<void> _sendRenewalSmsAndAppNotification({
+    required Map<String, dynamic> driver,
+    required List<Map<String, dynamic>> issues,
+    required int graceDays,
+  }) async {
+    final now = DateTime.now();
+    // graceDays == 0 is a 10-second mock timer for testing Yellow -> Red expiry
+    final graceUntil = graceDays == 0
+        ? now.add(const Duration(seconds: 10))
+        : now.add(Duration(days: graceDays));
+    final graceLabel = graceDays == 0
+        ? '10s mock timer'
+        : '$graceDays-day grace period until ${graceUntil.toIso8601String().split('T').first}';
+    final graceDateLabel = graceUntil.toIso8601String().split('T').first;
+    final docNames = issues.map((i) => i['label']).join(', ');
+    final phone = (driver['phone'] ?? '').toString();
+    final name = (driver['name'] ?? 'Driver').toString();
+
+    final smsMessage =
+        'PasadaNorte MINC Notice: Hi $name, your $docNames require renewal. '
+        'You have a $graceLabel to upload updated documents in the PasadaNorte app.';
+
+    setState(() {
+      driver['renewal_grace_until'] = graceUntil.toIso8601String();
+      driver['renewal_notice_sent_at'] = now.toIso8601String();
+      driver['renewal_notice_message'] = smsMessage;
+      driver['status'] = graceDays == 0 ? 'Grace Timer (10s)' : 'Grace Period ($graceDays d)';
+      _mockSmsDispatchLogs.insert(0, {
+        'driver': name,
+        'phone': phone,
+        'graceDays': graceDays,
+        'graceUntil': graceDateLabel,
+        'message': smsMessage,
+        'sentAt': now.toIso8601String(),
+      });
+      _systemAuditLogs.insert(0, {
+        'time': 'Just now',
+        'actor': 'MINC Officer',
+        'action': 'Sent SMS & App Renewal Notice ($graceLabel) to $name',
+      });
+    });
+    _ensureGraceTimerRunning();
+
+    final driverId = driver['id']?.toString() ?? '';
+    if (driver['isMockTest'] != true && driverId.isNotEmpty) {
+      try {
+        await Supabase.instance.client.from('driver_applications').update({
+          'renewal_grace_until': graceUntil.toIso8601String(),
+          'renewal_notice_sent_at': now.toIso8601String(),
+          'renewal_notice_message': smsMessage,
+        }).eq('id', driverId);
+      } catch (e) {
+        debugPrint('Supabase renewal_grace_until update skipped/failed: $e');
+      }
+    }
+
+    try {
+      if (_dispatchChannel == null) {
+        _listenToRealtimeDispatchChannel();
+      }
+      await _dispatchChannel?.sendBroadcastMessage(
+        event: 'document_renewal_notice',
+        payload: {
+          'phone_number': phone,
+          'driver_name': name,
+          'expired_docs': issues,
+          'grace_days': graceDays,
+          'grace_until': graceUntil.toIso8601String(),
+          'message': smsMessage,
+          'sent_at': now.toIso8601String(),
+        },
+      );
+    } catch (e) {
+      debugPrint('Supabase broadcast document_renewal_notice error: $e');
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF059669),
+          content: Text(
+            'SMS + In-App Notification sent to $name ($phone) • $graceDays-day grace period until $graceDateLabel',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _approveDriverDocumentRenewal(Map<String, dynamic> driver) async {
+    final validUntil = DateTime.now()
+        .add(const Duration(days: 365))
+        .toIso8601String()
+        .split('T')
+        .first;
+    final phone = (driver['phone'] ?? '').toString();
+    final name = (driver['name'] ?? 'Driver').toString();
+
+    setState(() {
+      driver['renewal_grace_until'] = null;
+      driver['renewal_notice_sent_at'] = null;
+      driver['renewal_notice_message'] = null;
+      driver['renewal_status'] = 'approved';
+      driver['license_expiry_date'] = validUntil;
+      driver['orcr_expiry_date'] = validUntil;
+      driver['mtop_expiry_date'] = validUntil;
+      driver['nbi_expiry_date'] = validUntil;
+      driver['status'] = 'Active Duty';
+      _systemAuditLogs.insert(0, {
+        'time': 'Just now',
+        'actor': 'MINC Officer',
+        'action': 'Approved renewed documents for $name — Active Duty restored (valid until $validUntil)',
+      });
+    });
+
+    final driverId = driver['id']?.toString() ?? '';
+    if (driver['isMockTest'] != true && driverId.isNotEmpty) {
+      try {
+        await Supabase.instance.client.from('driver_applications').update({
+          'license_expiry_date': validUntil,
+          'orcr_expiry_date': validUntil,
+          'mtop_expiry_date': validUntil,
+          'nbi_expiry_date': validUntil,
+          'renewal_grace_until': null,
+          'renewal_notice_sent_at': null,
+          'renewal_notice_message': null,
+        }).eq('id', driverId);
+      } catch (e) {
+        debugPrint('Supabase approve renewal update failed: $e');
+      }
+    }
+
+    try {
+      if (_dispatchChannel == null) {
+        _listenToRealtimeDispatchChannel();
+      }
+      await _dispatchChannel?.sendBroadcastMessage(
+        event: 'document_renewal_approved',
+        payload: {
+          'phone_number': phone,
+          'driver_name': name,
+          'valid_until': validUntil,
+          'approved_at': DateTime.now().toIso8601String(),
+        },
+      );
+    } catch (e) {
+      debugPrint('Supabase broadcast document_renewal_approved error: $e');
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF059669),
+          content: Text(
+            '✅ Approved $name\'s renewed documents — driver turned Green and can now accept passengers!',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showInspectRenewedFileDialog({
+    required Map<String, dynamic> driver,
+    required String docLabel,
+    required String fileName,
+    required VoidCallback onPass,
+    required VoidCallback onReject,
+  }) async {
+    final isUrl = fileName.startsWith('http://') || fileName.startsWith('https://');
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 18, 16, 12),
+        contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        title: Row(
+          children: [
+            const Icon(Icons.document_scanner_rounded, color: Color(0xFF0F172A), size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Inspect: $docLabel',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                  Text(
+                    fileName,
+                    style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => Navigator.pop(ctx),
+              icon: const Icon(Icons.close_rounded, size: 20),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                height: 240,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: isUrl
+                    ? Image.network(
+                        fileName,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Text('Unable to load image preview.'),
+                        ),
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: const Icon(
+                              Icons.image_search_rounded,
+                              size: 42,
+                              color: Color(0xFF059669),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            fileName,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Uploaded by ${driver['name']} • Check clarity, validity & plate/license match',
+                            style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC2626),
+                        side: const BorderSide(color: Color(0xFFFCA5A5)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        onReject();
+                      },
+                      icon: const Icon(Icons.refresh_rounded, size: 17),
+                      label: const Text('Resend Notif', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        onPass();
+                      },
+                      icon: const Icon(Icons.check_circle_outline_rounded, size: 17),
+                      label: const Text('Pass Document', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _rejectAndResendSingleDoc({
+    required Map<String, dynamic> driver,
+    required Map<String, dynamic> issue,
+    required int graceDays,
+  }) async {
+    String selectedReason = 'Blurry or unreadable photo/scan';
+    final TextEditingController otherController = TextEditingController();
+    String? otherError;
+    const reasons = [
+      'Blurry or unreadable photo/scan',
+      'Incorrect or mismatched document uploaded',
+      'Document is still expired — upload renewed copy',
+      'Cropped or missing expiry date / signature',
+      'Others',
+    ];
+
+    final confirmedReason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setRState) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: Text(
+            'Resend Notice: ${issue['label']}',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          ),
+          content: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select why this file needs to be re-uploaded:',
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 10),
+                RadioGroup<String>(
+                  groupValue: selectedReason,
+                  onChanged: (v) {
+                    if (v != null) {
+                      setRState(() {
+                        selectedReason = v;
+                        otherError = null;
+                      });
+                    }
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: reasons
+                        .map(
+                          (r) => RadioListTile<String>(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            value: r,
+                            title: Text(r, style: const TextStyle(fontSize: 12.5)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+                if (selectedReason == 'Others') ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: otherController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      hintText: 'Specify reason for re-upload...',
+                      hintStyle: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+                      errorText: otherError,
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                if (selectedReason == 'Others') {
+                  final custom = otherController.text.trim();
+                  if (custom.isEmpty) {
+                    setRState(() => otherError = 'Please specify a reason.');
+                    return;
+                  }
+                  Navigator.pop(ctx, custom);
+                  return;
+                }
+                Navigator.pop(ctx, selectedReason);
+              },
+              child: const Text('Resend SMS & App Notif'),
+            ),
+          ],
+        ),
+      ),
+    );
+    otherController.dispose();
+
+    if (confirmedReason == null) return;
+
+    setState(() {
+      driver['renewal_status'] = 'rejected_resubmit';
+      final statuses = (driver['renewed_file_statuses'] as Map<String, String>?) ?? <String, String>{};
+      statuses[issue['label'].toString()] = 'rejected';
+      driver['renewed_file_statuses'] = statuses;
+      final fileReasons = (driver['renewed_file_reasons'] as Map<String, String>?) ?? <String, String>{};
+      fileReasons[issue['label'].toString()] = confirmedReason;
+      driver['renewed_file_reasons'] = fileReasons;
+    });
+
+    await _sendRenewalSmsAndAppNotification(
+      driver: driver,
+      issues: [
+        {
+          ...issue,
+          'label': '${issue['label']} ($confirmedReason)',
+        },
+      ],
+      graceDays: graceDays,
+    );
+  }
+
+  void _showExpiredDocumentsModal(Map<String, dynamic> driver) {
+    int selectedGraceDays = 14;
+    int selectedTabIndex = 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final issues = _getDriverExpiryIssues(driver);
+          final graceUntil = driver['renewal_grace_until']?.toString();
+          final submittedFiles = driver['renewed_files'] is Map
+              ? Map<String, dynamic>.from(driver['renewed_files'] as Map)
+              : <String, dynamic>{};
+          final fileStatuses = (driver['renewed_file_statuses'] as Map<String, String>?) ??
+              <String, String>{};
+          final isOnReview = driver['renewal_status'] == 'on_review';
+          final allSubmittedPassed = submittedFiles.isNotEmpty &&
+              submittedFiles.keys.every((k) => fileStatuses[k] == 'passed');
+
+          Future<void> markIndividualDocPassed(Map<String, dynamic> issue) async {
+            final label = issue['label'].toString();
+            final docKey = issue['key'].toString();
+            final validUntil = DateTime.now()
+                .add(const Duration(days: 365))
+                .toIso8601String()
+                .split('T')
+                .first;
+
+            setState(() {
+              fileStatuses[label] = 'passed';
+              driver['renewed_file_statuses'] = fileStatuses;
+              driver[docKey] = validUntil;
+            });
+            setModalState(() {});
+
+            final remainingIssues = _getDriverExpiryIssues(driver);
+            final allPassedNow = remainingIssues.isEmpty ||
+                (submittedFiles.isNotEmpty &&
+                    submittedFiles.keys.every((k) => fileStatuses[k] == 'passed'));
+
+            if (allPassedNow) {
+              await _approveDriverDocumentRenewal(driver);
+              if (ctx.mounted) Navigator.pop(ctx);
+            }
+          }
+
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            titlePadding: const EdgeInsets.fromLTRB(24, 20, 20, 12),
+            contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            driver['name'].toString(),
+                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: issues.isEmpty
+                                  ? const Color(0xFFDCFCE7)
+                                  : isOnReview
+                                      ? const Color(0xFFFEF3C7)
+                                      : const Color(0xFFFEE2E2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              issues.isEmpty
+                                  ? 'Compliant'
+                                  : isOnReview
+                                      ? 'On Review'
+                                      : 'Compliance Alert',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: issues.isEmpty
+                                    ? const Color(0xFF15803D)
+                                    : isOnReview
+                                        ? const Color(0xFFB45309)
+                                        : const Color(0xFFDC2626),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${driver['toda']} • Plate ${driver['plateNo']} • ${driver['phone']}',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 640,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Minimal Underline Tabs
+                  Container(
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                    ),
+                    child: Row(
+                      children: [
+                        InkWell(
+                          onTap: () => setModalState(() => selectedTabIndex = 0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: selectedTabIndex == 0 ? const Color(0xFF0F172A) : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              'Documents (${issues.length})',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: selectedTabIndex == 0 ? FontWeight.w800 : FontWeight.w600,
+                                color: selectedTabIndex == 0 ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 20),
+                        InkWell(
+                          onTap: () => setModalState(() => selectedTabIndex = 1),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: selectedTabIndex == 1 ? const Color(0xFF0F172A) : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              'Grace Period & SMS Log',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: selectedTabIndex == 1 ? FontWeight.w800 : FontWeight.w600,
+                                color: selectedTabIndex == 1 ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  if (selectedTabIndex == 0) ...[
+                    if (issues.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle_rounded, color: Color(0xFF059669)),
+                            SizedBox(width: 10),
+                            Text('All documents are valid and compliant.', style: TextStyle(fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      )
+                    else
+                      ...issues.map((issue) {
+                        final label = issue['label'].toString();
+                        final isExp = issue['isExpired'] == true;
+                        final delta = issue['daysDelta'] as int;
+                        final uploadedFile = submittedFiles[label]?.toString();
+                        final docReviewState = fileStatuses[label] ?? (uploadedFile != null ? 'pending' : 'missing');
+                        final isDocPassed = docReviewState == 'passed';
+                        final isDocRejected = docReviewState == 'rejected';
+
+                        final subtitle = isDocPassed
+                            ? 'Passed inspection • Valid'
+                            : (uploadedFile != null
+                                ? 'Uploaded: $uploadedFile'
+                                : (isExp
+                                    ? 'Expired ${delta.abs()}d ago (${issue['expiryDate']})'
+                                    : 'Expires in ${delta}d (${issue['expiryDate']})'));
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isDocPassed
+                                ? const Color(0xFFF0FDF4)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isDocPassed
+                                  ? const Color(0xFF86EFAC)
+                                  : (isDocRejected ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0)),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isDocPassed
+                                      ? const Color(0xFF059669)
+                                      : (uploadedFile != null
+                                          ? const Color(0xFFD97706)
+                                          : (isExp ? const Color(0xFFDC2626) : const Color(0xFFD97706))),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      label,
+                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0F172A)),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      subtitle,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: isDocPassed ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              if (uploadedFile != null && !isDocPassed) ...[
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF0F172A),
+                                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  ),
+                                  onPressed: () => _showInspectRenewedFileDialog(
+                                    driver: driver,
+                                    docLabel: label,
+                                    fileName: uploadedFile,
+                                    onPass: () => markIndividualDocPassed(issue),
+                                    onReject: () async {
+                                      await _rejectAndResendSingleDoc(
+                                        driver: driver,
+                                        issue: issue,
+                                        graceDays: selectedGraceDays,
+                                      );
+                                      setModalState(() {});
+                                    },
+                                  ),
+                                  icon: const Icon(Icons.visibility_outlined, size: 15),
+                                  label: const Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                ),
+                              ] else if (isDocPassed) ...[
+                                const Chip(
+                                  label: Text('Passed', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF15803D))),
+                                  backgroundColor: Color(0xFFDCFCE7),
+                                  side: BorderSide.none,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ] else ...[
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF0F172A),
+                                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  ),
+                                  onPressed: () async {
+                                    await _sendRenewalSmsAndAppNotification(
+                                      driver: driver,
+                                      issues: [issue],
+                                      graceDays: selectedGraceDays,
+                                    );
+                                    setModalState(() {});
+                                  },
+                                  icon: const Icon(Icons.send_outlined, size: 14),
+                                  label: const Text('Notify', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      }),
+                  ] else ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            graceUntil != null
+                                ? 'Grace Period Deadline: ${graceUntil.split('T').first}'
+                                : 'No active grace period.',
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                          if (driver['renewal_notice_message'] != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              driver['renewal_notice_message'].toString(),
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      if (issues.isEmpty) ...[
+                        const Spacer(),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0F172A),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          ),
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w700)),
+                        ),
+                      ] else ...[
+                        const Text('Grace:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF475569))),
+                        const SizedBox(width: 8),
+                        DropdownButton<int>(
+                          value: selectedGraceDays,
+                          underline: const SizedBox.shrink(),
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                          items: const [
+                            DropdownMenuItem(value: 7, child: Text('7 Days')),
+                            DropdownMenuItem(value: 14, child: Text('14 Days')),
+                            DropdownMenuItem(value: 30, child: Text('30 Days')),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) setModalState(() => selectedGraceDays = v);
+                          },
+                        ),
+                        const Spacer(),
+                        if (submittedFiles.isNotEmpty || allSubmittedPassed) ...[
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF059669),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                            onPressed: () async {
+                              await _approveDriverDocumentRenewal(driver);
+                              if (ctx.mounted) Navigator.pop(ctx);
+                            },
+                            icon: const Icon(Icons.verified_rounded, size: 16),
+                            label: const Text('Pass All & Turn Green', style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                        ] else ...[
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F172A),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                            onPressed: () async {
+                              await _sendRenewalSmsAndAppNotification(
+                                driver: driver,
+                                issues: issues,
+                                graceDays: selectedGraceDays,
+                              );
+                              setModalState(() {});
+                            },
+                            icon: const Icon(Icons.sms_outlined, size: 16),
+                            label: Text(
+                              selectedGraceDays == 0
+                                  ? 'Notify All (10s Test)'
+                                  : 'Notify All ($selectedGraceDays d Grace)',
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildDirectoryView() {
     final filtered = _driverDirectory.where((d) {
       final matchesSearch = d['name'].toString().toLowerCase().contains(_driverSearchQuery.toLowerCase()) ||
@@ -4700,14 +5996,94 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           d['plateNo'].toString().toLowerCase().contains(_driverSearchQuery.toLowerCase());
       if (_driverTodaFilter != 'All') return matchesSearch && d['toda'] == _driverTodaFilter;
       return matchesSearch;
-    }).toList();
+    }).toList()
+      ..sort((a, b) => _expirySortPriority(a).compareTo(_expirySortPriority(b)));
+
+    final driversWithExpiryAlerts =
+        _driverDirectory.where((d) => _getDriverExpiryIssues(d).isNotEmpty).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('MINC Tricycle Operators & Drivers Association Directory', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 4),
-        const Text('Official registry of authorized Laoag City Motorized Tricycle Operator Permits (MTOP).', style: TextStyle(color: Colors.grey)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('MINC Tricycle Operators & Drivers Association Directory', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                  SizedBox(height: 4),
+                  Text('Official registry of authorized Laoag City Motorized Tricycle Operator Permits (MTOP).', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Right-Side Admin Expiry Notification & Mock Test Trigger
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: driversWithExpiryAlerts.isNotEmpty
+                    ? const Color(0xFFFEF2F2)
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: driversWithExpiryAlerts.isNotEmpty
+                      ? const Color(0xFFFCA5A5)
+                      : Colors.grey.shade300,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    driversWithExpiryAlerts.isNotEmpty
+                        ? Icons.notifications_active_rounded
+                        : Icons.verified_rounded,
+                    size: 18,
+                    color: driversWithExpiryAlerts.isNotEmpty
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF059669),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        driversWithExpiryAlerts.isNotEmpty
+                            ? '${driversWithExpiryAlerts.length} Driver(s) Expired / Expiring Docs'
+                            : 'All Driver Docs Valid',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          color: driversWithExpiryAlerts.isNotEmpty
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF059669),
+                        ),
+                      ),
+                      const Text(
+                        'Pinned to top • Click driver to send SMS & grace',
+                        style: TextStyle(fontSize: 10.5, color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                  if (driversWithExpiryAlerts.isNotEmpty) ...[
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFDC2626),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      onPressed: () => _showExpiredDocumentsModal(driversWithExpiryAlerts.first),
+                      child: const Text('Review Top', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 18),
 
         // Filter Bar
@@ -4730,74 +6106,195 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         ),
         const SizedBox(height: 18),
 
-        // Drivers Directory Cards
+        // Drivers Directory Cards (Expired / Expiring always sorted first)
         ...filtered.map((driver) {
-          final isFlagged = driver['status'].toString().contains('Warning') || driver['status'].toString().contains('Flagged');
+          final expiryIssues = _getDriverExpiryIssues(driver);
+          final hasExpired = expiryIssues.any((i) => i['isExpired'] == true);
+          final hasExpiryWarning = expiryIssues.isNotEmpty;
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Row(
-              children: [
-                _buildDriverAvatar(
-                  {
-                    'full_name': driver['name'],
-                    'profile_photo_url': driver['profile_photo_url'],
-                  },
-                  true,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(driver['name'], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isFlagged ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              driver['status'],
-                              style: TextStyle(
-                                color: isFlagged ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 10.5,
+          final graceInfo = _getGracePeriodState(driver);
+          final graceState = graceInfo['state'] as String; // 'none', 'active', 'expired'
+          final graceRemaining = graceInfo['remaining'] as Duration;
+          final isGraceActive = graceState == 'active';
+          final isGraceExpired = graceState == 'expired';
+          final isOnReview = driver['renewal_status'] == 'on_review';
+          if (isGraceActive && !isOnReview) {
+            _ensureGraceTimerRunning();
+          }
+
+          // Yellow when On Review OR notified with active grace timer; Red when unnotified expired OR grace timer expired!
+          final showRedAlert = !isOnReview && ((hasExpired && !isGraceActive) || isGraceExpired);
+          final showYellowGrace = isOnReview || isGraceActive;
+
+          final Color cardBgColor = showYellowGrace
+              ? const Color(0xFFFFFBEB)
+              : (showRedAlert ? const Color(0xFFFFFAFA) : Colors.white);
+          final Color cardBorderColor = showYellowGrace
+              ? const Color(0xFFF59E0B)
+              : (showRedAlert
+                  ? const Color(0xFFFCA5A5)
+                  : (hasExpiryWarning ? const Color(0xFFFCD34D) : Colors.grey.shade200));
+          final Color badgeBgColor = showYellowGrace
+              ? const Color(0xFFFEF3C7)
+              : (showRedAlert ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5));
+          final Color badgeTextColor = showYellowGrace
+              ? const Color(0xFFB45309)
+              : (showRedAlert ? const Color(0xFFDC2626) : const Color(0xFF059669));
+          final String displayStatus = isOnReview
+              ? 'Renewal On Review'
+              : (isGraceExpired
+                  ? 'Grace Expired'
+                  : (showYellowGrace ? 'Notified • Grace Active' : driver['status'].toString()));
+
+          return InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => _showExpiredDocumentsModal(driver),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBgColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cardBorderColor, width: showYellowGrace || showRedAlert ? 1.4 : 1.0),
+              ),
+              child: Row(
+                children: [
+                  _buildDriverAvatar(
+                    {
+                      'full_name': driver['name'],
+                      'profile_photo_url': driver['profile_photo_url'],
+                    },
+                    true,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(driver['name'], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: badgeBgColor,
+                                borderRadius: BorderRadius.circular(6),
                               ),
+                              child: Text(
+                                displayStatus,
+                                style: TextStyle(
+                                  color: badgeTextColor,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 10.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text('Franchise: ${driver['mtop']} • Plate: ${driver['plateNo']} • ${driver['toda']}', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                        Text('Mobile: ${driver['phone']} • Completed Trips: ${driver['trips']}', style: TextStyle(color: Colors.grey.shade600, fontSize: 11.5)),
+                      ],
+                    ),
+                  ),
+                  if (isOnReview) ...[
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD97706),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                      onPressed: () => _showExpiredDocumentsModal(driver),
+                      icon: const Icon(Icons.fact_check_rounded, size: 16),
+                      label: const Text(
+                        'Renewed Docs • Review',
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                  ] else if (showYellowGrace) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFF59E0B)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.timer_outlined, size: 16, color: Color(0xFFB45309)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Grace: ${_formatGraceCountdown(graceRemaining)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              color: Color(0xFFB45309),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 3),
-                      Text('Franchise: ${driver['mtop']} • Plate: ${driver['plateNo']} • ${driver['toda']}', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                      Text('Mobile: ${driver['phone']} • Completed Trips: ${driver['trips']}', style: TextStyle(color: Colors.grey.shade600, fontSize: 11.5)),
+                    ),
+                    const SizedBox(width: 14),
+                  ] else if (hasExpiryWarning || isGraceExpired) ...[
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: showRedAlert ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                      onPressed: () => _showExpiredDocumentsModal(driver),
+                      icon: const Icon(Icons.warning_amber_rounded, size: 16),
+                      label: Text(
+                        isGraceExpired
+                            ? 'Grace Expired • Re-Notify'
+                            : '${expiryIssues.length} ${hasExpired ? 'Expired' : 'Expiring'} • Notify',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                  ],
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            showYellowGrace
+                                ? Icons.hourglass_top_rounded
+                                : (showRedAlert ? Icons.gpp_maybe_rounded : Icons.verified_user_rounded),
+                            color: showYellowGrace
+                                ? const Color(0xFFD97706)
+                                : (showRedAlert ? const Color(0xFFDC2626) : const Color(0xFF059669)),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isOnReview
+                                ? 'Pending Review'
+                                : (showYellowGrace
+                                    ? 'In Grace Period'
+                                    : (isGraceExpired
+                                        ? 'Grace Expired'
+                                        : (showRedAlert ? 'Needs Renewal' : 'Verified'))),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: showYellowGrace
+                                  ? const Color(0xFFB45309)
+                                  : (showRedAlert ? const Color(0xFFDC2626) : const Color(0xFF059669)),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text('★ ${driver['rating']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFFF59E0B))),
                     ],
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.verified_user_rounded, color: Color(0xFF059669), size: 16),
-                        SizedBox(width: 4),
-                        Text('Verified', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF059669), fontSize: 12)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text('★ ${driver['rating']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFFF59E0B))),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           );
         }),

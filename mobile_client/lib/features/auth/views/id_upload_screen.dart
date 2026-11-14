@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/services/android_permissions_service.dart';
+import '../../../core/services/document_expiry_service.dart';
 import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
@@ -60,6 +61,9 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
   // Vehicle Ownership & Documents (OR / CR)
   String? _orPhotoPath;
   String? _crPhotoPath;
+  DateTime? _licenseExpiryDate;
+  DateTime? _orcrExpiryDate;
+  DateTime? _nbiExpiryDate;
   bool _isMotorcycleOwned = true;
   String? _ownerAuthLetterPath;
   String? _ownerIdPhotoPath;
@@ -421,6 +425,9 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         ownerAuthLetterUrl: _ownerAuthLetterPath,
         ownerIdPhotoUrl: _ownerIdPhotoPath,
         vehiclePhotos: _vehiclePhotos.map((k, v) => MapEntry(k, v ?? '')),
+        licenseExpiryDate: _licenseExpiryDate,
+        orcrExpiryDate: _orcrExpiryDate,
+        nbiExpiryDate: _nbiExpiryDate,
       );
     }
 
@@ -634,6 +641,11 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
                   onPickFiles: _pickIdFile,
                   icon: Icons.badge_rounded,
                 ),
+                _buildExpiryDatePickerChip(
+                  label: 'License Expiry Date (Optional OCR / Manual)',
+                  selectedDate: _licenseExpiryDate,
+                  onPick: (picked) => setState(() => _licenseExpiryDate = picked),
+                ),
 
                 const SizedBox(height: 12),
 
@@ -819,9 +831,20 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
                   },
                   onPickFiles: () async {
                     final p = await _pickDocumentFile(docLabel: 'Motorcycle CR');
-                    if (p != null) setState(() => _crPhotoPath = p);
+                    if (p != null) {
+                      final detected = DocumentExpiryService.extractExpiryDateFromText(p);
+                      setState(() {
+                        _crPhotoPath = p;
+                        _orcrExpiryDate ??= detected;
+                      });
+                    }
                   },
                   icon: Icons.article_rounded,
+                ),
+                _buildExpiryDatePickerChip(
+                  label: 'OR/CR Expiry Date (Optional OCR / Manual)',
+                  selectedDate: _orcrExpiryDate,
+                  onPick: (picked) => setState(() => _orcrExpiryDate = picked),
                 ),
 
                 const SizedBox(height: 14),
@@ -1383,6 +1406,73 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildExpiryDatePickerChip({
+    required String label,
+    required DateTime? selectedDate,
+    required ValueChanged<DateTime> onPick,
+  }) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isExpired = selectedDate != null &&
+        DateTime(selectedDate.year, selectedDate.month, selectedDate.day)
+            .isBefore(today);
+    final dateText = selectedDate != null
+        ? selectedDate.toIso8601String().split('T').first
+        : 'Tap to set expiry';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: selectedDate ?? DateTime(now.year + 1, now.month, now.day),
+            firstDate: DateTime(2015),
+            lastDate: DateTime(2040),
+          );
+          if (picked != null) onPick(picked);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: isExpired ? const Color(0xFFFEF2F2) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isExpired ? const Color(0xFFFCA5A5) : Colors.grey.shade300,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isExpired ? Icons.warning_amber_rounded : Icons.event_available_rounded,
+                size: 16,
+                color: isExpired ? const Color(0xFFDC2626) : AppTheme.accentEmeraldDark,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text(
+                isExpired ? '$dateText (EXPIRED)' : dateText,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: isExpired
+                      ? const Color(0xFFDC2626)
+                      : (selectedDate != null ? AppTheme.accentEmeraldDark : Colors.grey.shade600),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
