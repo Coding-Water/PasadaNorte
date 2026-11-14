@@ -71,7 +71,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
     'Left Side View': null,
     'Right Side View': null,
   };
-  bool _tricyclePhotosSkipped = false;
 
   int? get _computedAge {
     if (_birthDate == null) return null;
@@ -125,8 +124,13 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
   }
 
   bool get _areAllVehiclePhotosUploaded {
-    if (widget.role != UserRole.driver || _tricyclePhotosSkipped) return true;
-    return _vehiclePhotos.values.every((path) => path != null);
+    if (widget.role != UserRole.driver) return true;
+    return _vehiclePhotos.values.every(
+      (path) =>
+          path != null &&
+          path.trim().isNotEmpty &&
+          !path.startsWith('skipped_'),
+    );
   }
 
   @override
@@ -270,18 +274,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
     }
   }
 
-  void _skipTricyclePhotos() {
-    setState(() {
-      _tricyclePhotosSkipped = !_tricyclePhotosSkipped;
-      if (_tricyclePhotosSkipped) {
-        _vehiclePhotos['Front View'] ??= 'skipped_tricycle_front.jpg';
-        _vehiclePhotos['Back View'] ??= 'skipped_tricycle_back.jpg';
-        _vehiclePhotos['Left Side View'] ??= 'skipped_tricycle_left.jpg';
-        _vehiclePhotos['Right Side View'] ??= 'skipped_tricycle_right.jpg';
-      }
-    });
-      }
-
   void _autoFillDemoData() {
     setState(() {
       _capturedIdPath = 'demo_license.jpg';
@@ -302,7 +294,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         _vehiclePhotos['Back View'] = 'demo_tricycle_back.jpg';
         _vehiclePhotos['Left Side View'] = 'demo_tricycle_left.jpg';
         _vehiclePhotos['Right Side View'] = 'demo_tricycle_right.jpg';
-        _tricyclePhotosSkipped = true;
       }
       _biometricConsentGiven = true;
       _locationTelemetryConsentGiven = true;
@@ -392,7 +383,15 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         }
       }
 
-      if (!_tricyclePhotosSkipped && !_areAllVehiclePhotosUploaded) {
+      if (!_areAllVehiclePhotosUploaded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please upload all 4 tricycle angles (Front, Back, Left, and Right) before proceeding.',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
         return;
       }
 
@@ -926,9 +925,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        _tricyclePhotosSkipped
-                            ? 'Skipped (Testing)'
-                            : '${_vehiclePhotos.values.where((v) => v != null).length}/4 Uploaded',
+                        '${_vehiclePhotos.values.where((v) => v != null).length}/4 Uploaded',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -944,44 +941,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
                 const Text(
                   'Submit clear photos of the Front, Back, Left, and Right sides of your tricycle. Front view is displayed to passengers upon ride dispatch.',
                   style: TextStyle(color: Colors.black54, fontSize: 12, height: 1.4),
-                ),
-                const SizedBox(height: 10),
-
-                // Skip Tricycle Photos Button
-                InkWell(
-                  onTap: _skipTricyclePhotos,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: _tricyclePhotosSkipped ? const Color(0xFFDCFCE7) : Colors.amber.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _tricyclePhotosSkipped ? AppTheme.accentEmerald : Colors.amber.shade400,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _tricyclePhotosSkipped ? Icons.check_circle_rounded : Icons.fast_forward_rounded,
-                          size: 16,
-                          color: _tricyclePhotosSkipped ? AppTheme.accentEmerald : Colors.amber.shade900,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _tricyclePhotosSkipped
-                              ? 'Tricycle Photos Skipped for Testing (Tap to undo)'
-                              : 'Skip Tricycle Photos for now (Testing)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: _tricyclePhotosSkipped ? AppTheme.accentEmerald : Colors.amber.shade900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 14),
 

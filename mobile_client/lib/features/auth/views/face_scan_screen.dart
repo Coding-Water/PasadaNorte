@@ -117,12 +117,24 @@ class _FaceScanScreenState extends State<FaceScanScreen>
   }
 
   Future<void> _enterLivenessStage() async {
-    final camAllowed = await AndroidPermissionsService.ensureCameraPermission(context);
-    if (!camAllowed && mounted) {
-          }
+    final camAllowed =
+        await AndroidPermissionsService.ensureCameraPermission(context);
+    if (!camAllowed) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Camera permission is required to complete live face verification.',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
 
     if (!mounted) return;
-    final liveStarted = camAllowed ? await _tryStartLiveCamera() : false;
+    final liveStarted = await _tryStartLiveCamera();
     if (!mounted) return;
 
     if (!liveStarted) {
@@ -462,79 +474,6 @@ class _FaceScanScreenState extends State<FaceScanScreen>
     _showVerificationResultDialog(result);
   }
 
-  void _skipFaceScan() {
-    _livenessTimer?.cancel();
-    _disposeCameraResources();
-    const result = FaceVerificationResult(
-      similarityScorePercent: 95.0,
-      processingTimeMs: 120,
-      status: VerificationStatus.approved,
-      decisionNote: '1:1 face match skipped for virtual Android / computer testing. Restore camera verification before physical device production release.',
-      verificationImagesDeleted: true,
-    );
-
-    SupabaseService.recordFaceVerification(
-      fullName: widget.fullName,
-      phoneNumber: widget.phoneNumber,
-      role: widget.role,
-      passengerCategory: widget.passengerCategory,
-      idType: widget.idType,
-      result: result,
-      idPhotoPath: widget.idPhotoPath,
-      profilePhotoPath: widget.profilePhotoPath,
-    );
-
-    
-    if (widget.role == UserRole.driver) {
-      if (widget.isResubmissionRedo) {
-        unawaited(
-          SupabaseService.resubmitDriverFaceScan(
-            phoneNumber: widget.phoneNumber,
-          ),
-        );
-      }
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DriverApplicationStatusScreen(
-            phoneNumber: widget.phoneNumber,
-            fullName: widget.fullName,
-          ),
-        ),
-      );
-    } else {
-      if (widget.isResubmissionRedo) {
-        unawaited(
-          SupabaseService.resubmitRiderFaceScan(
-            phoneNumber: widget.phoneNumber,
-            result: result,
-          ),
-        );
-      }
-      unawaited(
-        SessionCacheService.saveRiderSession(
-          phoneNumber: widget.phoneNumber,
-          fullName: widget.fullName,
-          idType: widget.idType,
-          isPendingReview: true,
-        ),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PassengerApplicationStatusScreen(
-            phoneNumber: widget.phoneNumber,
-            fullName: widget.fullName,
-            passengerCategory: widget.passengerCategory,
-            idType: widget.idType,
-            idPhotoPath: widget.idPhotoPath,
-            profilePhotoPath: widget.profilePhotoPath,
-          ),
-        ),
-      );
-    }
-  }
-
   void _showVerificationResultDialog(FaceVerificationResult result) {
     final bool approved = result.isApproved;
 
@@ -700,20 +639,6 @@ class _FaceScanScreenState extends State<FaceScanScreen>
             }
           },
         ),
-        actions: [
-          TextButton.icon(
-            onPressed: _skipFaceScan,
-            icon: const Icon(Icons.fast_forward_rounded, color: AppTheme.accentEmerald, size: 18),
-            label: const Text(
-              'Skip (Testing)',
-              style: TextStyle(
-                color: AppTheme.accentEmerald,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ],
       ),
       body: SafeArea(
         child: _inLivenessStage ? _buildLivenessStage() : _buildIntroStage(),

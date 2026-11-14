@@ -4,12 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_client/core/services/supabase_service.dart';
 import 'package:mobile_client/core/theme/app_theme.dart';
 import 'package:mobile_client/features/auth/models/user_model.dart';
-import 'package:mobile_client/features/auth/views/driver_application_status_screen.dart';
 import 'package:mobile_client/features/auth/views/driver_requirements_checklist_screen.dart';
 import 'package:mobile_client/features/auth/views/face_scan_screen.dart';
 import 'package:mobile_client/features/auth/views/id_upload_screen.dart';
 import 'package:mobile_client/features/auth/views/otp_verification_screen.dart';
-import 'package:mobile_client/features/auth/views/passenger_application_status_screen.dart';
 import 'package:mobile_client/features/auth/views/role_selection_screen.dart';
 import 'package:mobile_client/features/auth/views/student_check_screen.dart';
 import 'package:mobile_client/features/auth/views/senior_pwd_check_screen.dart';
@@ -121,7 +119,7 @@ void main() {
       expect(find.text('Invalid OTP code. Please try again.'), findsWidgets);
     });
 
-    testWidgets('Rider Registration Flow can skip Face Scan on computer testing', (tester) async {
+    testWidgets('Rider Registration Flow proceeds to FaceScanScreen without Skip bypass', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -183,20 +181,12 @@ void main() {
       await tester.tap(nextToFaceScan);
       await tester.pumpAndSettle();
 
-      // Verify Individual Screen: Face Scan
+      // Verify Individual Screen: Face Scan (no Skip Testing bypass)
       expect(find.byType(FaceScanScreen), findsOneWidget);
-
-      // Test the Skip Face Scan button for computer emulator testing
-      expect(find.text('Skip (Testing)'), findsOneWidget);
-      await tester.tap(find.text('Skip (Testing)'));
-      await tester.pumpAndSettle();
-
-      // Verifies landing on PassengerApplicationStatusScreen with <= 1 hour SLA
-      expect(find.byType(PassengerApplicationStatusScreen), findsOneWidget);
-      expect(find.textContaining('1 hour or less'), findsOneWidget);
+      expect(find.text('Skip (Testing)'), findsNothing);
     });
 
-    testWidgets('Driver Registration Flow with Driver License only, Skip Tricycle Photos, and Skip Face Scan', (tester) async {
+    testWidgets('Driver Registration Flow requires 4-angle tricycle photos and removes Skip bypasses', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -236,11 +226,12 @@ void main() {
       expect(find.byType(IdUploadScreen), findsOneWidget);
       expect(find.text('Driver & Vehicle Compliance'), findsOneWidget);
       expect(find.text('Tap to Select Date of Birth'), findsNothing);
+      expect(find.text('Skip Tricycle Photos for now (Testing)'), findsNothing);
 
       // Verify Driver's License is the exclusive credential
       expect(find.text("Professional Driver's License (Valid)"), findsOneWidget);
 
-      // Auto-fill demo ID & consents
+      // Auto-fill demo ID, 4-angle vehicle photos & consents
       await tester.tap(find.text('Auto-Fill'));
       await tester.pumpAndSettle();
 
@@ -251,16 +242,41 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(FaceScanScreen), findsOneWidget);
+      expect(find.text('Skip (Testing)'), findsNothing);
+    });
 
-      // Use the Skip Face Scan button for testing without camera
-      expect(find.text('Skip (Testing)'), findsOneWidget);
-      await tester.tap(find.text('Skip (Testing)'));
-      await tester.pumpAndSettle();
+    testWidgets('UserDetailsInputScreen blocks digits and symbols in Last, First, and Middle Name fields', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
-      // Verifies landing on DriverApplicationStatusScreen (24-hour review)
-      expect(find.byType(DriverApplicationStatusScreen), findsOneWidget);
-      expect(find.text('Your documents are currently being reviewed'), findsOneWidget);
-      expect(find.textContaining('24 hours'), findsOneWidget);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: const UserDetailsInputScreen(
+            phoneNumber: '+639171234567',
+            role: UserRole.rider,
+          ),
+        ),
+      );
+
+      final fields = find.byType(TextFormField);
+      // 0: Last Name, 1: First Name, 2: Middle Name
+      await tester.enterText(fields.at(0), 'Dela Cruz123!@#');
+      await tester.enterText(fields.at(1), 'Niño-Jose 99?\$%');
+      await tester.enterText(fields.at(2), 'O\'Connor456><');
+      await tester.pump();
+
+      final lastField = tester.widget<TextFormField>(fields.at(0));
+      final firstField = tester.widget<TextFormField>(fields.at(1));
+      final middleField = tester.widget<TextFormField>(fields.at(2));
+
+      expect(lastField.controller!.text, 'Dela Cruz');
+      expect(firstField.controller!.text, 'Niño-Jose ');
+      expect(middleField.controller!.text, 'O\'Connor');
     });
 
     testWidgets('Passenger Branching Flow: Not Student -> Not Senior/PWD -> Automatic Regular Passenger', (tester) async {

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/services/session_cache_service.dart';
 import '../../../core/theme/app_theme.dart';
@@ -77,6 +78,26 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
     _dobController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  static final RegExp _nameAllowedChars = RegExp(r"[a-zA-ZñÑ\s\-']");
+  static final RegExp _nameFullPattern = RegExp(r"^[a-zA-ZñÑ\s\-']+$");
+  static final RegExp _hasLetterPattern = RegExp(r'[a-zA-ZñÑ]');
+
+  String? _validateName(
+    String? value, {
+    required String fieldLabel,
+    bool isRequired = true,
+  }) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return isRequired ? 'Please enter your $fieldLabel' : null;
+    }
+    if (!_nameFullPattern.hasMatch(trimmed) ||
+        !_hasLetterPattern.hasMatch(trimmed)) {
+      return 'Letters, spaces, hyphens (-), and apostrophes (\') only';
+    }
+    return null;
   }
 
   String _composeFullName() {
@@ -544,13 +565,14 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
                       TextFormField(
                         controller: _lastNameController,
                         textCapitalization: TextCapitalization.words,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(_nameAllowedChars),
+                        ],
                         decoration: _fieldDecoration(hintText: 'Last Name'),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your last name';
-                          }
-                          return null;
-                        },
+                        validator: (value) => _validateName(
+                          value,
+                          fieldLabel: 'last name',
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -559,13 +581,14 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
                       TextFormField(
                         controller: _firstNameController,
                         textCapitalization: TextCapitalization.words,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(_nameAllowedChars),
+                        ],
                         decoration: _fieldDecoration(hintText: 'First Name'),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your first name';
-                          }
-                          return null;
-                        },
+                        validator: (value) => _validateName(
+                          value,
+                          fieldLabel: 'first name',
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -582,7 +605,17 @@ class _UserDetailsInputScreenState extends State<UserDetailsInputScreen> {
                                 TextFormField(
                                   controller: _middleNameController,
                                   textCapitalization: TextCapitalization.words,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                      _nameAllowedChars,
+                                    ),
+                                  ],
                                   decoration: _fieldDecoration(hintText: 'Middle Name'),
+                                  validator: (value) => _validateName(
+                                    value,
+                                    fieldLabel: 'middle name',
+                                    isRequired: false,
+                                  ),
                                 ),
                               ],
                             ),

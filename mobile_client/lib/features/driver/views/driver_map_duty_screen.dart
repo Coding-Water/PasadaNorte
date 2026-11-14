@@ -31,7 +31,7 @@ class DriverMapDutyScreen extends StatefulWidget {
 
 class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   int _currentIndex = 0;
-  bool _isOnline = true;
+  bool _isOnline = DriverStatsService.isFranchiseActive;
   bool _simulateNetworkDropFailSafe = false; // ISO/IEC 25010:2023 operational fail-safe during mobile data loss
   bool _showHotspots = false; // Default OFF so driver map is clean and does not cause dizziness
   bool _isHybridSatellite = false; // Google Roadmap vs Google Hybrid Satellite
@@ -103,6 +103,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
         if (appStatus == 'approved') {
           DriverStatsService.isFranchiseActive = true;
           DriverStatsService.lastInspectionStatus = 'Passed (MINC Verified)';
+        } else {
+          DriverStatsService.isFranchiseActive = false;
+          _isOnline = false;
         }
         if (mounted) setState(() {});
       }, onError: (_) {});
@@ -158,11 +161,21 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   }
 
   void _toggleDutyStatus() {
+    if (!DriverStatsService.isFranchiseActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'MINC / TODA approval is required before going online for duty.',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
     setState(() {
       _isOnline = !_isOnline;
     });
-
-      }
+  }
 
   void _handleIncomingRealRideRequest(Map<String, dynamic> request) {
     if (_isDispatchDialogOpen) return;
