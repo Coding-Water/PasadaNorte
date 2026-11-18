@@ -816,6 +816,97 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         _driverDirectory.add(prevById[id] ?? seeded);
       }
     }
+    _rebuildPilaQueuesFromDirectory();
+    _ensureInitialDispatchAndAuditLogs();
+  }
+
+  void _rebuildPilaQueuesFromDirectory() {
+    for (final code in ['TODA-01', 'TODA-02', 'TODA-03']) {
+      final compliantInToda = _driverDirectory
+          .where((d) =>
+              d['toda'] == code && _getDriverExpiryIssues(d).isEmpty)
+          .toList();
+      final list = <Map<String, dynamic>>[];
+      for (var i = 0; i < compliantInToda.length; i++) {
+        final drv = compliantInToda[i];
+        final rank = i + 1;
+        list.add({
+          'rank': rank,
+          'name': drv['name'],
+          'bodyNo': drv['bodyNo'],
+          'dwellMins': 12 - (i * 3).clamp(0, 9),
+          'status': rank == 1
+              ? 'Priority #1 • Ready for Dispatch'
+              : 'Queued in Pila',
+        });
+      }
+      _pilaQueues[code] = list;
+    }
+  }
+
+  void _ensureInitialDispatchAndAuditLogs() {
+    if (_dispatchTrips.isEmpty) {
+      _dispatchTrips.addAll([
+        {
+          'id': 'TRP-8901',
+          'bodyNo': 'TODA-01 #011',
+          'rider': 'Maria Clara Santos',
+          'riderRole': 'Student (₱5.00 Off)',
+          'driver': 'Mateo Villanueva',
+          'origin': 'Laoag Public Market',
+          'destination': 'MMSU Laoag Campus',
+          'distanceKm': 1.4,
+          'collectedFare': 15.00,
+          'expectedFare': 15.00,
+          'overchargeAmount': 0.0,
+          'status': 'COMPLIANT',
+        },
+        {
+          'id': 'TRP-8902',
+          'bodyNo': 'TODA-02 #008',
+          'rider': 'Juanito Pelaez',
+          'riderRole': 'Regular',
+          'driver': 'Danilo Agbayani',
+          'origin': 'INCAT Terminal Bay',
+          'destination': 'Laoag City General Hospital',
+          'distanceKm': 2.1,
+          'collectedFare': 22.00,
+          'expectedFare': 22.00,
+          'overchargeAmount': 0.0,
+          'status': 'COMPLIANT',
+        },
+        {
+          'id': 'TRP-8903',
+          'bodyNo': 'TODA-03 #003',
+          'rider': 'Lola Remedios',
+          'riderRole': 'Senior Citizen (₱5.00 Off)',
+          'driver': 'Ernesto Corpuz',
+          'origin': 'Aurora Park / City Hall',
+          'destination': 'Robinsons Place Ilocos',
+          'distanceKm': 3.2,
+          'collectedFare': 35.00,
+          'expectedFare': 20.00,
+          'overchargeAmount': 15.00,
+          'status': 'OVERCHARGED',
+        },
+      ]);
+    }
+    if (_systemAuditLogs.isEmpty) {
+      _systemAuditLogs.addAll([
+        {
+          'time': 'Active',
+          'actor': 'System Sentinel',
+          'action':
+              'Laoag City Ordinance No. 2023-005 & Oct 2026 Provisional Matrix synchronized.',
+        },
+        {
+          'time': 'Active',
+          'actor': 'Privacy Engine',
+          'action':
+              'RA 10173 / NPC Circular No. 2023-03 72-hour staging purge & k < 5 heatmap suppression active.',
+        },
+      ]);
+    }
   }
 
   Future<void> _loadDocReviewCache() async {
@@ -932,6 +1023,36 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               ),
             ),
           );
+        },
+      ).onBroadcast(
+        event: 'trip_stage_update',
+        callback: (payload) {
+          if (!mounted) return;
+          final stage = (payload['stage'] ?? '').toString();
+          if (stage == 'tripCompleted') {
+            final drv = (payload['driver_name'] ?? 'Mateo Villanueva').toString();
+            setState(() {
+              _dispatchTrips.insert(0, {
+                'id': 'TRP-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}',
+                'bodyNo': 'TODA-01 #011',
+                'rider': 'Commuter',
+                'riderRole': 'Ordinance Verified',
+                'driver': drv,
+                'origin': 'Laoag Pickup',
+                'destination': 'Laoag Dropoff',
+                'distanceKm': 1.5,
+                'collectedFare': 20.00,
+                'expectedFare': 20.00,
+                'overchargeAmount': 0.0,
+                'status': 'COMPLIANT',
+              });
+              _systemAuditLogs.insert(0, {
+                'time': 'Just now',
+                'actor': drv,
+                'action': 'Completed ordinance-compliant trip via Digital Pila dispatch',
+              });
+            });
+          }
         },
       ).subscribe();
     } catch (e) {
@@ -10715,7 +10836,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           child: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Statutory Discount Mandates', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              Text('Laoag City Ordinance & Statutory Discount Mandates', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
               SizedBox(height: 14),
               Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
@@ -10727,13 +10848,13 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Student Commuter Discount (20%)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                          Text('Student, Senior Citizen & PWD Municipal Discount (Flat ₱5.00 Off)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
                           SizedBox(height: 2),
-                          Text('Applies on base and succeeding km for enrolled college & high school students.', style: TextStyle(color: Colors.grey, fontSize: 11.5)),
+                          Text('City Ordinance No. 2023-005 (₱20 Reg / ₱15 Disc) & Oct 2026 Provisional Matrix (₱25 Reg / ₱20 Disc) verified via 1:1 ID check.', style: TextStyle(color: Colors.grey, fontSize: 11.5)),
                         ],
                       ),
                     ),
-                    Text('Mandatory (RA 11314)', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w800, fontSize: 11)),
+                    Text('Active (Ord. 2023-005)', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w800, fontSize: 11)),
                   ],
                 ),
               ),
@@ -10742,19 +10863,19 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Row(
                   children: [
-                    Icon(Icons.elderly_rounded, color: Color(0xFF059669), size: 24),
+                    Icon(Icons.balance_rounded, color: Color(0xFF059669), size: 24),
                     SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Senior Citizen & PWD Discount (20%)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                          Text('LTFRB MC No. 2025-10 Discount Cost-Sharing (50%–50% Schema Readiness)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
                           SizedBox(height: 2),
-                          Text('Applies upon presentation of OSCA or PWD card with 1:1 facial verification.', style: TextStyle(color: Colors.grey, fontSize: 11.5)),
+                          Text('Database schema retains optional 50% TNC / 50% Operator statutory discount-sharing fields for future commercial TNVS accreditation.', style: TextStyle(color: Colors.grey, fontSize: 11.5)),
                         ],
                       ),
                     ),
-                    Text('Mandatory (RA 9994)', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w800, fontSize: 11)),
+                    Text('Schema Ready', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w800, fontSize: 11)),
                   ],
                 ),
               ),

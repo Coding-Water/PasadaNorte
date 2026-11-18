@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../features/auth/models/user_model.dart';
 import '../../features/fare/services/fare_calculator_service.dart';
 import 'document_expiry_service.dart';
@@ -271,6 +272,26 @@ class SupabaseService {
         }
       }
 
+      if (role != UserRole.rider && result.isApproved) {
+        if (uploadedIdPhotoUrl != null &&
+            uploadedIdPhotoUrl.isNotEmpty &&
+            !uploadedIdPhotoUrl.startsWith('http')) {
+          await purgeBiometricStagingImage(
+            bucket: 'id-documents',
+            path: uploadedIdPhotoUrl,
+          );
+        }
+        if (uploadedProfilePhotoUrl != null &&
+            uploadedProfilePhotoUrl.isNotEmpty &&
+            !uploadedProfilePhotoUrl.startsWith('http') &&
+            !uploadedProfilePhotoUrl.startsWith('assets/')) {
+          await purgeBiometricStagingImage(
+            bucket: 'biometric-vault',
+            path: uploadedProfilePhotoUrl,
+          );
+        }
+      }
+
       if (inserted != null && inserted['id'] != null) {
         final userId = inserted['id'] as String;
         await Supabase.instance.client.from('biometric_access_logs').insert({
@@ -396,7 +417,16 @@ class SupabaseService {
   }
 
   // Local registry of submitted driver applications
-  static final Map<String, Map<String, dynamic>> _localDriverApplications = {};
+  static final Map<String, Map<String, dynamic>> _localDriverApplications = {
+    '+639189876543': {
+      'id': 'mock_driver_001',
+      'phone_number': '+639189876543',
+      'full_name': 'Danilo Ramos',
+      'toda_code': 'TODA-01',
+      'plate_or_mv_file': 'IN-4829',
+      'application_status': 'approved',
+    },
+  };
 
   static String _guessContentType(String fileName) {
     final lower = fileName.toLowerCase();
@@ -538,6 +568,7 @@ class SupabaseService {
           .insert(dbRecord)
           .select()
           .maybeSingle();
+
       if (inserted != null && inserted['id'] != null) {
         final remoteId = inserted['id'].toString();
         _localDriverApplications[phoneNumber] = {
@@ -829,6 +860,16 @@ class SupabaseService {
   static RealtimeChannel? _dispatchChannel;
   static final ValueNotifier<Map<String, dynamic>?> activeRenewalAlertNotifier =
       ValueNotifier<Map<String, dynamic>?>(null);
+  static final ValueNotifier<List<Map<String, dynamic>>> tripChatNotifier =
+      ValueNotifier<List<Map<String, dynamic>>>([]);
+  static final StreamController<Map<String, dynamic>> _tripChatStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  static final StreamController<Map<String, dynamic>> _tripCallSignalStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  static final StreamController<Map<String, dynamic>> _tripStageUpdateStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  static bool? debugForceOnlineForCall;
+  static String? lastLaunchedTelUri;
   static final StreamController<Map<String, dynamic>> _rideAcceptedStreamController =
       StreamController<Map<String, dynamic>>.broadcast();
   static final StreamController<Map<String, dynamic>> _rideRequestedStreamController =
@@ -1014,10 +1055,174 @@ class SupabaseService {
         callback: (payload) {
           handleIncomingRenewalApproved(payload);
         },
+      ).onBroadcast(
+        event: 'trip_chat',
+        callback: (payload) {
+          handleIncomingTripChat(payload);
+        },
+      ).onBroadcast(
+        event: 'trip_call_signal',
+        callback: (payload) {
+          handleIncomingTripCallSignal(payload);
+        },
+      ).onBroadcast(
+        event: 'trip_stage_update',
+        callback: (payload) {
+          _tripStageUpdateStreamController.add(payload);
+        },
       ).subscribe();
       return _dispatchChannel;
     } catch (_) {
       return null;
+    }
+  }
+
+  static Stream<Map<String, dynamic>> get onTripChatMessage =>
+      _tripChatStreamController.stream;
+
+  static Stream<Map<String, dynamic>> get onTripCallSignal =>
+      _tripCallSignalStreamController.stream;
+
+  static Stream<Map<String, dynamic>> get onTripStageUpdate =>
+      _tripStageUpdateStreamController.stream;
+
+  static Future<void> broadcastTripStageUpdate({
+    required String stage,
+    String? driverName,
+    String? reason,
+    double? lat,
+    double? lng,
+  }) async {
+    final payload = <String, dynamic>{
+      'stage': stage,
+      if (driverName != null) 'driver_name': driverName,
+      if (reason != null) 'reason': reason,
+      if (lat != null) 'lat': lat,
+      if (lng != null) 'lng': lng,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    _tripStageUpdateStreamController.add(payload);
+    if (_isConnected) {
+      try {
+        final channel = getDispatchChannel();
+        await channel?.sendBroadcastMessage(
+          event: 'trip_stage_update',
+          payload: payload,
+        );
+      } catch (e) {
+        debugPrint('Supabase broadcastTripStageUpdate error: $e');
+      }
+    }
+  }
+
+  static void handleIncomingTripChat(Map<String, dynamic> payload) {
+    final msgId = (payload['id'] ?? '').toString();
+    final current = List<Map<String, dynamic>>.from(tripChatNotifier.value);
+    if (msgId.isNotEmpty && current.any((m) => m['id'] == msgId)) {
+      return;
+    }
+    final normalized = <String, dynamic>{
+      'id': msgId.isEmpty ? 'msg_${DateTime.now().microsecondsSinceEpoch}' : msgId,
+      'sender': (payload['sender'] ?? 'passenger').toString(),
+      'sender_name': (payload['sender_name'] ?? '').toString(),
+      'text': (payload['text'] ?? '').toString(),
+      'time': (payload['time'] ?? 'Now').toString(),
+    };
+    current.add(normalized);
+    tripChatNotifier.value = current;
+    _tripChatStreamController.add(normalized);
+  }
+
+  static Future<void> sendTripChatMessage({
+    required String senderRole,
+    required String senderName,
+    required String text,
+    String? timeLabel,
+  }) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final payload = <String, dynamic>{
+      'id': 'msg_${DateTime.now().microsecondsSinceEpoch}',
+      'sender': senderRole,
+      'sender_name': senderName,
+      'text': trimmed,
+      'time': timeLabel ?? 'Now',
+    };
+    handleIncomingTripChat(payload);
+    if (_isConnected) {
+      try {
+        final channel = getDispatchChannel();
+        await channel?.sendBroadcastMessage(
+          event: 'trip_chat',
+          payload: payload,
+        );
+      } catch (e) {
+        debugPrint('Supabase sendTripChatMessage error: $e');
+      }
+    }
+  }
+
+  static void handleIncomingTripCallSignal(Map<String, dynamic> payload) {
+    _tripCallSignalStreamController.add(payload);
+  }
+
+  static Future<void> sendTripCallSignal({
+    required String callerRole,
+    required String callerName,
+    required String callerPhone,
+    required String state,
+  }) async {
+    final payload = <String, dynamic>{
+      'caller_role': callerRole,
+      'caller_name': callerName,
+      'caller_phone': callerPhone,
+      'state': state,
+      'sent_at': DateTime.now().toIso8601String(),
+    };
+    _tripCallSignalStreamController.add(payload);
+    if (_isConnected) {
+      try {
+        final channel = getDispatchChannel();
+        await channel?.sendBroadcastMessage(
+          event: 'trip_call_signal',
+          payload: payload,
+        );
+      } catch (e) {
+        debugPrint('Supabase sendTripCallSignal error: $e');
+      }
+    }
+  }
+
+  /// Checks whether Wi-Fi or mobile data is available for an in-app VoIP call.
+  /// Returns `false` only when the device has no Wi-Fi/data connectivity,
+  /// triggering automatic fallback to the cellular phone dialer (`tel:`).
+  static Future<bool> hasWifiOrDataForCall() async {
+    if (debugForceOnlineForCall != null) {
+      return debugForceOnlineForCall!;
+    }
+    if (_isConnected) return true;
+    try {
+      final result = await InternetAddress.lookup('supabase.co')
+          .timeout(const Duration(seconds: 2));
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Launches the native mobile phone dialer (`tel:<phone>`) when Wi-Fi/data is unavailable.
+  static Future<bool> launchCellularPhoneCall(String rawPhone) async {
+    final clean = rawPhone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final uri = Uri(scheme: 'tel', path: clean.isEmpty ? '+639178402291' : clean);
+    lastLaunchedTelUri = uri.toString();
+    try {
+      unawaited(
+        launchUrl(uri, mode: LaunchMode.externalApplication)
+            .catchError((_) => false),
+      );
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

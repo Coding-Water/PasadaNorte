@@ -108,6 +108,10 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   List<LatLng> _currentRoutePolyline = [];
 
   // Chat conversation
+  StreamSubscription<Map<String, dynamic>>? _chatSub;
+  StreamSubscription<Map<String, dynamic>>? _callSignalSub;
+  StreamSubscription<Map<String, dynamic>>? _stageUpdateSub;
+  bool _isCallDialogOpen = false;
   final List<Map<String, String>> _chatMessages = [
     {
       'sender': 'passenger',
@@ -120,6 +124,53 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   void initState() {
     super.initState();
     _isSheetExpanded = widget.initialSheetExpanded;
+    if (SupabaseService.tripChatNotifier.value.isEmpty) {
+      SupabaseService.tripChatNotifier.value = _chatMessages
+          .map((m) => <String, dynamic>{
+                'id': 'seed_${m['text'].hashCode}',
+                'sender': m['sender'] ?? 'passenger',
+                'sender_name': widget.passengerName,
+                'text': m['text'] ?? '',
+                'time': m['time'] ?? 'Just now',
+              })
+          .toList();
+    }
+    SupabaseService.getDispatchChannel();
+    _chatSub = SupabaseService.onTripChatMessage.listen((msg) {
+      if (!mounted) return;
+      final sender = (msg['sender'] ?? '').toString();
+      final text = (msg['text'] ?? '').toString();
+      final time = (msg['time'] ?? 'Now').toString();
+      setState(() {
+        if (!_chatMessages.any((m) => m['text'] == text && m['sender'] == sender)) {
+          _chatMessages.add({'sender': sender, 'text': text, 'time': time});
+        }
+      });
+    });
+    _callSignalSub = SupabaseService.onTripCallSignal.listen((signal) {
+      if (!mounted) return;
+      final callerRole = (signal['caller_role'] ?? '').toString();
+      final state = (signal['state'] ?? '').toString();
+      if (callerRole == 'passenger' && state == 'ringing' && !_isCallDialogOpen) {
+        _openActiveWifiCallSheet(isIncoming: true);
+      }
+    });
+    _stageUpdateSub = SupabaseService.onTripStageUpdate.listen((payload) {
+      if (!mounted) return;
+      final stage = (payload['stage'] ?? '').toString();
+      if (stage == 'canceled_by_passenger') {
+        final reason = (payload['reason'] ?? 'Change in plans').toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Passenger canceled the ride ($reason).'),
+            backgroundColor: AppTheme.cancelRed,
+          ),
+        );
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      }
+    });
     // Driver starts on downtown street grid ~300 meters away from market
     _currentDriverLocation = LatLng(
       widget.pickupPoint.latitude + 0.0024,
@@ -141,6 +192,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
 
   @override
   void dispose() {
+    _chatSub?.cancel();
+    _callSignalSub?.cancel();
+    _stageUpdateSub?.cancel();
     _telemetryTimer?.cancel();
     _navigationTimer?.cancel();
     _autoFollowResumeTimer?.cancel();
@@ -376,6 +430,186 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         _showFareSettlementModal();
       }
     });
+    SupabaseService.broadcastTripStageUpdate(
+      stage: _currentStage.name,
+      driverName: widget.driverName,
+      lat: _currentDriverLocation.latitude,
+      lng: _currentDriverLocation.longitude,
+    );
+  }
+
+  Future<void> _startPassengerCall() async {
+    const passengerPhone = '+639178492038';
+    final hasOnline = await SupabaseService.hasWifiOrDataForCall();
+    if (!mounted) return;
+    if (!hasOnline) {
+      await SupabaseService.launchCellularPhoneCall(passengerPhone);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No Wi-Fi/Data: Switching to mobile phone call...'),
+          backgroundColor: AppTheme.primarySlate,
+        ),
+      );
+      return;
+    }
+    await SupabaseService.sendTripCallSignal(
+      callerRole: 'driver',
+      callerName: widget.driverName,
+      callerPhone: '+63 917 840 2291',
+      state: 'ringing',
+    );
+    if (!mounted) return;
+    _openActiveWifiCallSheet(isIncoming: false);
+  }
+
+  void _openActiveWifiCallSheet({required bool isIncoming}) {
+    if (_isCallDialogOpen) return;
+    _isCallDialogOpen = true;
+    int callSeconds = 0;
+    bool isConnected = !isIncoming;
+    bool isMuted = false;
+    bool isSpeaker = true;
+    Timer? callTimer;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setCallState) {
+          callTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+            if (!ctx.mounted) return;
+            if (isConnected) {
+              setCallState(() => callSeconds++);
+            }
+          });
+          final mins = (callSeconds ~/ 60).toString().padLeft(2, '0');
+          final secs = (callSeconds % 60).toString().padLeft(2, '0');
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentEmerald.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Wi-Fi / Data Call',
+                      style: TextStyle(
+                        color: Color(0xFF34D399),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    widget.passengerName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isConnected
+                        ? '$mins:$secs • Connected via Wi-Fi / Data'
+                        : 'Incoming Wi-Fi / Data Call...',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (!isConnected) ...[
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setCallState(() => isConnected = true);
+                            SupabaseService.sendTripCallSignal(
+                              callerRole: 'driver',
+                              callerName: widget.driverName,
+                              callerPhone: '+63 917 840 2291',
+                              state: 'accepted',
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accentEmerald,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.call_rounded),
+                          label: const Text('Answer'),
+                        ),
+                        const SizedBox(width: 16),
+                      ] else ...[
+                        IconButton(
+                          onPressed: () => setCallState(() => isMuted = !isMuted),
+                          icon: Icon(
+                            isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        IconButton(
+                          onPressed: () => setCallState(() => isSpeaker = !isSpeaker),
+                          icon: Icon(
+                            isSpeaker ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                      ],
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          callTimer?.cancel();
+                          SupabaseService.sendTripCallSignal(
+                            callerRole: 'driver',
+                            callerName: widget.driverName,
+                            callerPhone: '+63 917 840 2291',
+                            state: 'ended',
+                          );
+                          Navigator.pop(ctx);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.cancelRed,
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.call_end_rounded),
+                        label: const Text('End Call'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: () async {
+                      callTimer?.cancel();
+                      Navigator.pop(ctx);
+                      await SupabaseService.launchCellularPhoneCall('+639178492038');
+                    },
+                    icon: const Icon(Icons.phone_forwarded_rounded, size: 16, color: Colors.white70),
+                    label: const Text(
+                      'No Wi-Fi/Data? Switch to Mobile Phone Call',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ).whenComplete(() {
+      callTimer?.cancel();
+      _isCallDialogOpen = false;
+    });
   }
 
   void _openPassengerCallModal() {
@@ -429,7 +663,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               ),
               const SizedBox(height: 4),
               Text(
-                '+63 917 849 2038 • Passenger in Laoag',
+                '+63 917 849 2038 • Wi-Fi / Data Call (Mobile fallback if offline)',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
               const SizedBox(height: 24),
@@ -454,7 +688,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                     child: ElevatedButton.icon(
                       onPressed: () {
                         Navigator.pop(ctx);
-                                              },
+                        _startPassengerCall();
+                      },
                       icon: const Icon(Icons.call_rounded, size: 20),
                       label: const Text('Voice Call'),
                       style: ElevatedButton.styleFrom(
@@ -509,44 +744,49 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(0xFF4F46E5),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'MC',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF4F46E5),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'MC',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.passengerName,
-                                style: const TextStyle(
-                                  color: AppTheme.primarySlate,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.passengerName,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppTheme.primarySlate,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  Text(
+                                    'In-Trip Passenger Chat',
+                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                'In-Trip Passenger Chat',
-                                style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                              ),
-                            ],
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(ctx),
@@ -555,53 +795,59 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                     ],
                   ),
                   Divider(color: Colors.grey.shade200, height: 18),
-                  // Chat Messages List
+                  // Chat Messages List (Reactive via SupabaseService.tripChatNotifier)
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: _chatMessages.length,
-                      itemBuilder: (context, index) {
-                        final msg = _chatMessages[index];
-                        final isDriver = msg['sender'] == 'driver';
-                        return Align(
-                          alignment: isDriver
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(vertical: 4),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDriver
-                                   ? AppTheme.accentEmerald
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: isDriver
-                                  ? CrossAxisAlignment.end
-                                  : CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  msg['text'] ?? '',
-                                  style: TextStyle(
-                                    color: isDriver ? Colors.white : AppTheme.primarySlate,
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                    child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+                      valueListenable: SupabaseService.tripChatNotifier,
+                      builder: (context, liveMessages, _) {
+                        final list = liveMessages.isNotEmpty ? liveMessages : _chatMessages;
+                        return ListView.builder(
+                          itemCount: list.length,
+                          itemBuilder: (context, index) {
+                            final msg = list[index];
+                            final isDriver = msg['sender'] == 'driver';
+                            return Align(
+                              alignment: isDriver
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  msg['time'] ?? '',
-                                  style: TextStyle(
-                                    color: isDriver ? Colors.white70 : Colors.grey.shade500,
-                                    fontSize: 10,
-                                  ),
+                                decoration: BoxDecoration(
+                                  color: isDriver
+                                      ? AppTheme.accentEmerald
+                                      : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(18),
                                 ),
-                              ],
-                            ),
-                          ),
+                                child: Column(
+                                  crossAxisAlignment: isDriver
+                                      ? CrossAxisAlignment.end
+                                      : CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      (msg['text'] ?? '').toString(),
+                                      style: TextStyle(
+                                        color: isDriver ? Colors.white : AppTheme.primarySlate,
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      (msg['time'] ?? '').toString(),
+                                      style: TextStyle(
+                                        color: isDriver ? Colors.white70 : Colors.grey.shade500,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -614,37 +860,34 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                         _buildQuickReplyChip(
                           'Dadditoyakon!',
                           onTap: () {
-                            setModalState(() {
-                              _chatMessages.add({
-                                'sender': 'driver',
-                                'text': 'Dadditoyakon dita pickup terminal! (I am here!)',
-                                'time': 'Now',
-                              });
-                            });
+                            SupabaseService.sendTripChatMessage(
+                              senderRole: 'driver',
+                              senderName: widget.driverName,
+                              text: 'Dadditoyakon dita pickup terminal! (I am here!)',
+                            );
+                            setModalState(() {});
                           },
                         ),
                         _buildQuickReplyChip(
                           'On the way 🛺',
                           onTap: () {
-                            setModalState(() {
-                              _chatMessages.add({
-                                'sender': 'driver',
-                                'text': 'On the way na po ako dita location niyo.',
-                                'time': 'Now',
-                              });
-                            });
+                            SupabaseService.sendTripChatMessage(
+                              senderRole: 'driver',
+                              senderName: widget.driverName,
+                              text: 'On the way na po ako dita location niyo.',
+                            );
+                            setModalState(() {});
                           },
                         ),
                         _buildQuickReplyChip(
                           'Waiting at gate',
                           onTap: () {
-                            setModalState(() {
-                              _chatMessages.add({
-                                'sender': 'driver',
-                                'text': 'Naka-park po ako near main gate.',
-                                'time': 'Now',
-                              });
-                            });
+                            SupabaseService.sendTripChatMessage(
+                              senderRole: 'driver',
+                              senderName: widget.driverName,
+                              text: 'Naka-park po ako near main gate.',
+                            );
+                            setModalState(() {});
                           },
                         ),
                       ],
@@ -681,14 +924,14 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                       const SizedBox(width: 8),
                       IconButton(
                         onPressed: () {
-                          if (textCtrl.text.trim().isNotEmpty) {
-                            setModalState(() {
-                              _chatMessages.add({
-                                'sender': 'driver',
-                                'text': textCtrl.text.trim(),
-                                'time': 'Now',
-                              });
-                            });
+                          final txt = textCtrl.text.trim();
+                          if (txt.isNotEmpty) {
+                            SupabaseService.sendTripChatMessage(
+                              senderRole: 'driver',
+                              senderName: widget.driverName,
+                              text: txt,
+                            );
+                            setModalState(() {});
                             textCtrl.clear();
                           }
                         },

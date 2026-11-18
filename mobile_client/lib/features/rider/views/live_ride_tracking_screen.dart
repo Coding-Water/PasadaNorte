@@ -11,6 +11,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/services/system_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
+import '../models/activity_trip_model.dart';
 
 enum _RidePhase {
   findingDriver, // Dispatching & finding a nearby TODA driver
@@ -58,6 +59,9 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   bool _showRiderAcceptedPrompt = false;
   Timer? _riderAcceptedPromptTimer;
   StreamSubscription<Map<String, dynamic>>? _rideAcceptedSubscription;
+  StreamSubscription<Map<String, dynamic>>? _callSignalSub;
+  StreamSubscription<Map<String, dynamic>>? _stageUpdateSub;
+  bool _recordedCompletedActivity = false;
 
   // Phase 1: Street-snapped Tricycle Approach Path (from nearest TODA terminal to passenger pickup)
   List<LatLng> _tricycleApproachPath = [];
@@ -160,6 +164,45 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             );
           }
           _beginDriverApproachPhase();
+        }
+      });
+      _callSignalSub = SupabaseService.onTripCallSignal.listen((signal) {
+        if (!mounted) return;
+        final callerRole = (signal['caller_role'] ?? '').toString();
+        final state = (signal['state'] ?? '').toString();
+        if (callerRole == 'driver' && state == 'ringing') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => _DriverVoiceCallScreen(
+                driverData: _matchedDriver,
+              ),
+            ),
+          );
+        }
+      });
+      _stageUpdateSub = SupabaseService.onTripStageUpdate.listen((payload) {
+        if (!mounted) return;
+        final stage = (payload['stage'] ?? '').toString();
+        if (stage == 'arrivedAtPickup') {
+          _trackingTimer?.cancel();
+          setState(() {
+            _tricycleLivePos = widget.pickupPoint.latLng;
+            _distanceToPassengerMeters = 0;
+            _etaToPassengerMinutes = 0;
+          });
+          SystemNotificationService.showDriverArrivedNotification(
+            driverName: _matchedDriver['name'] ?? 'Eduardo Castro',
+            pickupLocation: widget.pickupPoint.name,
+          );
+        } else if (stage == 'inTransitToDropoff') {
+          if (_ridePhase != _RidePhase.headingToDestination) {
+            _beginHeadingToDestinationPhase();
+          }
+        } else if (stage == 'tripCompleted') {
+          if (_ridePhase != _RidePhase.arrivedAtDestination) {
+            _triggerArrivedAtDestinationPhase();
+          }
         }
       });
     } catch (_) {}
@@ -428,6 +471,37 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       _remainingDestinationKm = 0.0;
       _etaToDestinationMinutes = 0;
     });
+    if (!_recordedCompletedActivity) {
+      _recordedCompletedActivity = true;
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      ActivityRepository.addTrip(
+        ActivityTrip(
+          id: 'TRIP-$nowMs',
+          title: widget.dropoffPoint.name,
+          dateTime: DateTime.now(),
+          status: ActivityStatus.completed,
+          vehicleType: widget.deliveryNotes.trim().isNotEmpty
+              ? 'PasaDeliver Express'
+              : 'PasadaNorte Tricycle',
+          vehicleSubtitle:
+              '${widget.fareBreakdown.distanceKm.toStringAsFixed(1)} km · Completed',
+          pickupLocation: widget.pickupPoint.name,
+          dropoffLocation: widget.dropoffPoint.name,
+          tripFare: widget.fareBreakdown.subtotal,
+          discount: widget.fareBreakdown.discountAmount,
+          paymentMethod: 'Cash (Pay Driver Directly)',
+          transactionId: 'TRX${nowMs.toString().substring(4)}',
+          bookingId: 'BKG${nowMs.toString().substring(6)}',
+          driverName: _matchedDriver['name'] ?? 'Eduardo Castro',
+          driverVehicle:
+              _matchedDriver['vehicleHeadline'] ?? 'Honda TMX 125 • TODA-01',
+          isDelivery: widget.deliveryNotes.trim().isNotEmpty,
+          packageDescription: widget.deliveryNotes.trim().isNotEmpty
+              ? widget.deliveryNotes.trim()
+              : null,
+        ),
+      );
+    }
     SystemNotificationService.showTripCompletedNotification(
       fareAmount: widget.fareBreakdown.finalFare,
       paymentMethod: 'Cash',
@@ -539,6 +613,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     _riderAcceptedPromptTimer?.cancel();
     SoundAlertService.stop();
     _rideAcceptedSubscription?.cancel();
+    _callSignalSub?.cancel();
+    _stageUpdateSub?.cancel();
     _radarPulseController.dispose();
     _lowRatingFeedbackController.dispose();
     super.dispose();
@@ -591,8 +667,29 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     );
   }
 
-  // Voice Call Screen
-  void _openDriverVoiceCallScreen() {
+  // Voice Call Screen (Wi-Fi / Data Call first; falls back to mobile phone call only when offline)
+  Future<void> _openDriverVoiceCallScreen() async {
+    final driverPhone = _matchedDriver['phone'] ?? '+639178402291';
+    final hasOnline = await SupabaseService.hasWifiOrDataForCall();
+    if (!mounted) return;
+    if (!hasOnline) {
+      await SupabaseService.launchCellularPhoneCall(driverPhone);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No Wi-Fi/Data: Switching to mobile phone call...'),
+          backgroundColor: AppTheme.primarySlate,
+        ),
+      );
+      return;
+    }
+    await SupabaseService.sendTripCallSignal(
+      callerRole: 'passenger',
+      callerName: widget.passengerName,
+      callerPhone: '+63 917 849 2038',
+      state: 'ringing',
+    );
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -608,7 +705,35 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const _CancelRideReasonScreen(),
+        builder: (_) => _CancelRideReasonScreen(
+          onConfirmedCancel: (reason) {
+            final nowMs = DateTime.now().millisecondsSinceEpoch;
+            ActivityRepository.addTrip(
+              ActivityTrip(
+                id: 'TRIP-CANCEL-$nowMs',
+                title: widget.dropoffPoint.name,
+                dateTime: DateTime.now(),
+                status: ActivityStatus.canceled,
+                vehicleType: 'PasadaNorte Tricycle',
+                vehicleSubtitle: 'Canceled ($reason)',
+                pickupLocation: widget.pickupPoint.name,
+                dropoffLocation: widget.dropoffPoint.name,
+                tripFare: widget.fareBreakdown.subtotal,
+                discount: widget.fareBreakdown.discountAmount,
+                paymentMethod: 'Cash (Pay Driver Directly)',
+                transactionId: 'TRX${nowMs.toString().substring(4)}',
+                bookingId: 'BKG${nowMs.toString().substring(6)}',
+                driverName: _matchedDriver['name'] ?? 'Eduardo Castro',
+                driverVehicle: _matchedDriver['vehicleHeadline'] ??
+                    'Honda TMX 125 • TODA-01',
+              ),
+            );
+            SupabaseService.broadcastTripStageUpdate(
+              stage: 'canceled_by_passenger',
+              reason: reason,
+            );
+          },
+        ),
       ),
     );
   }
@@ -3413,6 +3538,7 @@ class _DriverChatScreen extends StatefulWidget {
 class _DriverChatScreenState extends State<_DriverChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   late final List<Map<String, dynamic>> _messages;
+  StreamSubscription<Map<String, dynamic>>? _chatSub;
 
   @override
   void initState() {
@@ -3441,10 +3567,36 @@ class _DriverChatScreenState extends State<_DriverChatScreen> {
         'time': '09:42',
       },
     ];
+    for (final existing in SupabaseService.tripChatNotifier.value) {
+      final text = (existing['text'] ?? '').toString();
+      final isMe = existing['sender'] == 'passenger';
+      if (!_messages.any((m) => m['text'] == text)) {
+        _messages.add({
+          'isMe': isMe,
+          'text': text,
+          'time': (existing['time'] ?? 'Now').toString(),
+        });
+      }
+    }
+    _chatSub = SupabaseService.onTripChatMessage.listen((msg) {
+      if (!mounted) return;
+      final text = (msg['text'] ?? '').toString();
+      final isMe = msg['sender'] == 'passenger';
+      if (!_messages.any((m) => m['text'] == text && m['isMe'] == isMe)) {
+        setState(() {
+          _messages.add({
+            'isMe': isMe,
+            'text': text,
+            'time': (msg['time'] ?? 'Now').toString(),
+          });
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _chatSub?.cancel();
     _msgController.dispose();
     super.dispose();
   }
@@ -3460,6 +3612,11 @@ class _DriverChatScreenState extends State<_DriverChatScreen> {
       });
       _msgController.clear();
     });
+    SupabaseService.sendTripChatMessage(
+      senderRole: 'passenger',
+      senderName: widget.passengerName,
+      text: text,
+    );
   }
 
   @override
@@ -3688,7 +3845,7 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    _formatDuration(_seconds),
+                    '${_formatDuration(_seconds)} • Wi-Fi / Data Call',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 15,
@@ -3703,7 +3860,15 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     InkWell(
-                      onTap: () => Navigator.pop(context),
+                      onTap: () {
+                        SupabaseService.sendTripCallSignal(
+                          callerRole: 'passenger',
+                          callerName: 'Passenger',
+                          callerPhone: '+63 917 849 2038',
+                          state: 'ended',
+                        );
+                        Navigator.pop(context);
+                      },
                       customBorder: const CircleBorder(),
                       child: Container(
                         width: 62,
@@ -3776,7 +3941,9 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
 // CANCEL RIDE REASON & CANCELED CONFIRMATION
 // ============================================================================
 class _CancelRideReasonScreen extends StatefulWidget {
-  const _CancelRideReasonScreen();
+  final ValueChanged<String>? onConfirmedCancel;
+
+  const _CancelRideReasonScreen({this.onConfirmedCancel});
 
   @override
   State<_CancelRideReasonScreen> createState() =>
@@ -3801,6 +3968,7 @@ class _CancelRideReasonScreenState extends State<_CancelRideReasonScreen> {
   ];
 
   void _confirmCancel() {
+    widget.onConfirmedCancel?.call(_reasons[_selectedReasonIndex]);
     showDialog(
       context: context,
       barrierDismissible: false,
