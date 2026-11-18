@@ -174,21 +174,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       _passengerChatSub = SupabaseService.onTripChatMessage.listen((msg) {
         if (!mounted) return;
         final sender = (msg['sender'] ?? '').toString();
-        final text = (msg['text'] ?? '').toString();
         if (sender == 'driver' && !_isChatScreenOpen) {
           setState(() {
             _unreadChatCount++;
           });
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text('💬 ${_matchedDriver['name']}: $text'),
-                backgroundColor: AppTheme.primarySlate,
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 3),
-              ),
-            );
         }
       });
       _callSignalSub = SupabaseService.onTripCallSignal.listen((signal) {
