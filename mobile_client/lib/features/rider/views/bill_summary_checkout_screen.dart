@@ -320,14 +320,7 @@ class _BillSummaryCheckoutScreenState extends State<BillSummaryCheckoutScreen> {
                       ),
                       child: Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(pm['icon'] as IconData, color: color, size: 22),
-                          ),
+                          _buildPaymentBrandIcon(name, color),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -412,4 +405,181 @@ class _BillSummaryCheckoutScreenState extends State<BillSummaryCheckoutScreen> {
       ],
     );
   }
+
+  Widget _buildPaymentBrandIcon(String methodName, Color fallbackColor) {
+    if (methodName.startsWith('GCash')) {
+      // Official GCash Blue (#007DFE) with stylized white "G" + signal arcs
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: const Color(0xFF007DFE),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: CustomPaint(
+          painter: _GCashLogoPainter(),
+        ),
+      );
+    }
+
+    if (methodName.startsWith('Maya')) {
+      // Official Maya Dark Slate + vibrant Emerald "maya" brand mark
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(
+          child: Text(
+            'maya',
+            style: TextStyle(
+              color: Color(0xFF00E070),
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (methodName.startsWith('QR Ph')) {
+      // Official QR Ph tri-color (PH Blue, Red, Sun Yellow) QR matrix badge
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: CustomPaint(
+          painter: _QrPhLogoPainter(),
+        ),
+      );
+    }
+
+    // Cash (Philippine Peso ₱ banknote badge)
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: fallbackColor.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Text(
+          '₱',
+          style: TextStyle(
+            color: fallbackColor,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GCashLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width * 0.44;
+    final cy = size.height * 0.52;
+
+    // White "G" ring
+    final gPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.4
+      ..strokeCap = StrokeCap.round;
+
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: size.width * 0.24);
+    canvas.drawArc(rect, -0.45, 5.2, false, gPaint);
+
+    // Horizontal bar of "G"
+    canvas.drawLine(
+      Offset(cx, cy),
+      Offset(cx + size.width * 0.24, cy),
+      gPaint,
+    );
+
+    // Signal arcs to the top-right of the G
+    final wavePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.92)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.9
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx + 4, cy - 4), radius: size.width * 0.28),
+      -1.1,
+      0.85,
+      false,
+      wavePaint,
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx + 4, cy - 4), radius: size.width * 0.38),
+      -1.1,
+      0.85,
+      false,
+      wavePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _QrPhLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = size.width * 0.18;
+    final box = size.width * 0.24;
+
+    void drawFinder(double x, double y, Color color) {
+      final outer = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(x, y, box, box), const Radius.circular(2)),
+        outer,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(x + box * 0.3, y + box * 0.3, box * 0.4, box * 0.4),
+        Paint()..color = color,
+      );
+    }
+
+    // PH Flag colors for the 3 QR Ph finder squares + sun yellow center
+    drawFinder(p, p, const Color(0xFF0038A8)); // Royal Blue
+    drawFinder(size.width - p - box, p, const Color(0xFFCE1126)); // Red
+    drawFinder(p, size.height - p - box, const Color(0xFF0038A8)); // Royal Blue
+
+    // Sun yellow accent + dark QR dots in bottom-right
+    canvas.drawCircle(
+      Offset(size.width * 0.50, size.height * 0.50),
+      2.6,
+      Paint()..color = const Color(0xFFFCD116),
+    );
+    final dark = Paint()..color = const Color(0xFF0F172A);
+    canvas.drawRect(
+      Rect.fromLTWH(size.width - p - box, size.height - p - box, 4, 4),
+      dark,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(size.width - p - 4, size.height - p - 4, 4, 4),
+      dark,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(size.width - p - box, size.height - p - 4, 4, 4),
+      dark,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
