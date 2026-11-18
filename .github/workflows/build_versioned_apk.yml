@@ -51,7 +51,7 @@ jobs:
         working-directory: mobile_client
         run: |
           flutter pub get
-          flutter build apk --release --build-name="${{ steps.version.outputs.base_ver }}" --build-number="${{ steps.version.outputs.build_num }}"
+          flutter build apk --release --android-skip-build-dependency-validation --build-name="${{ steps.version.outputs.base_ver }}" --build-number="${{ steps.version.outputs.build_num }}"
 
       - name: Rename APK with version
         run: |
