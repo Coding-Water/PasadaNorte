@@ -53,6 +53,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   StreamSubscription<List<Map<String, dynamic>>>? _driverAppSub;
   StreamSubscription<String>? _notifTapSub;
   bool _isDispatchDialogOpen = false;
+  bool _isOnActiveTrip = false;
 
   @override
   void initState() {
@@ -228,7 +229,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
       SupabaseService.getDispatchChannel();
       _rideRequestedSubscription =
           SupabaseService.onRideRequested.listen((payload) {
-        if (_isOnline && mounted && !_isDispatchDialogOpen) {
+        if (_isOnline && mounted && !_isDispatchDialogOpen && !_isOnActiveTrip) {
           _handleIncomingRealRideRequest(payload);
         }
       });
@@ -476,32 +477,37 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                     // Dequeue driver from terminal queue when accepting passenger trip
                     TodaQueueService.dequeueDriverForTrip('term_01', widget.fullName);
 
-                    await Navigator.push<bool>(
-                      this.context,
-                      MaterialPageRoute(
-                        builder: (_) => DriverActiveTripScreen(
-                          driverName: widget.fullName,
-                          passengerName: passengerName,
-                          passengerCategory: passengerCategory,
-                          pickupPoint: LocationPoint(
-                            latitude: pickupLat,
-                            longitude: pickupLng,
-                            name: pickupName,
-                            zoneCode: 'Z01',
+                    _isOnActiveTrip = true;
+                    try {
+                      await Navigator.push<bool>(
+                        this.context,
+                        MaterialPageRoute(
+                          builder: (_) => DriverActiveTripScreen(
+                            driverName: widget.fullName,
+                            passengerName: passengerName,
+                            passengerCategory: passengerCategory,
+                            pickupPoint: LocationPoint(
+                              latitude: pickupLat,
+                              longitude: pickupLng,
+                              name: pickupName,
+                              zoneCode: 'Z01',
+                            ),
+                            dropoffPoint: LocationPoint(
+                              latitude: dropoffLat,
+                              longitude: dropoffLng,
+                              name: dropoffName,
+                              zoneCode: 'Z02',
+                            ),
+                            distanceKm: distanceKm,
+                            regularFare: fare,
+                            discountedFare: fare,
+                            paymentMethod: paymentMethod,
                           ),
-                          dropoffPoint: LocationPoint(
-                            latitude: dropoffLat,
-                            longitude: dropoffLng,
-                            name: dropoffName,
-                            zoneCode: 'Z02',
-                          ),
-                          distanceKm: distanceKm,
-                          regularFare: fare,
-                          discountedFare: fare,
-                          paymentMethod: paymentMethod,
                         ),
-                      ),
-                    );
+                      );
+                    } finally {
+                      _isOnActiveTrip = false;
+                    }
                     if (mounted) {
                       setState(() {});
                     }

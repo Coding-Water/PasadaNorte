@@ -1081,10 +1081,7 @@ class SupabaseService {
       _isDispatchSubscribed = false;
       _dispatchSubscribeCompleter = Completer<void>();
       _dispatchChannelVersion = _kRequiredDispatchVersion;
-      _dispatchChannel = sb.channel(
-        'rides_dispatch',
-        opts: const RealtimeChannelConfig(ack: true),
-      );
+      _dispatchChannel = sb.channel('rides_dispatch');
       _dispatchChannel
           ?.onBroadcast(
             event: 'ride_accepted',

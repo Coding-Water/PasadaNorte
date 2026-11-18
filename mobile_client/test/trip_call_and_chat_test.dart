@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mobile_client/core/services/location_service.dart';
 import 'package:mobile_client/core/services/supabase_service.dart';
+import 'package:mobile_client/core/theme/app_theme.dart';
 import 'package:mobile_client/features/driver/views/driver_active_trip_screen.dart';
 import 'package:mobile_client/features/fare/services/fare_calculator_service.dart';
 import 'package:mobile_client/features/rider/models/activity_trip_model.dart';
@@ -22,8 +23,9 @@ void main() {
   });
 
   Widget createDriverScreen() {
-    return const MaterialApp(
-      home: DriverActiveTripScreen(
+    return MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const DriverActiveTripScreen(
         driverName: 'Juan Dela Cruz',
         passengerName: 'Maria Clara Santos',
       ),
@@ -32,6 +34,7 @@ void main() {
 
   Widget createPassengerScreen() {
     return MaterialApp(
+      theme: AppTheme.lightTheme,
       home: LiveRideTrackingScreen(
         passengerName: 'Maria Clara Santos',
         pickupPoint: const LocationPoint(
@@ -316,6 +319,34 @@ void main() {
       while (tester.takeException() != null) {}
 
       expect(find.text('Why are you cancelling?'), findsOneWidget);
+    });
+
+    testWidgets('Tapping Go back during driverHeadingToPickup prompts Active Booking in Progress instead of popping back to bill summary', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 1100));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(createPassengerScreen());
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 3500));
+      await tester.pump(const Duration(milliseconds: 3500));
+      await tester.pump();
+      while (tester.takeException() != null) {}
+
+      expect(find.text('Driver is heading to your location...'), findsOneWidget);
+
+      final backInkWell = tester.widget<InkWell>(
+        find.descendant(
+          of: find.byTooltip('Go back'),
+          matching: find.byType(InkWell),
+        ),
+      );
+      backInkWell.onTap!();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      while (tester.takeException() != null) {}
+
+      expect(find.text('Active Booking in Progress'), findsOneWidget);
+      expect(find.text('Keep Waiting'), findsOneWidget);
     });
   });
 }

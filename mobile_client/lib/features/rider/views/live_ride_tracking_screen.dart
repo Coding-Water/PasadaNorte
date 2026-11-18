@@ -812,12 +812,6 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         );
       return;
     }
-    await SupabaseService.sendTripCallSignal(
-      callerRole: 'passenger',
-      callerName: widget.passengerName,
-      callerPhone: '+63 917 849 2038',
-      state: 'ringing',
-    );
     if (!mounted) return;
     _isCallScreenOpen = true;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -833,6 +827,14 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         .whenComplete(() {
       _isCallScreenOpen = false;
     });
+    unawaited(
+      SupabaseService.sendTripCallSignal(
+        callerRole: 'passenger',
+        callerName: widget.passengerName,
+        callerPhone: '+63 917 849 2038',
+        state: 'ringing',
+      ),
+    );
   }
 
   // Cancel Ride:
@@ -886,6 +888,69 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         ),
       ),
     );
+  }
+
+  void _handleBackPressed() {
+    if (_ridePhase == _RidePhase.findingDriver) {
+      _openCancelRideScreen();
+      return;
+    }
+    if (_ridePhase == _RidePhase.driverHeadingToPickup) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Active Booking in Progress',
+            style: TextStyle(
+              color: AppTheme.primarySlate,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: Text(
+            '${_matchedDriver['name']} is already on the way to pick you up. To go back or book a different ride, please cancel this ride first.',
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Keep Waiting'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _openCancelRideScreen();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.cancelRed,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 44),
+              ),
+              child: const Text('Cancel Ride'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    if (_ridePhase == _RidePhase.headingToDestination) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Trip in progress to ${widget.dropoffPoint.name}.',
+            ),
+            backgroundColor: AppTheme.primarySlate,
+          ),
+        );
+      return;
+    }
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _handleFinishTrip({required bool skipped}) {
@@ -954,7 +1019,13 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       _RidePhase.arrivedAtDestination => 520.0,
     };
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _handleBackPressed();
+      },
+      child: Scaffold(
       body: Stack(
         children: [
           // 1. FULL-BLEED INTERACTIVE MAP
@@ -1394,7 +1465,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                 icon: Icons.chevron_left_rounded,
                 size: 26,
                 tooltip: 'Go back',
-                onTap: () => Navigator.pop(context),
+                onTap: _handleBackPressed,
               ),
             ),
             Positioned(
@@ -1460,6 +1531,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           _buildRiderAcceptedCenterPrompt(),
         ],
       ),
+    ),
     );
   }
 
@@ -4055,69 +4127,75 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
                 ],
               ),
               Padding(
-                padding: const EdgeInsets.only(bottom: 42),
+                padding: const EdgeInsets.only(bottom: 42, left: 24, right: 24),
                 child: widget.isIncoming && !_isConnected
                     ? Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              SupabaseService.sendTripCallSignal(
-                                callerRole: 'passenger',
-                                callerName: 'Passenger',
-                                callerPhone: '+63 917 849 2038',
-                                state: 'declined',
-                              );
-                              Navigator.pop(context);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.cancelRed,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 22,
-                                vertical: 14,
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                SupabaseService.sendTripCallSignal(
+                                  callerRole: 'passenger',
+                                  callerName: 'Passenger',
+                                  callerPhone: '+63 917 849 2038',
+                                  state: 'declined',
+                                );
+                                Navigator.pop(context);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.cancelRed,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 52),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                            ),
-                            icon: const Icon(Icons.call_end_rounded),
-                            label: const Text(
-                              'Decline',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
+                              icon: const Icon(Icons.call_end_rounded),
+                              label: const Text(
+                                'Decline',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 24),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              setState(() => _isConnected = true);
-                              SupabaseService.sendTripCallSignal(
-                                callerRole: 'passenger',
-                                callerName: 'Passenger',
-                                callerPhone: '+63 917 849 2038',
-                                state: 'accepted',
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.accentEmerald,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 22,
-                                vertical: 14,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() => _isConnected = true);
+                                SupabaseService.sendTripCallSignal(
+                                  callerRole: 'passenger',
+                                  callerName: 'Passenger',
+                                  callerPhone: '+63 917 849 2038',
+                                  state: 'accepted',
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.accentEmerald,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 52),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                            ),
-                            icon: const Icon(Icons.call_rounded),
-                            label: const Text(
-                              'Answer',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
+                              icon: const Icon(Icons.call_rounded),
+                              label: const Text(
+                                'Answer',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),

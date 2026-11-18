@@ -61,7 +61,7 @@ class _BillSummaryCheckoutScreenState extends State<BillSummaryCheckoutScreen> {
   ];
 
   void _confirmAndDispatch() {
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => LiveRideTrackingScreen(

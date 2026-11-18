@@ -503,14 +503,15 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         );
       return;
     }
-    await SupabaseService.sendTripCallSignal(
-      callerRole: 'driver',
-      callerName: widget.driverName,
-      callerPhone: '+63 917 840 2291',
-      state: 'ringing',
-    );
-    if (!mounted) return;
     _openActiveWifiCallSheet(isIncoming: false);
+    unawaited(
+      SupabaseService.sendTripCallSignal(
+        callerRole: 'driver',
+        callerName: widget.driverName,
+        callerPhone: '+63 917 840 2291',
+        state: 'ringing',
+      ),
+    );
   }
 
   void _openActiveWifiCallSheet({required bool isIncoming}) {
@@ -603,42 +604,48 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (isIncoming && !isConnected) ...[
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            _activeCallTimer?.cancel();
-                            _activeModalCallSub?.cancel();
-                            SupabaseService.sendTripCallSignal(
-                              callerRole: 'driver',
-                              callerName: widget.driverName,
-                              callerPhone: '+63 917 840 2291',
-                              state: 'declined',
-                            );
-                            Navigator.of(ctx, rootNavigator: true).pop();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.cancelRed,
-                            foregroundColor: Colors.white,
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              _activeCallTimer?.cancel();
+                              _activeModalCallSub?.cancel();
+                              SupabaseService.sendTripCallSignal(
+                                callerRole: 'driver',
+                                callerName: widget.driverName,
+                                callerPhone: '+63 917 840 2291',
+                                state: 'declined',
+                              );
+                              Navigator.of(ctx, rootNavigator: true).pop();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.cancelRed,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 48),
+                            ),
+                            icon: const Icon(Icons.call_end_rounded),
+                            label: const Text('Decline'),
                           ),
-                          icon: const Icon(Icons.call_end_rounded),
-                          label: const Text('Decline'),
                         ),
-                        const SizedBox(width: 16),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            setCallState(() => isConnected = true);
-                            SupabaseService.sendTripCallSignal(
-                              callerRole: 'driver',
-                              callerName: widget.driverName,
-                              callerPhone: '+63 917 840 2291',
-                              state: 'accepted',
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.accentEmerald,
-                            foregroundColor: Colors.white,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              setCallState(() => isConnected = true);
+                              SupabaseService.sendTripCallSignal(
+                                callerRole: 'driver',
+                                callerName: widget.driverName,
+                                callerPhone: '+63 917 840 2291',
+                                state: 'accepted',
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.accentEmerald,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 48),
+                            ),
+                            icon: const Icon(Icons.call_rounded),
+                            label: const Text('Answer'),
                           ),
-                          icon: const Icon(Icons.call_rounded),
-                          label: const Text('Answer'),
                         ),
                       ] else ...[
                         IconButton(
@@ -648,7 +655,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         IconButton(
                           onPressed: () => setCallState(() => isSpeaker = !isSpeaker),
                           icon: Icon(
@@ -656,25 +663,28 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            _activeCallTimer?.cancel();
-                            _activeModalCallSub?.cancel();
-                            SupabaseService.sendTripCallSignal(
-                              callerRole: 'driver',
-                              callerName: widget.driverName,
-                              callerPhone: '+63 917 840 2291',
-                              state: 'ended',
-                            );
-                            Navigator.of(ctx, rootNavigator: true).pop();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.cancelRed,
-                            foregroundColor: Colors.white,
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              _activeCallTimer?.cancel();
+                              _activeModalCallSub?.cancel();
+                              SupabaseService.sendTripCallSignal(
+                                callerRole: 'driver',
+                                callerName: widget.driverName,
+                                callerPhone: '+63 917 840 2291',
+                                state: 'ended',
+                              );
+                              Navigator.of(ctx, rootNavigator: true).pop();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.cancelRed,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 48),
+                            ),
+                            icon: const Icon(Icons.call_end_rounded),
+                            label: const Text('End Call'),
                           ),
-                          icon: const Icon(Icons.call_end_rounded),
-                          label: const Text('End Call'),
                         ),
                       ],
                     ],
