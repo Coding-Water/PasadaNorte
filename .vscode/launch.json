@@ -1,40 +1,35 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Web Client (Chrome)",
-            "cwd": "web_client",
-            "request": "launch",
-            "type": "dart",
-            "program": "web_client/lib/main.dart",
-            "deviceId": "chrome"
-        },
-        {
-            "name": "Web Client (Edge)",
-            "cwd": "web_client",
-            "request": "launch",
-            "type": "dart",
-            "program": "web_client/lib/main.dart",
-            "deviceId": "edge"
-        },
-        {
-            "name": "mobile_client",
-            "cwd": "mobile_client",
-            "request": "launch",
-            "type": "dart"
-        },
-        {
-            "name": "mobile_client (profile mode)",
-            "cwd": "mobile_client",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "profile"
-        },
-        {
-            "name": "web_client",
-            "cwd": "web_client",
-            "request": "launch",
-            "type": "dart"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Phone 1: Pixel 9 Pro (emulator-5554)",
+      "cwd": "mobile_client",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator-5554"
+    },
+    {
+      "name": "Phone 2: Resizable (emulator-5556)",
+      "cwd": "mobile_client",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator-5556"
+    },
+    {
+      "name": "Web Client: MINC Admin (Chrome)",
+      "cwd": "web_client",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Run Both Phones (Driver + Passenger)",
+      "configurations": [
+        "Phone 1: Pixel 9 Pro (emulator-5554)",
+        "Phone 2: Resizable (emulator-5556)"
+      ]
+    }
+  ]
 }

@@ -48,6 +48,17 @@
 - [x] **Native Android Notification Center Alerts**: Dispatch local Android notifications for Driver and Passenger Application decisions (Approved, Resubmission Requested, Rejected).
 - [ ] **SMS Decision Alerts (SMSGate / PH Gateway)**: Trigger the `send-sms` Edge Function (backed by Spare Android SMSGate or Semaphore) alongside Android Notification Center alerts for Approved, Resubmission Requested, and Rejected decisions.
 
+### 9. Multi-Emulator Testing Launch Configuration (Remove After Deployment)
+- [ ] **Remove Dual-Emulator Compound Launch Profile in `.vscode/launch.json`**:
+  - Remove the temporary multi-emulator testing configuration from `.vscode/launch.json` after defense/deployment testing:
+    ```json
+    "name": "Run Both Phones (Driver + Passenger)",
+    "configurations": [
+      "Phone 1: Pixel 9 Pro (emulator-5554)",
+      "Phone 2: Resizable (emulator-5556)"
+    ]
+    ```
+
 ---
 
 ## 📋 Status Tracking Table
@@ -62,3 +73,4 @@
 | **Name Validation** | `user_details_input_screen.dart` | Digits & symbols blocked in Last, First, and Middle Name fields + tests added | Block numbers & invalid symbols (`!`, `>`, `?`, etc.) | 🟢 Completed |
 | **Face Bio Auto-Pass & Passenger Reuse** | `web_client/lib/main.dart`, `face_verification_service.dart` | Auto-marks `face_bio_scan` Pass when `>= 85.0%` + Passenger Applications active | Auto-mark `face_bio_scan` Pass in web checklist when `>= 85%` | 🟢 Completed |
 | **Decision Notifications** | `system_notification_service.dart` | Native Android Notification Center alerts active for Drivers & Passengers | Add SMS alerts via SMSGate / PH gateway for Approved / Resubmit / Rejected | 🟡 Android Done / SMS Pending |
+| **Dual-Emulator Launch Config** | `.vscode/launch.json` | Compound profile `"Run Both Phones (Driver + Passenger)"` (`emulator-5554` + `emulator-5556`) enabled for 2-device testing | Remove after deployment / defense testing | 🟡 Remove After Deployment |
