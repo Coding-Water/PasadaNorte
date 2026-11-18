@@ -62,6 +62,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   StreamSubscription<Map<String, dynamic>>? _callSignalSub;
   StreamSubscription<Map<String, dynamic>>? _stageUpdateSub;
   bool _recordedCompletedActivity = false;
+  bool _isDriverArrivedAtPickup = false;
 
   // Phase 1: Street-snapped Tricycle Approach Path (from nearest TODA terminal to passenger pickup)
   List<LatLng> _tricycleApproachPath = [];
@@ -187,6 +188,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         if (stage == 'arrivedAtPickup') {
           _trackingTimer?.cancel();
           setState(() {
+            _isDriverArrivedAtPickup = true;
             _tricycleLivePos = widget.pickupPoint.latLng;
             _distanceToPassengerMeters = 0;
             _etaToPassengerMinutes = 0;
@@ -196,6 +198,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             pickupLocation: widget.pickupPoint.name,
           );
         } else if (stage == 'inTransitToDropoff') {
+          _isDriverArrivedAtPickup = false;
           if (_ridePhase != _RidePhase.headingToDestination) {
             _beginHeadingToDestinationPhase();
           }
@@ -376,8 +379,11 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         _followDriverApproach();
       } else {
         timer.cancel();
-        // Driver has picked up the passenger — immediately transition to Phase 2 (Heading to Destination!)
-        _beginHeadingToDestinationPhase();
+        // In automated tests (autoAcceptForTesting), fast-forward to Phase 2.
+        // In live usage, wait for the Driver to slide "SLIDE WHEN ARRIVED AT PICKUP" and "SLIDE TO START TRIP".
+        if (widget.autoAcceptForTesting) {
+          _beginHeadingToDestinationPhase();
+        }
       }
     });
   }
@@ -385,11 +391,6 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   @override
   void reassemble() {
     super.reassemble();
-    // Ensure hot-reload immediately transitions if driver already reached pickup
-    if (_ridePhase == _RidePhase.driverHeadingToPickup &&
-        (_trackingTimer == null || !_trackingTimer!.isActive)) {
-      _beginHeadingToDestinationPhase();
-    }
   }
 
   // PHASE 2: Rider takes passenger and heads along road route from Point A (Pickup) to Point B (Destination)
@@ -454,7 +455,11 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         _followActiveDestinationJourney();
       } else {
         timer.cancel();
-        _triggerArrivedAtDestinationPhase();
+        // In automated tests (autoAcceptForTesting), fast-forward to Phase 3.
+        // In live usage, wait for the Driver to slide "SLIDE TO COMPLETE TRIP".
+        if (widget.autoAcceptForTesting) {
+          _triggerArrivedAtDestinationPhase();
+        }
       }
     });
   }
@@ -1700,10 +1705,12 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Driver is heading to your location...',
+            Text(
+              _isDriverArrivedAtPickup
+                  ? 'Driver has arrived at pickup!'
+                  : 'Driver is heading to your location...',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 19.5,
                 fontWeight: FontWeight.w800,
                 color: AppTheme.primarySlate,
@@ -1712,7 +1719,9 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
             const SizedBox(height: 6),
             Text(
-              'Driver will arrive in $_etaToPassengerMinutes min... (${_distanceToPassengerMeters.toStringAsFixed(0)}m away)',
+              _isDriverArrivedAtPickup
+                  ? 'Waiting for you to board • Driver will start the trip'
+                  : 'Driver will arrive in $_etaToPassengerMinutes min... (${_distanceToPassengerMeters.toStringAsFixed(0)}m away)',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,

@@ -351,11 +351,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         }
       } else {
         timer.cancel();
-        if (_currentStage == DriverTripStage.enRouteToPickup) {
-          _onSlideActionTriggered();
-        } else if (_currentStage == DriverTripStage.inTransitToDropoff) {
-          _onSlideActionTriggered();
-        }
+        // Wait for the driver to manually slide "SLIDE WHEN ARRIVED AT PICKUP" or "SLIDE TO COMPLETE TRIP"
       }
     });
   }
@@ -2184,9 +2180,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       case DriverTripStage.enRouteToPickup:
         return 'Arriving in ~2 mins • 450m from rider';
       case DriverTripStage.arrivedAtPickup:
-        return 'Waiting for Maria Clara Santos to board';
+        return 'Waiting for ${widget.passengerName} to board';
       case DriverTripStage.inTransitToDropoff:
-        return 'Heading to MMSU Laoag Campus • ${widget.distanceKm.toStringAsFixed(2)} km';
+        return 'Heading to ${widget.dropoffPoint.name} • ${widget.distanceKm.toStringAsFixed(2)} km';
       case DriverTripStage.tripCompleted:
         return 'Prepare to collect cash payment';
       case DriverTripStage.returningToPila:
