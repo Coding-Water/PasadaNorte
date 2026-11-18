@@ -1,13 +1,62 @@
 // Supabase Edge Function: purge-expired-biometrics
 // Scheduled or manually invoked to enforce RA 10173 / NPC Circular No. 2023-03
-// 72-hour raw-image staging purge via Supabase Storage API + database retention RPC.
+// 72-hour raw-image staging purge via Supabase Storage REST API + database retention RPC.
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+declare const Deno: {
+  serve: (handler: (req: Request) => Response | Promise<Response>) => void;
+  env: {
+    get: (key: string) => string | undefined;
+  };
+};
+
+interface StorageObjectItem {
+  id: string | null;
+  name: string;
+  created_at?: string | null;
+}
 
 const STAGING_BUCKETS = ['biometric-vault', 'id-documents'];
 const MAX_STAGING_AGE_MS = 72 * 60 * 60 * 1000;
 
-Deno.serve(async (req) => {
+async function listBucketObjects(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  bucket: string,
+  prefix: string,
+): Promise<StorageObjectItem[]> {
+  const resp = await fetch(`${supabaseUrl}/storage/v1/object/list/${bucket}`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ prefix, limit: 1000, offset: 0 }),
+  });
+  if (!resp.ok) return [];
+  const data = (await resp.json()) as StorageObjectItem[];
+  return Array.isArray(data) ? data : [];
+}
+
+async function removeBucketObjects(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  bucket: string,
+  prefixes: string[],
+): Promise<void> {
+  if (prefixes.length === 0) return;
+  await fetch(`${supabaseUrl}/storage/v1/object/${bucket}`, {
+    method: 'DELETE',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ prefixes }),
+  });
+}
+
+Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST' && req.method !== 'GET') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -24,44 +73,53 @@ Deno.serve(async (req) => {
     );
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
   const cutoff = new Date(Date.now() - MAX_STAGING_AGE_MS);
   const removedByBucket: Record<string, number> = {};
 
   for (const bucket of STAGING_BUCKETS) {
     let removedCount = 0;
-    const { data: folders } = await supabase.storage.from(bucket).list('', { limit: 1000 });
-    for (const item of folders ?? []) {
+    const folders = await listBucketObjects(supabaseUrl, serviceRoleKey, bucket, '');
+    for (const item of folders) {
       if (item.id === null) {
-        // Folder: list objects inside user folder
-        const { data: files } = await supabase.storage.from(bucket).list(item.name, { limit: 1000 });
-        const expiredPaths = (files ?? [])
-          .filter((f) => f.created_at && new Date(f.created_at) < cutoff)
-          .map((f) => `${item.name}/${f.name}`);
+        const files = await listBucketObjects(supabaseUrl, serviceRoleKey, bucket, item.name);
+        const expiredPaths = files
+          .filter((f: StorageObjectItem) => Boolean(f.created_at && new Date(f.created_at) < cutoff))
+          .map((f: StorageObjectItem) => `${item.name}/${f.name}`);
         if (expiredPaths.length > 0) {
-          await supabase.storage.from(bucket).remove(expiredPaths);
+          await removeBucketObjects(supabaseUrl, serviceRoleKey, bucket, expiredPaths);
           removedCount += expiredPaths.length;
         }
       } else if (item.created_at && new Date(item.created_at) < cutoff) {
-        await supabase.storage.from(bucket).remove([item.name]);
+        await removeBucketObjects(supabaseUrl, serviceRoleKey, bucket, [item.name]);
         removedCount += 1;
       }
     }
     removedByBucket[bucket] = removedCount;
   }
 
-  const { data: rpcResult, error: rpcError } = await supabase.rpc('purge_expired_biometric_data');
+  const rpcResp = await fetch(`${supabaseUrl}/rest/v1/rpc/purge_expired_biometric_data`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+
+  const rpcResult = rpcResp.ok ? await rpcResp.json() : null;
+  const rpcError = rpcResp.ok ? null : await rpcResp.text();
 
   return new Response(
     JSON.stringify({
-      ok: !rpcError,
+      ok: rpcResp.ok,
       cutoff_72h_iso: cutoff.toISOString(),
       storage_removed: removedByBucket,
-      database_retention: rpcResult ?? null,
-      rpc_error: rpcError?.message ?? null,
+      database_retention: rpcResult,
+      rpc_error: rpcError,
     }),
     {
-      status: rpcError ? 500 : 200,
+      status: rpcResp.ok ? 200 : 500,
       headers: { 'Content-Type': 'application/json' },
     },
   );
