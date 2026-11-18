@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mobile_client/core/services/face_verification_service.dart';
 import 'package:mobile_client/core/services/supabase_service.dart';
 import 'package:mobile_client/core/theme/app_theme.dart';
 import 'package:mobile_client/features/auth/models/user_model.dart';
@@ -332,12 +333,42 @@ void main() {
       expect(find.text('Upload Your Government ID'), findsOneWidget);
     });
 
-    testWidgets('Instant Login recognizes newly registered users by phone', (tester) async {
-      final existingRider = await SupabaseService.findUserByPhone('+639171234567');
+    testWidgets('Instant Login recognizes newly registered users by phone and has no hardcoded mock accounts', (tester) async {
+      // Unregistered / legacy mock numbers should not exist by default
+      expect(await SupabaseService.findUserByPhone('+639171234567'), isNull);
+      expect(await SupabaseService.findUserByPhone('+639189876543'), isNull);
+
+      await SupabaseService.recordFaceVerification(
+        fullName: 'Juanita Reyes',
+        phoneNumber: '+639170001111',
+        role: UserRole.rider,
+        idType: 'National ID (PhilID)',
+        result: const FaceVerificationResult(
+          similarityScorePercent: 94.0,
+          processingTimeMs: 850,
+          status: VerificationStatus.approved,
+          decisionNote: 'Verified',
+        ),
+      );
+
+      await SupabaseService.recordFaceVerification(
+        fullName: 'Pedro Bautista',
+        phoneNumber: '+639170002222',
+        role: UserRole.driver,
+        idType: "Professional Driver's License",
+        result: const FaceVerificationResult(
+          similarityScorePercent: 95.0,
+          processingTimeMs: 900,
+          status: VerificationStatus.approved,
+          decisionNote: 'Verified',
+        ),
+      );
+
+      final existingRider = await SupabaseService.findUserByPhone('+639170001111');
       expect(existingRider, isNotNull);
       expect(existingRider!['role'], 'rider');
 
-      final existingDriver = await SupabaseService.findUserByPhone('+639189876543');
+      final existingDriver = await SupabaseService.findUserByPhone('+639170002222');
       expect(existingDriver, isNotNull);
       expect(existingDriver!['role'], 'driver');
     });

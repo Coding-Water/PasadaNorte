@@ -160,33 +160,8 @@ class SupabaseService {
     }
   }
 
-  // Local in-memory registry for rapid registration & login testing
-  static final Map<String, Map<String, dynamic>> _localRegisteredUsers = {
-    '+639171234567': {
-      'id': 'mock_rider_001',
-      'phone_number': '+639171234567',
-      'full_name': 'Maria Santos',
-      'role': 'rider',
-      'id_type': '[REGULAR] National ID (PhilID)',
-      'verification_status': 'approved',
-    },
-    '+639189876543': {
-      'id': 'mock_driver_001',
-      'phone_number': '+639189876543',
-      'full_name': 'Danilo Ramos',
-      'role': 'driver',
-      'id_type': "Professional Driver's License",
-      'verification_status': 'approved',
-    },
-    '+639175550142': {
-      'id': 'mock_driver_002',
-      'phone_number': '+639175550142',
-      'full_name': 'Jose Dela Cruz',
-      'role': 'driver',
-      'id_type': "Professional Driver's License",
-      'verification_status': 'approved',
-    },
-  };
+  // Local in-memory registry for active session caching (no hardcoded mock accounts)
+  static final Map<String, Map<String, dynamic>> _localRegisteredUsers = {};
 
   // Saves 1:1 Face Verification result to Supabase users + biometric_access_logs tables
   static Future<String?> recordFaceVerification({
@@ -432,25 +407,8 @@ class SupabaseService {
     }
   }
 
-  // Local registry of submitted driver applications
-  static final Map<String, Map<String, dynamic>> _localDriverApplications = {
-    '+639189876543': {
-      'id': 'mock_driver_001',
-      'phone_number': '+639189876543',
-      'full_name': 'Danilo Ramos',
-      'toda_code': 'TODA-01',
-      'plate_or_mv_file': 'IN-4829',
-      'application_status': 'approved',
-    },
-    '+639175550142': {
-      'id': 'mock_driver_002',
-      'phone_number': '+639175550142',
-      'full_name': 'Jose Dela Cruz',
-      'toda_code': 'TODA-01',
-      'plate_or_mv_file': 'IN-4208',
-      'application_status': 'approved',
-    },
-  };
+  // Local registry of submitted driver applications (no hardcoded mock accounts)
+  static final Map<String, Map<String, dynamic>> _localDriverApplications = {};
 
   static String _guessContentType(String fileName) {
     final lower = fileName.toLowerCase();
