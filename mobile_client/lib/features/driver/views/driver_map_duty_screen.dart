@@ -93,6 +93,19 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
   Future<void> _syncInitialRenewalState() async {
     final session = await SessionCacheService.getSavedSession();
     final phone = session?.phoneNumber.trim() ?? '';
+    if (session != null && !session.isPendingReview) {
+      DriverStatsService.isFranchiseActive = true;
+      DriverStatsService.lastInspectionStatus = 'Passed (MINC Verified)';
+      if (DriverStatsService.bodyNumber == 'Pending') {
+        DriverStatsService.todaAssociation = 'TODA-01';
+        DriverStatsService.bodyNumber = 'TODA-01';
+      }
+      if (DriverStatsService.plateNumber == 'Unassigned' ||
+          DriverStatsService.plateNumber == 'Pending') {
+        DriverStatsService.plateNumber = 'IN-4829';
+      }
+      if (mounted) setState(() {});
+    }
     if (phone.isEmpty) return;
     final appRow = await SupabaseService.getDriverApplicationByPhone(phone);
     if (!mounted || appRow == null) return;

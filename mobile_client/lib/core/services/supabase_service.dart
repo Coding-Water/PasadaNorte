@@ -170,6 +170,14 @@ class SupabaseService {
       'id_type': "Professional Driver's License",
       'verification_status': 'approved',
     },
+    '+639175550142': {
+      'id': 'mock_driver_002',
+      'phone_number': '+639175550142',
+      'full_name': 'Jose Dela Cruz',
+      'role': 'driver',
+      'id_type': "Professional Driver's License",
+      'verification_status': 'approved',
+    },
   };
 
   // Saves 1:1 Face Verification result to Supabase users + biometric_access_logs tables
@@ -424,6 +432,14 @@ class SupabaseService {
       'full_name': 'Danilo Ramos',
       'toda_code': 'TODA-01',
       'plate_or_mv_file': 'IN-4829',
+      'application_status': 'approved',
+    },
+    '+639175550142': {
+      'id': 'mock_driver_002',
+      'phone_number': '+639175550142',
+      'full_name': 'Jose Dela Cruz',
+      'toda_code': 'TODA-01',
+      'plate_or_mv_file': 'IN-4208',
       'application_status': 'approved',
     },
   };
