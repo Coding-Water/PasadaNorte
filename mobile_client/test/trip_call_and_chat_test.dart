@@ -59,18 +59,31 @@ void main() {
   }
 
   group('Real-Time Chat & Wi-Fi/Data Call + Offline Phone Fallback Tests', () {
-    testWidgets('Driver Chat sends quick reply and syncs incoming passenger messages via SupabaseService', (tester) async {
+    testWidgets('Driver Chat shows unread badge on message icon, clears on open, and pops incoming call even while Chat is open', (tester) async {
       await tester.binding.setSurfaceSize(const Size(400, 850));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(createDriverScreen());
       await tester.pump();
 
-      // Open Driver Chat Modal
+      // Initial unread badge is visible on the Message icon
+      expect(find.byKey(const Key('driver_chat_unread_badge')), findsOneWidget);
+
+      // Incoming message while chat is closed increments unread badge
+      await SupabaseService.sendTripChatMessage(
+        senderRole: 'passenger',
+        senderName: 'Maria Clara Santos',
+        text: 'Nasaan na po kayo manong?',
+      );
+      await tester.pump();
+      expect(find.text('2'), findsOneWidget);
+
+      // Open Driver Chat Modal -> unread badge clears
       await tester.tap(find.byIcon(Icons.chat_bubble_outline_rounded));
       await tester.pumpAndSettle();
 
       expect(find.text('In-Trip Passenger Chat'), findsOneWidget);
+      expect(find.byKey(const Key('driver_chat_unread_badge')), findsNothing);
 
       // Tap quick reply 'Dadditoyakon!'
       await tester.tap(find.text('Dadditoyakon!'));
@@ -81,25 +94,38 @@ void main() {
         findsOneWidget,
       );
 
-      // Simulate Passenger sending a message over Realtime
-      await SupabaseService.sendTripChatMessage(
-        senderRole: 'passenger',
-        senderName: 'Maria Clara Santos',
-        text: 'Kita na po kita manong!',
+      // Simulate Passenger calling Driver WHILE Driver still has Chat modal open (Screenshot 2 scenario)
+      await SupabaseService.sendTripCallSignal(
+        callerRole: 'passenger',
+        callerName: 'Maria Clara Santos',
+        callerPhone: '+63 917 849 2038',
+        state: 'ringing',
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(find.text('Kita na po kita manong!'), findsOneWidget);
+      // Incoming call modal pops up over the Chat sheet with both Decline and Answer
+      expect(find.text('Incoming Wi-Fi / Data Call...'), findsOneWidget);
+      expect(find.text('Decline'), findsOneWidget);
+      expect(find.text('Answer'), findsOneWidget);
+
+      // Tap Answer -> connects call
+      await tester.tap(find.text('Answer'));
+      await tester.pump();
+      expect(find.textContaining('Connected via Wi-Fi / Data'), findsOneWidget);
+
+      // End call cleanly
+      await tester.tap(find.text('End Call'));
+      await tester.pumpAndSettle();
     });
 
-    testWidgets('Driver Call uses Wi-Fi/Data Call first when online, and falls back to mobile phone call only when offline', (tester) async {
+    testWidgets('Driver Call uses Wi-Fi/Data Call first when online (Ringing -> Answer -> Connected), and falls back to mobile phone call only when offline', (tester) async {
       await tester.binding.setSurfaceSize(const Size(400, 850));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(createDriverScreen());
       await tester.pump();
 
-      // 1. Online (Wi-Fi / Data available) -> Opens Wi-Fi / Data Call sheet
+      // 1. Online (Wi-Fi / Data available) -> Opens Wi-Fi / Data Call sheet in Ringing state
       SupabaseService.debugForceOnlineForCall = true;
       await tester.tap(find.byIcon(Icons.phone_outlined));
       await tester.pumpAndSettle();
@@ -108,6 +134,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Wi-Fi / Data Call'), findsOneWidget);
+      expect(find.textContaining('Ringing via Wi-Fi / Data'), findsOneWidget);
+
+      // Passenger answers the call -> Driver transitions to Connected
+      await SupabaseService.sendTripCallSignal(
+        callerRole: 'passenger',
+        callerName: 'Maria Clara Santos',
+        callerPhone: '+63 917 849 2038',
+        state: 'accepted',
+      );
+      await tester.pump();
       expect(find.textContaining('Connected via Wi-Fi / Data'), findsOneWidget);
 
       // End the Wi-Fi call
@@ -130,7 +166,7 @@ void main() {
       );
     });
 
-    testWidgets('Passenger Call uses Wi-Fi/Data Call first when online, and falls back to mobile phone call only when offline', (tester) async {
+    testWidgets('Passenger shows unread message badge and Incoming Call screen with Decline and Answer buttons', (tester) async {
       await tester.binding.setSurfaceSize(const Size(400, 1100));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -141,6 +177,18 @@ void main() {
       // Advance 3.2 seconds so the _showRiderAcceptedPrompt overlay auto-dismisses
       await tester.pump(const Duration(milliseconds: 3200));
       await tester.pump();
+      while (tester.takeException() != null) {}
+
+      // 0. Incoming driver message shows unread badge on Passenger's Chat icon
+      expect(find.byKey(const Key('passenger_chat_unread_badge')), findsNothing);
+      await SupabaseService.sendTripChatMessage(
+        senderRole: 'driver',
+        senderName: 'Jose Dela Cruz',
+        text: 'Dito na po ako sa gate!',
+      );
+      await tester.pump();
+      while (tester.takeException() != null) {}
+      expect(find.byKey(const Key('passenger_chat_unread_badge')), findsOneWidget);
 
       // 1. Offline -> Falls back to mobile phone call (tel:)
       SupabaseService.debugForceOnlineForCall = false;
@@ -153,6 +201,7 @@ void main() {
       callBtnInkWell.onTap!();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
+      while (tester.takeException() != null) {}
 
       expect(SupabaseService.lastLaunchedTelUri, 'tel:+639178402291');
       expect(
@@ -160,13 +209,27 @@ void main() {
         findsOneWidget,
       );
 
-      // 2. Online -> Opens Wi-Fi / Data Call screen
+      // 2. Incoming call from Driver -> Shows Decline & Answer on Passenger screen
       SupabaseService.debugForceOnlineForCall = true;
-      callBtnInkWell.onTap!();
+      await SupabaseService.sendTripCallSignal(
+        callerRole: 'driver',
+        callerName: 'Jose Dela Cruz',
+        callerPhone: '+63 917 840 2291',
+        state: 'ringing',
+      );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
+      while (tester.takeException() != null) {}
 
-      expect(find.textContaining('Wi-Fi / Data Call'), findsOneWidget);
+      expect(find.text('Incoming Wi-Fi / Data Call...'), findsOneWidget);
+      expect(find.text('Decline'), findsOneWidget);
+      expect(find.text('Answer'), findsOneWidget);
+
+      // Passenger taps Answer -> transitions to Connected
+      await tester.tap(find.text('Answer'));
+      await tester.pump();
+      while (tester.takeException() != null) {}
+      expect(find.textContaining('Connected via Wi-Fi / Data'), findsOneWidget);
     });
 
     testWidgets('Live Trip Stage Sync updates Passenger screen and records completed trip into ActivityRepository', (tester) async {

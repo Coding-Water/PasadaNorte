@@ -30,12 +30,20 @@ class SupabaseService {
         url: supabaseUrl,
         // ignore: deprecated_member_use
         anonKey: supabasePublishableKey,
-      ).timeout(const Duration(seconds: 2));
+      ).timeout(const Duration(seconds: 8));
       _isConnected = true;
+      getDispatchChannel();
       // Run cloud table sync in the background so runApp() renders the first frame immediately
       syncAllFromSupabase();
     } catch (_) {
-      _isConnected = false;
+      try {
+        // Recover if Supabase.instance was already initialized or finished after timeout
+        Supabase.instance.client;
+        _isConnected = true;
+        getDispatchChannel();
+      } catch (_) {
+        _isConnected = false;
+      }
     }
   }
 
@@ -874,6 +882,10 @@ class SupabaseService {
   }
 
   static RealtimeChannel? _dispatchChannel;
+  static int _dispatchChannelVersion = 0;
+  static const int _kRequiredDispatchVersion = 3;
+  static bool _isDispatchSubscribed = false;
+  static Completer<void>? _dispatchSubscribeCompleter;
   static final ValueNotifier<Map<String, dynamic>?> activeRenewalAlertNotifier =
       ValueNotifier<Map<String, dynamic>?>(null);
   static final ValueNotifier<List<Map<String, dynamic>>> tripChatNotifier =
@@ -1046,51 +1058,107 @@ class SupabaseService {
 
   /// Initializes or retrieves the shared Supabase Realtime dispatch channel
   static RealtimeChannel? getDispatchChannel() {
-    if (!_isConnected) return null;
-    if (_dispatchChannel != null) return _dispatchChannel;
+    if (!_isConnected) {
+      try {
+        Supabase.instance.client;
+        _isConnected = true;
+      } catch (_) {
+        return null;
+      }
+    }
+    if (_dispatchChannel != null &&
+        _dispatchChannelVersion == _kRequiredDispatchVersion) {
+      return _dispatchChannel;
+    }
     try {
       final sb = Supabase.instance.client;
-      _dispatchChannel = sb.channel('rides_dispatch');
-      _dispatchChannel?.onBroadcast(
-        event: 'ride_accepted',
-        callback: (payload) {
-          _rideAcceptedStreamController.add(payload);
-        },
-      ).onBroadcast(
-        event: 'ride_requested',
-        callback: (payload) {
-          _rideRequestedStreamController.add(payload);
-        },
-      ).onBroadcast(
-        event: 'document_renewal_notice',
-        callback: (payload) {
-          handleIncomingRenewalNotice(payload);
-        },
-      ).onBroadcast(
-        event: 'document_renewal_approved',
-        callback: (payload) {
-          handleIncomingRenewalApproved(payload);
-        },
-      ).onBroadcast(
-        event: 'trip_chat',
-        callback: (payload) {
-          handleIncomingTripChat(payload);
-        },
-      ).onBroadcast(
-        event: 'trip_call_signal',
-        callback: (payload) {
-          handleIncomingTripCallSignal(payload);
-        },
-      ).onBroadcast(
-        event: 'trip_stage_update',
-        callback: (payload) {
-          _tripStageUpdateStreamController.add(payload);
-        },
-      ).subscribe();
+      if (_dispatchChannel != null) {
+        try {
+          sb.removeChannel(_dispatchChannel!);
+        } catch (_) {}
+        _dispatchChannel = null;
+      }
+      _isDispatchSubscribed = false;
+      _dispatchSubscribeCompleter = Completer<void>();
+      _dispatchChannelVersion = _kRequiredDispatchVersion;
+      _dispatchChannel = sb.channel(
+        'rides_dispatch',
+        opts: const RealtimeChannelConfig(ack: true),
+      );
+      _dispatchChannel
+          ?.onBroadcast(
+            event: 'ride_accepted',
+            callback: (payload) {
+              _rideAcceptedStreamController.add(payload);
+            },
+          )
+          .onBroadcast(
+            event: 'ride_requested',
+            callback: (payload) {
+              _rideRequestedStreamController.add(payload);
+            },
+          )
+          .onBroadcast(
+            event: 'document_renewal_notice',
+            callback: (payload) {
+              handleIncomingRenewalNotice(payload);
+            },
+          )
+          .onBroadcast(
+            event: 'document_renewal_approved',
+            callback: (payload) {
+              handleIncomingRenewalApproved(payload);
+            },
+          )
+          .onBroadcast(
+            event: 'trip_chat',
+            callback: (payload) {
+              handleIncomingTripChat(payload);
+            },
+          )
+          .onBroadcast(
+            event: 'trip_call_signal',
+            callback: (payload) {
+              handleIncomingTripCallSignal(payload);
+            },
+          )
+          .onBroadcast(
+            event: 'trip_stage_update',
+            callback: (payload) {
+              _tripStageUpdateStreamController.add(payload);
+            },
+          )
+          .subscribe((status, [error]) {
+        if (status == RealtimeSubscribeStatus.subscribed) {
+          _isDispatchSubscribed = true;
+          if (_dispatchSubscribeCompleter != null &&
+              !_dispatchSubscribeCompleter!.isCompleted) {
+            _dispatchSubscribeCompleter!.complete();
+          }
+        }
+      });
       return _dispatchChannel;
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<void> _sendOnDispatchChannel({
+    required String event,
+    required Map<String, dynamic> payload,
+  }) async {
+    final channel = getDispatchChannel();
+    if (channel == null) return;
+    if (!_isDispatchSubscribed && _dispatchSubscribeCompleter != null) {
+      try {
+        await _dispatchSubscribeCompleter!.future
+            .timeout(const Duration(milliseconds: 1500));
+      } catch (_) {}
+    }
+    await channel.sendBroadcastMessage(
+      event: event,
+      payload: payload,
+    );
   }
 
   static Stream<Map<String, dynamic>> get onTripChatMessage =>
@@ -1118,16 +1186,13 @@ class SupabaseService {
       'updated_at': DateTime.now().toIso8601String(),
     };
     _tripStageUpdateStreamController.add(payload);
-    if (_isConnected) {
-      try {
-        final channel = getDispatchChannel();
-        await channel?.sendBroadcastMessage(
-          event: 'trip_stage_update',
-          payload: payload,
-        );
-      } catch (e) {
-        debugPrint('Supabase broadcastTripStageUpdate error: $e');
-      }
+    try {
+      await _sendOnDispatchChannel(
+        event: 'trip_stage_update',
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('Supabase broadcastTripStageUpdate error: $e');
     }
   }
 
@@ -1165,16 +1230,13 @@ class SupabaseService {
       'time': timeLabel ?? 'Now',
     };
     handleIncomingTripChat(payload);
-    if (_isConnected) {
-      try {
-        final channel = getDispatchChannel();
-        await channel?.sendBroadcastMessage(
-          event: 'trip_chat',
-          payload: payload,
-        );
-      } catch (e) {
-        debugPrint('Supabase sendTripChatMessage error: $e');
-      }
+    try {
+      await _sendOnDispatchChannel(
+        event: 'trip_chat',
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('Supabase sendTripChatMessage error: $e');
     }
   }
 
@@ -1196,16 +1258,13 @@ class SupabaseService {
       'sent_at': DateTime.now().toIso8601String(),
     };
     _tripCallSignalStreamController.add(payload);
-    if (_isConnected) {
-      try {
-        final channel = getDispatchChannel();
-        await channel?.sendBroadcastMessage(
-          event: 'trip_call_signal',
-          payload: payload,
-        );
-      } catch (e) {
-        debugPrint('Supabase sendTripCallSignal error: $e');
-      }
+    try {
+      await _sendOnDispatchChannel(
+        event: 'trip_call_signal',
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('Supabase sendTripCallSignal error: $e');
     }
   }
 
@@ -1279,16 +1338,13 @@ class SupabaseService {
     _rideRequestedStreamController.add(payload);
 
     // 2. Realtime WebSocket broadcast across network
-    if (_isConnected) {
-      try {
-        final channel = getDispatchChannel();
-        await channel?.sendBroadcastMessage(
-          event: 'ride_requested',
-          payload: payload,
-        );
-      } catch (e) {
-        debugPrint('Supabase broadcastRideRequested error: $e');
-      }
+    try {
+      await _sendOnDispatchChannel(
+        event: 'ride_requested',
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('Supabase broadcastRideRequested error: $e');
     }
   }
 
@@ -1321,16 +1377,13 @@ class SupabaseService {
     _rideAcceptedStreamController.add(payload);
 
     // 2. Realtime WebSocket broadcast across network
-    if (_isConnected) {
-      try {
-        final channel = getDispatchChannel();
-        await channel?.sendBroadcastMessage(
-          event: 'ride_accepted',
-          payload: payload,
-        );
-      } catch (e) {
-        debugPrint('Supabase broadcastRideAccepted error: $e');
-      }
+    try {
+      await _sendOnDispatchChannel(
+        event: 'ride_accepted',
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('Supabase broadcastRideAccepted error: $e');
     }
   }
 }

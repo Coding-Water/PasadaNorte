@@ -111,7 +111,11 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   StreamSubscription<Map<String, dynamic>>? _chatSub;
   StreamSubscription<Map<String, dynamic>>? _callSignalSub;
   StreamSubscription<Map<String, dynamic>>? _stageUpdateSub;
+  Timer? _activeCallTimer;
+  StreamSubscription<Map<String, dynamic>>? _activeModalCallSub;
   bool _isCallDialogOpen = false;
+  bool _isChatSheetOpen = false;
+  int _unreadChatCount = 1;
   final List<Map<String, String>> _chatMessages = [
     {
       'sender': 'passenger',
@@ -141,11 +145,28 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       final sender = (msg['sender'] ?? '').toString();
       final text = (msg['text'] ?? '').toString();
       final time = (msg['time'] ?? 'Now').toString();
+      final isNew =
+          !_chatMessages.any((m) => m['text'] == text && m['sender'] == sender);
       setState(() {
-        if (!_chatMessages.any((m) => m['text'] == text && m['sender'] == sender)) {
+        if (isNew) {
           _chatMessages.add({'sender': sender, 'text': text, 'time': time});
         }
+        if (sender == 'passenger' && !_isChatSheetOpen) {
+          _unreadChatCount++;
+        }
       });
+      if (sender == 'passenger' && !_isChatSheetOpen && mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('💬 ${widget.passengerName}: $text'),
+              backgroundColor: AppTheme.primarySlate,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+      }
     });
     _callSignalSub = SupabaseService.onTripCallSignal.listen((signal) {
       if (!mounted) return;
@@ -195,6 +216,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     _chatSub?.cancel();
     _callSignalSub?.cancel();
     _stageUpdateSub?.cancel();
+    _activeCallTimer?.cancel();
+    _activeModalCallSub?.cancel();
     _telemetryTimer?.cancel();
     _navigationTimer?.cancel();
     _autoFollowResumeTimer?.cancel();
@@ -441,12 +464,14 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     if (!hasOnline) {
       await SupabaseService.launchCellularPhoneCall(passengerPhone);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No Wi-Fi/Data: Switching to mobile phone call...'),
-          backgroundColor: AppTheme.primarySlate,
-        ),
-      );
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('No Wi-Fi/Data: Switching to mobile phone call...'),
+            backgroundColor: AppTheme.primarySlate,
+          ),
+        );
       return;
     }
     await SupabaseService.sendTripCallSignal(
@@ -463,13 +488,17 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     if (_isCallDialogOpen) return;
     _isCallDialogOpen = true;
     int callSeconds = 0;
-    bool isConnected = !isIncoming;
+    bool isConnected = false;
     bool isMuted = false;
     bool isSpeaker = true;
-    Timer? callTimer;
+    _activeCallTimer?.cancel();
+    _activeCallTimer = null;
+    _activeModalCallSub?.cancel();
+    _activeModalCallSub = null;
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isDismissible: false,
       backgroundColor: const Color(0xFF0F172A),
       shape: const RoundedRectangleBorder(
@@ -477,10 +506,26 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setCallState) {
-          callTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+          _activeCallTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
             if (!ctx.mounted) return;
             if (isConnected) {
               setCallState(() => callSeconds++);
+            }
+          });
+          _activeModalCallSub ??=
+              SupabaseService.onTripCallSignal.listen((signal) {
+            if (!ctx.mounted) return;
+            final state = (signal['state'] ?? '').toString();
+            final callerRole = (signal['caller_role'] ?? '').toString();
+            if (state == 'accepted') {
+              setCallState(() => isConnected = true);
+            } else if ((state == 'declined' || state == 'ended') &&
+                callerRole == 'passenger') {
+              _activeCallTimer?.cancel();
+              _activeModalCallSub?.cancel();
+              if (Navigator.of(ctx, rootNavigator: true).canPop()) {
+                Navigator.of(ctx, rootNavigator: true).pop();
+              }
             }
           });
           final mins = (callSeconds ~/ 60).toString().padLeft(2, '0');
@@ -519,14 +564,36 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                   Text(
                     isConnected
                         ? '$mins:$secs • Connected via Wi-Fi / Data'
-                        : 'Incoming Wi-Fi / Data Call...',
+                        : isIncoming
+                            ? 'Incoming Wi-Fi / Data Call...'
+                            : 'Calling ${widget.passengerName}... • Ringing via Wi-Fi / Data',
                     style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (!isConnected) ...[
+                      if (isIncoming && !isConnected) ...[
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _activeCallTimer?.cancel();
+                            _activeModalCallSub?.cancel();
+                            SupabaseService.sendTripCallSignal(
+                              callerRole: 'driver',
+                              callerName: widget.driverName,
+                              callerPhone: '+63 917 840 2291',
+                              state: 'declined',
+                            );
+                            Navigator.of(ctx, rootNavigator: true).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.cancelRed,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.call_end_rounded),
+                          label: const Text('Decline'),
+                        ),
+                        const SizedBox(width: 16),
                         ElevatedButton.icon(
                           onPressed: () {
                             setCallState(() => isConnected = true);
@@ -544,7 +611,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                           icon: const Icon(Icons.call_rounded),
                           label: const Text('Answer'),
                         ),
-                        const SizedBox(width: 16),
                       ] else ...[
                         IconButton(
                           onPressed: () => setCallState(() => isMuted = !isMuted),
@@ -562,32 +628,34 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                           ),
                         ),
                         const SizedBox(width: 16),
-                      ],
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          callTimer?.cancel();
-                          SupabaseService.sendTripCallSignal(
-                            callerRole: 'driver',
-                            callerName: widget.driverName,
-                            callerPhone: '+63 917 840 2291',
-                            state: 'ended',
-                          );
-                          Navigator.pop(ctx);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.cancelRed,
-                          foregroundColor: Colors.white,
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _activeCallTimer?.cancel();
+                            _activeModalCallSub?.cancel();
+                            SupabaseService.sendTripCallSignal(
+                              callerRole: 'driver',
+                              callerName: widget.driverName,
+                              callerPhone: '+63 917 840 2291',
+                              state: 'ended',
+                            );
+                            Navigator.of(ctx, rootNavigator: true).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.cancelRed,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.call_end_rounded),
+                          label: const Text('End Call'),
                         ),
-                        icon: const Icon(Icons.call_end_rounded),
-                        label: const Text('End Call'),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 10),
                   TextButton.icon(
                     onPressed: () async {
-                      callTimer?.cancel();
-                      Navigator.pop(ctx);
+                      _activeCallTimer?.cancel();
+                      _activeModalCallSub?.cancel();
+                      Navigator.of(ctx, rootNavigator: true).pop();
                       await SupabaseService.launchCellularPhoneCall('+639178492038');
                     },
                     icon: const Icon(Icons.phone_forwarded_rounded, size: 16, color: Colors.white70),
@@ -603,7 +671,8 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         },
       ),
     ).whenComplete(() {
-      callTimer?.cancel();
+      _activeCallTimer?.cancel();
+      _activeModalCallSub?.cancel();
       _isCallDialogOpen = false;
     });
   }
@@ -708,6 +777,10 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
   }
 
   void _openPassengerChatModal() {
+    setState(() {
+      _unreadChatCount = 0;
+      _isChatSheetOpen = true;
+    });
     final TextEditingController textCtrl = TextEditingController();
 
     showModalBottomSheet(
@@ -945,7 +1018,16 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
           );
         },
       ),
-    );
+    ).whenComplete(() {
+      if (mounted) {
+        setState(() {
+          _isChatSheetOpen = false;
+          _unreadChatCount = 0;
+        });
+      } else {
+        _isChatSheetOpen = false;
+      }
+    });
   }
 
   Widget _buildQuickReplyChip(String text, {required VoidCallback onTap}) {
@@ -2546,6 +2628,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
             onTap: _openPassengerChatModal,
             tooltip: 'Chat with passenger',
             semanticLabel: 'Chat with passenger',
+            badgeCount: _unreadChatCount,
           ),
           const SizedBox(width: 10),
           // Outlined Call Button
@@ -2846,6 +2929,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     required VoidCallback onTap,
     String? tooltip,
     String? semanticLabel,
+    int badgeCount = 0,
   }) {
     return Tooltip(
       message: tooltip ?? semanticLabel ?? '',
@@ -2855,15 +2939,48 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(30),
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFF1F5F9),
-              border: Border.all(color: AppTheme.accentEmerald.withValues(alpha: 0.4), width: 1.5),
-            ),
-            child: Icon(icon, color: AppTheme.accentEmerald, size: 22),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFF1F5F9),
+                  border: Border.all(
+                    color: AppTheme.accentEmerald.withValues(alpha: 0.4),
+                    width: 1.5,
+                  ),
+                ),
+                child: Icon(icon, color: AppTheme.accentEmerald, size: 22),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    key: const Key('driver_chat_unread_badge'),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cancelRed,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: Center(
+                      child: Text(
+                        badgeCount > 9 ? '9+' : '$badgeCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

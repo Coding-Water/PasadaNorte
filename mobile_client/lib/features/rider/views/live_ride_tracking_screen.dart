@@ -59,10 +59,14 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   bool _showRiderAcceptedPrompt = false;
   Timer? _riderAcceptedPromptTimer;
   StreamSubscription<Map<String, dynamic>>? _rideAcceptedSubscription;
+  StreamSubscription<Map<String, dynamic>>? _passengerChatSub;
   StreamSubscription<Map<String, dynamic>>? _callSignalSub;
   StreamSubscription<Map<String, dynamic>>? _stageUpdateSub;
   bool _recordedCompletedActivity = false;
   bool _isDriverArrivedAtPickup = false;
+  bool _isChatScreenOpen = false;
+  bool _isCallScreenOpen = false;
+  int _unreadChatCount = 0;
 
   // Phase 1: Street-snapped Tricycle Approach Path (from nearest TODA terminal to passenger pickup)
   List<LatLng> _tricycleApproachPath = [];
@@ -167,19 +171,47 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           _beginDriverApproachPhase();
         }
       });
+      _passengerChatSub = SupabaseService.onTripChatMessage.listen((msg) {
+        if (!mounted) return;
+        final sender = (msg['sender'] ?? '').toString();
+        final text = (msg['text'] ?? '').toString();
+        if (sender == 'driver' && !_isChatScreenOpen) {
+          setState(() {
+            _unreadChatCount++;
+          });
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text('💬 ${_matchedDriver['name']}: $text'),
+                backgroundColor: AppTheme.primarySlate,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+        }
+      });
       _callSignalSub = SupabaseService.onTripCallSignal.listen((signal) {
         if (!mounted) return;
         final callerRole = (signal['caller_role'] ?? '').toString();
         final state = (signal['state'] ?? '').toString();
-        if (callerRole == 'driver' && state == 'ringing') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => _DriverVoiceCallScreen(
-                driverData: _matchedDriver,
-              ),
-            ),
-          );
+        if (callerRole == 'driver' &&
+            state == 'ringing' &&
+            !_isCallScreenOpen) {
+          _isCallScreenOpen = true;
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          Navigator.of(context, rootNavigator: true)
+              .push(
+                MaterialPageRoute(
+                  builder: (_) => _DriverVoiceCallScreen(
+                    driverData: _matchedDriver,
+                    isIncoming: true,
+                  ),
+                ),
+              )
+              .whenComplete(() {
+            _isCallScreenOpen = false;
+          });
         }
       });
       _stageUpdateSub = SupabaseService.onTripStageUpdate.listen((payload) {
@@ -618,6 +650,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     _riderAcceptedPromptTimer?.cancel();
     SoundAlertService.stop();
     _rideAcceptedSubscription?.cancel();
+    _passengerChatSub?.cancel();
     _callSignalSub?.cancel();
     _stageUpdateSub?.cancel();
     _radarPulseController.dispose();
@@ -659,6 +692,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
   // In-App Chat with Driver
   void _openDriverChatScreen() {
+    setState(() {
+      _unreadChatCount = 0;
+      _isChatScreenOpen = true;
+    });
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -669,23 +706,35 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           onOpenCall: _openDriverVoiceCallScreen,
         ),
       ),
-    );
+    ).whenComplete(() {
+      if (mounted) {
+        setState(() {
+          _isChatScreenOpen = false;
+          _unreadChatCount = 0;
+        });
+      } else {
+        _isChatScreenOpen = false;
+      }
+    });
   }
 
   // Voice Call Screen (Wi-Fi / Data Call first; falls back to mobile phone call only when offline)
   Future<void> _openDriverVoiceCallScreen() async {
+    if (_isCallScreenOpen) return;
     final driverPhone = _matchedDriver['phone'] ?? '+639178402291';
     final hasOnline = await SupabaseService.hasWifiOrDataForCall();
     if (!mounted) return;
     if (!hasOnline) {
       await SupabaseService.launchCellularPhoneCall(driverPhone);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No Wi-Fi/Data: Switching to mobile phone call...'),
-          backgroundColor: AppTheme.primarySlate,
-        ),
-      );
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('No Wi-Fi/Data: Switching to mobile phone call...'),
+            backgroundColor: AppTheme.primarySlate,
+          ),
+        );
       return;
     }
     await SupabaseService.sendTripCallSignal(
@@ -695,14 +744,20 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       state: 'ringing',
     );
     if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => _DriverVoiceCallScreen(
-          driverData: _matchedDriver,
-        ),
-      ),
-    );
+    _isCallScreenOpen = true;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    Navigator.of(context, rootNavigator: true)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => _DriverVoiceCallScreen(
+              driverData: _matchedDriver,
+              isIncoming: false,
+            ),
+          ),
+        )
+        .whenComplete(() {
+      _isCallScreenOpen = false;
+    });
   }
 
   // Cancel Ride Reason Selection & Confirmation
@@ -2585,6 +2640,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             icon: Icons.chat_bubble_outline_rounded,
             tooltip: 'Chat with Driver',
             onTap: _openDriverChatScreen,
+            badgeCount: _unreadChatCount,
           ),
           const SizedBox(width: 10),
           _buildGreenOutlinedIconButton(
@@ -2856,6 +2912,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     required IconData icon,
     required String tooltip,
     required VoidCallback onTap,
+    int badgeCount = 0,
   }) {
     return Tooltip(
       message: tooltip,
@@ -2865,18 +2922,48 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         child: InkWell(
           onTap: onTap,
           customBorder: const CircleBorder(),
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppTheme.accentEmerald, width: 1.6),
-            ),
-            child: Icon(
-              icon,
-              color: AppTheme.accentEmerald,
-              size: 22,
-            ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppTheme.accentEmerald, width: 1.6),
+                ),
+                child: Icon(
+                  icon,
+                  color: AppTheme.accentEmerald,
+                  size: 22,
+                ),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    key: const Key('passenger_chat_unread_badge'),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cancelRed,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: Center(
+                      child: Text(
+                        badgeCount > 9 ? '9+' : '$badgeCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -3759,8 +3846,12 @@ class _DriverChatScreenState extends State<_DriverChatScreen> {
 // ============================================================================
 class _DriverVoiceCallScreen extends StatefulWidget {
   final Map<String, String> driverData;
+  final bool isIncoming;
 
-  const _DriverVoiceCallScreen({required this.driverData});
+  const _DriverVoiceCallScreen({
+    required this.driverData,
+    this.isIncoming = false,
+  });
 
   @override
   State<_DriverVoiceCallScreen> createState() => _DriverVoiceCallScreenState();
@@ -3768,7 +3859,9 @@ class _DriverVoiceCallScreen extends StatefulWidget {
 
 class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
   Timer? _callTimer;
+  StreamSubscription<Map<String, dynamic>>? _callSub;
   int _seconds = 0;
+  bool _isConnected = false;
   bool _speakerOn = true;
   bool _micMuted = false;
 
@@ -3777,13 +3870,31 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
     super.initState();
     _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() => _seconds++);
+      if (_isConnected) {
+        setState(() => _seconds++);
+      }
+    });
+    _callSub = SupabaseService.onTripCallSignal.listen((signal) {
+      if (!mounted) return;
+      final state = (signal['state'] ?? '').toString();
+      final callerRole = (signal['caller_role'] ?? '').toString();
+      if (state == 'accepted') {
+        setState(() => _isConnected = true);
+      } else if ((state == 'declined' || state == 'ended') &&
+          callerRole == 'driver') {
+        _callTimer?.cancel();
+        _callSub?.cancel();
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      }
     });
   }
 
   @override
   void dispose() {
     _callTimer?.cancel();
+    _callSub?.cancel();
     super.dispose();
   }
 
@@ -3795,6 +3906,12 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final String statusText = _isConnected
+        ? '${_formatDuration(_seconds)} • Connected via Wi-Fi / Data'
+        : widget.isIncoming
+            ? 'Incoming Wi-Fi / Data Call...'
+            : 'Calling ${widget.driverData['name']}... • Ringing via Wi-Fi / Data';
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -3818,7 +3935,17 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      SupabaseService.sendTripCallSignal(
+                        callerRole: 'passenger',
+                        callerName: 'Passenger',
+                        callerPhone: '+63 917 849 2038',
+                        state: widget.isIncoming && !_isConnected
+                            ? 'declined'
+                            : 'ended',
+                      );
+                      Navigator.pop(context);
+                    },
                     icon: const Icon(
                       Icons.arrow_back_rounded,
                       color: Colors.white,
@@ -3854,7 +3981,8 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '${_formatDuration(_seconds)} • Wi-Fi / Data Call',
+                    statusText,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 15,
@@ -3865,78 +3993,146 @@ class _DriverVoiceCallScreenState extends State<_DriverVoiceCallScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.only(bottom: 42),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    InkWell(
-                      onTap: () {
-                        SupabaseService.sendTripCallSignal(
-                          callerRole: 'passenger',
-                          callerName: 'Passenger',
-                          callerPhone: '+63 917 849 2038',
-                          state: 'ended',
-                        );
-                        Navigator.pop(context);
-                      },
-                      customBorder: const CircleBorder(),
-                      child: Container(
-                        width: 62,
-                        height: 62,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.cancelRed,
-                        ),
-                        child: const Icon(
-                          Icons.call_end_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                child: widget.isIncoming && !_isConnected
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              SupabaseService.sendTripCallSignal(
+                                callerRole: 'passenger',
+                                callerName: 'Passenger',
+                                callerPhone: '+63 917 849 2038',
+                                state: 'declined',
+                              );
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.cancelRed,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 22,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                            icon: const Icon(Icons.call_end_rounded),
+                            label: const Text(
+                              'Decline',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() => _isConnected = true);
+                              SupabaseService.sendTripCallSignal(
+                                callerRole: 'passenger',
+                                callerName: 'Passenger',
+                                callerPhone: '+63 917 849 2038',
+                                state: 'accepted',
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.accentEmerald,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 22,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                            icon: const Icon(Icons.call_rounded),
+                            label: const Text(
+                              'Answer',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              SupabaseService.sendTripCallSignal(
+                                callerRole: 'passenger',
+                                callerName: 'Passenger',
+                                callerPhone: '+63 917 849 2038',
+                                state: 'ended',
+                              );
+                              Navigator.pop(context);
+                            },
+                            customBorder: const CircleBorder(),
+                            child: Container(
+                              width: 62,
+                              height: 62,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppTheme.cancelRed,
+                              ),
+                              child: const Icon(
+                                Icons.call_end_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          InkWell(
+                            onTap: () =>
+                                setState(() => _speakerOn = !_speakerOn),
+                            customBorder: const CircleBorder(),
+                            child: Container(
+                              width: 62,
+                              height: 62,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(
+                                    alpha: _speakerOn ? 0.35 : 0.18),
+                              ),
+                              child: Icon(
+                                _speakerOn
+                                    ? Icons.volume_up_rounded
+                                    : Icons.volume_off_rounded,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          InkWell(
+                            onTap: () => setState(() => _micMuted = !_micMuted),
+                            customBorder: const CircleBorder(),
+                            child: Container(
+                              width: 62,
+                              height: 62,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(
+                                    alpha: _micMuted ? 0.35 : 0.18),
+                              ),
+                              child: Icon(
+                                _micMuted
+                                    ? Icons.mic_off_rounded
+                                    : Icons.mic_rounded,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 24),
-                    InkWell(
-                      onTap: () => setState(() => _speakerOn = !_speakerOn),
-                      customBorder: const CircleBorder(),
-                      child: Container(
-                        width: 62,
-                        height: 62,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white
-                              .withValues(alpha: _speakerOn ? 0.35 : 0.18),
-                        ),
-                        child: Icon(
-                          _speakerOn
-                              ? Icons.volume_up_rounded
-                              : Icons.volume_off_rounded,
-                          color: Colors.white,
-                          size: 26,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    InkWell(
-                      onTap: () => setState(() => _micMuted = !_micMuted),
-                      customBorder: const CircleBorder(),
-                      child: Container(
-                        width: 62,
-                        height: 62,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white
-                              .withValues(alpha: _micMuted ? 0.35 : 0.18),
-                        ),
-                        child: Icon(
-                          _micMuted
-                              ? Icons.mic_off_rounded
-                              : Icons.mic_rounded,
-                          color: Colors.white,
-                          size: 26,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
