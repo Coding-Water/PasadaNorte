@@ -180,16 +180,20 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       if (!mounted) return;
       final stage = (payload['stage'] ?? '').toString();
       if (stage == 'canceled_by_passenger') {
+        _navigationTimer?.cancel();
+        _telemetryTimer?.cancel();
+        _activeCallTimer?.cancel();
         final reason = (payload['reason'] ?? 'Change in plans').toString();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Passenger canceled the ride ($reason).'),
-            backgroundColor: AppTheme.cancelRed,
-          ),
-        );
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-        }
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('Passenger canceled the ride ($reason).'),
+              backgroundColor: AppTheme.cancelRed,
+            ),
+          );
+        Navigator.of(context, rootNavigator: true)
+            .popUntil((route) => route.isFirst);
       }
     });
     // Driver starts on downtown street grid ~300 meters away from market
@@ -340,8 +344,11 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
     }
     if (_currentRoutePolyline.isEmpty) return;
 
-    // Advance smoothly across ~25 steps
+    // Advance smoothly across ~25 steps, pausing 2 steps before the pin until driver slides confirmation
     final int stepIncrement = max(1, (_currentRoutePolyline.length / 25).ceil());
+    final int maxAutoIndex = _currentRoutePolyline.length > 3
+        ? _currentRoutePolyline.length - 3
+        : max(0, _currentRoutePolyline.length - 1);
 
     _navigationTimer = Timer.periodic(const Duration(milliseconds: 650), (timer) {
       if (!mounted) {
@@ -350,14 +357,36 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
       }
       if (_isRerouting) return;
 
-      if (_currentPolylineIndex < _currentRoutePolyline.length - 1) {
+      if (_currentPolylineIndex < maxAutoIndex) {
         setState(() {
           _currentPolylineIndex = min(
-            _currentRoutePolyline.length - 1,
+            maxAutoIndex,
             _currentPolylineIndex + stepIncrement,
           );
           _currentDriverLocation = _currentRoutePolyline[_currentPolylineIndex];
         });
+
+        final targetLatLng = _currentStage == DriverTripStage.enRouteToPickup
+            ? widget.pickupPoint.latLng
+            : widget.dropoffPoint.latLng;
+        final remainingMeters = (LocationService.calculateDistanceInKm(
+                  _currentDriverLocation.latitude,
+                  _currentDriverLocation.longitude,
+                  targetLatLng.latitude,
+                  targetLatLng.longitude,
+                ) *
+                1000)
+            .round()
+            .clamp(35, 50000);
+        SupabaseService.broadcastTripStageUpdate(
+          stage: _currentStage == DriverTripStage.enRouteToPickup
+              ? 'driver_en_route_telemetry'
+              : 'driver_in_transit_telemetry',
+          driverName: widget.driverName,
+          lat: _currentDriverLocation.latitude,
+          lng: _currentDriverLocation.longitude,
+          reason: remainingMeters.toString(),
+        );
 
         // 1. AUTO-FOLLOW CAMERA: Automatically glides the camera hands-free
         if (_isAutoFollowLocked) {
@@ -1843,6 +1872,13 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
           ),
           ElevatedButton(
             onPressed: () {
+              _navigationTimer?.cancel();
+              _telemetryTimer?.cancel();
+              SupabaseService.broadcastTripStageUpdate(
+                stage: 'canceled_by_driver',
+                driverName: widget.driverName,
+                reason: 'Driver canceled active dispatch',
+              );
               Navigator.pop(ctx);
               Navigator.pop(context);
             },

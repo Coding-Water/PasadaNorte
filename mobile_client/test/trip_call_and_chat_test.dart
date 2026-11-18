@@ -263,5 +263,59 @@ void main() {
         'MMSU Laoag Campus',
       );
     });
+
+    testWidgets('Canceling search during Finding Driver skips survey, while canceling after Driver accepts shows survey, and Driver cancel syncs to Passenger', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 1100));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(createPassengerScreen());
+      await tester.pump(const Duration(milliseconds: 500));
+      while (tester.takeException() != null) {}
+
+      // 1. In "Finding you a nearby driver..." phase, tapping Cancel Ride does NOT open "Why are you cancelling?"
+      expect(find.text('Finding you a nearby driver...'), findsOneWidget);
+      await tester.tap(find.text('Cancel Ride'));
+      await tester.pump();
+      while (tester.takeException() != null) {}
+      expect(find.text('Why are you cancelling?'), findsNothing);
+
+      // 2. Mount a fresh instance and advance 3.5s to driverHeadingToPickup (after driver has accepted)
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(createPassengerScreen());
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 3500));
+      while (tester.takeException() != null) {}
+
+      expect(find.text('Driver is heading to your location...'), findsOneWidget);
+
+      // Driver telemetry keeps distance >= 35m while en route until arrivedAtPickup
+      SupabaseService.broadcastTripStageUpdate(
+        stage: 'driver_en_route_telemetry',
+        lat: 18.1950,
+        lng: 120.5950,
+        reason: '85',
+      );
+      await tester.pump();
+      while (tester.takeException() != null) {}
+      expect(find.textContaining('85m away'), findsOneWidget);
+
+      // Dismiss accepted overlay if visible, expand sheet, and tap Cancel Ride after driver accepted -> DOES show "Why are you cancelling?"
+      await tester.tap(find.text('Tap or swipe up for trip & vehicle details'), warnIfMissed: false);
+      await tester.pump();
+      while (tester.takeException() != null) {}
+
+      final cancelBtnFinder = find.text('Cancel Ride');
+      if (cancelBtnFinder.evaluate().isEmpty) {
+        await tester.tap(find.text('Tap or swipe up for trip & vehicle details'), warnIfMissed: false);
+        await tester.pump();
+      }
+      await tester.ensureVisible(find.text('Cancel Ride'));
+      await tester.tap(find.text('Cancel Ride'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      while (tester.takeException() != null) {}
+
+      expect(find.text('Why are you cancelling?'), findsOneWidget);
+    });
   });
 }

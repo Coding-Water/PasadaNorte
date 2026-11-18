@@ -130,8 +130,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
     _tricycleLivePos = LocationPoint(
       name: 'Nearest Queued TODA Terminal',
-      latitude: widget.pickupPoint.latitude - 0.0020,
-      longitude: widget.pickupPoint.longitude - 0.0015,
+      latitude: widget.pickupPoint.latitude + 0.0024,
+      longitude: widget.pickupPoint.longitude - 0.0020,
       zoneCode: 'TODA',
     ).latLng;
 
@@ -217,7 +217,28 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
       _stageUpdateSub = SupabaseService.onTripStageUpdate.listen((payload) {
         if (!mounted) return;
         final stage = (payload['stage'] ?? '').toString();
-        if (stage == 'arrivedAtPickup') {
+        if (stage == 'driver_en_route_telemetry') {
+          if (_ridePhase == _RidePhase.driverHeadingToPickup &&
+              !_isDriverArrivedAtPickup) {
+            final lat = (payload['lat'] as num?)?.toDouble();
+            final lng = (payload['lng'] as num?)?.toDouble();
+            final meters = double.tryParse((payload['reason'] ?? '').toString());
+            setState(() {
+              if (lat != null && lng != null) {
+                final nextPos = LatLng(lat, lng);
+                _tricycleBearingRadians =
+                    _computeBearingRadians(_tricycleLivePos, nextPos);
+                _tricycleLivePos = nextPos;
+              }
+              if (meters != null) {
+                _distanceToPassengerMeters = max(35.0, meters);
+                _etaToPassengerMinutes =
+                    max(1, (_distanceToPassengerMeters / 220).ceil());
+              }
+            });
+            _followDriverApproach();
+          }
+        } else if (stage == 'arrivedAtPickup') {
           _trackingTimer?.cancel();
           setState(() {
             _isDriverArrivedAtPickup = true;
@@ -234,10 +255,47 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           if (_ridePhase != _RidePhase.headingToDestination) {
             _beginHeadingToDestinationPhase();
           }
+        } else if (stage == 'driver_in_transit_telemetry') {
+          if (_ridePhase == _RidePhase.headingToDestination) {
+            final lat = (payload['lat'] as num?)?.toDouble();
+            final lng = (payload['lng'] as num?)?.toDouble();
+            final meters = double.tryParse((payload['reason'] ?? '').toString());
+            setState(() {
+              if (lat != null && lng != null) {
+                final nextPos = LatLng(lat, lng);
+                _tricycleBearingRadians =
+                    _computeBearingRadians(_tricycleLivePos, nextPos);
+                _tricycleLivePos = nextPos;
+              }
+              if (meters != null) {
+                _remainingDestinationKm = max(0.035, meters / 1000.0);
+                _etaToDestinationMinutes =
+                    max(1, (_remainingDestinationKm / 0.36).ceil());
+              }
+            });
+            _followActiveDestinationJourney();
+          }
         } else if (stage == 'tripCompleted') {
           if (_ridePhase != _RidePhase.arrivedAtDestination) {
             _triggerArrivedAtDestinationPhase();
           }
+        } else if (stage == 'canceled_by_driver') {
+          _trackingTimer?.cancel();
+          _dispatchTimer?.cancel();
+          _riderAcceptedPromptTimer?.cancel();
+          SoundAlertService.stop();
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Driver canceled the dispatch. Returning to booking screen...',
+                ),
+                backgroundColor: AppTheme.cancelRed,
+              ),
+            );
+          Navigator.of(context, rootNavigator: true)
+              .popUntil((route) => route.isFirst);
         }
       });
     } catch (_) {}
@@ -282,8 +340,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   Future<void> _prepareRoutesAndStartDispatch() async {
     final todaStartPoint = LocationPoint(
       name: 'Laoag TODA Terminal Dispatch Point',
-      latitude: widget.pickupPoint.latitude - 0.0020,
-      longitude: widget.pickupPoint.longitude - 0.0015,
+      latitude: widget.pickupPoint.latitude + 0.0024,
+      longitude: widget.pickupPoint.longitude - 0.0020,
       zoneCode: 'TODA',
     );
 
@@ -380,19 +438,29 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         _distanceToPassengerMeters > 0 ? _distanceToPassengerMeters : 400;
     final int initialEtaMins =
         _etaToPassengerMinutes > 0 ? _etaToPassengerMinutes : 2;
-    // Step size so approach finishes smoothly in ~10 ticks (~5.5 seconds)
+    final int divisor = widget.autoAcceptForTesting ? 10 : 25;
     final int stepIncrement =
-        max(1, (_tricycleApproachPath.length / 10).ceil());
+        max(1, (_tricycleApproachPath.length / divisor).ceil());
+    final int maxApproachIndex = widget.autoAcceptForTesting
+        ? max(0, _tricycleApproachPath.length - 1)
+        : (_tricycleApproachPath.length > 3
+            ? _tricycleApproachPath.length - 3
+            : max(0, _tricycleApproachPath.length - 1));
 
     _trackingTimer?.cancel();
-    _trackingTimer =
-        Timer.periodic(const Duration(milliseconds: 550), (timer) {
+    _trackingTimer = Timer.periodic(
+        Duration(milliseconds: widget.autoAcceptForTesting ? 550 : 650),
+        (timer) {
       if (!mounted) return;
+      if (_isDriverArrivedAtPickup) {
+        timer.cancel();
+        return;
+      }
       if (_tricycleApproachPath.length > 1 &&
-          _currentApproachIndex < _tricycleApproachPath.length - 1) {
+          _currentApproachIndex < maxApproachIndex) {
         setState(() {
           _currentApproachIndex = min(
-            _tricycleApproachPath.length - 1,
+            maxApproachIndex,
             _currentApproachIndex + stepIncrement,
           );
           _tricycleLivePos = _tricycleApproachPath[_currentApproachIndex];
@@ -403,8 +471,9 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
           final remainingRatio = 1.0 -
               (_currentApproachIndex / (_tricycleApproachPath.length - 1));
+          final minMeters = widget.autoAcceptForTesting ? 0.0 : 35.0;
           _distanceToPassengerMeters =
-              (initialDistMeters * remainingRatio).clamp(0, initialDistMeters);
+              (initialDistMeters * remainingRatio).clamp(minMeters, initialDistMeters);
           _etaToPassengerMinutes =
               (initialEtaMins * remainingRatio).ceil().clamp(1, initialEtaMins);
         });
@@ -454,16 +523,21 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
     // Advance along the road polyline so the passenger sees live distance/ETA countdown to their destination
     final int stepIncrement =
-        max(1, (_destinationRoutePath.length / 20).ceil());
+        max(1, (_destinationRoutePath.length / 25).ceil());
+    final int maxDestIndex = widget.autoAcceptForTesting
+        ? max(0, _destinationRoutePath.length - 1)
+        : (_destinationRoutePath.length > 3
+            ? _destinationRoutePath.length - 3
+            : max(0, _destinationRoutePath.length - 1));
 
     _trackingTimer =
         Timer.periodic(const Duration(milliseconds: 650), (timer) {
       if (!mounted) return;
       if (_destinationRoutePath.length > 1 &&
-          _currentDestinationIndex < _destinationRoutePath.length - 1) {
+          _currentDestinationIndex < maxDestIndex) {
         setState(() {
           _currentDestinationIndex = min(
-            _destinationRoutePath.length - 1,
+            maxDestIndex,
             _currentDestinationIndex + stepIncrement,
           );
           _tricycleLivePos = _destinationRoutePath[_currentDestinationIndex];
@@ -474,9 +548,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
           final remainingRatio = 1.0 -
               (_currentDestinationIndex / (_destinationRoutePath.length - 1));
+          final minKm = widget.autoAcceptForTesting ? 0.0 : 0.035;
           _remainingDestinationKm =
               (_totalTripDistanceKm * remainingRatio).clamp(
-            0.0,
+            minKm,
             _totalTripDistanceKm,
           );
           _etaToDestinationMinutes =
@@ -760,8 +835,23 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     });
   }
 
-  // Cancel Ride Reason Selection & Confirmation
+  // Cancel Ride:
+  // - If still searching for a driver (_RidePhase.findingDriver), cancel immediately without asking the post-acceptance reason survey.
+  // - Only ask "Why are you cancelling?" (_CancelRideReasonScreen) once a driver has already accepted the booking.
   void _openCancelRideScreen() {
+    if (_ridePhase == _RidePhase.findingDriver) {
+      _dispatchTimer?.cancel();
+      _trackingTimer?.cancel();
+      SupabaseService.broadcastTripStageUpdate(
+        stage: 'canceled_by_passenger',
+        reason: 'Canceled search before driver acceptance',
+      );
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1641,47 +1731,6 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
             ),
           ),
           const SizedBox(height: 18),
-          // Concentric Green Bullseye Target Indicator
-          AnimatedBuilder(
-            animation: _radarPulseController,
-            builder: (context, _) {
-              return Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.accentEmerald.withValues(alpha: 0.45),
-                    width: 1.5,
-                  ),
-                ),
-                child: Center(
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppTheme.accentEmerald.withValues(alpha: 0.75),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 15,
-                        height: 15,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.accentEmerald,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 18),
           Divider(height: 1, color: Colors.grey.shade200),
           const SizedBox(height: 16),
           // Red Outlined Pill Button: "Cancel Ride"
@@ -1794,46 +1843,48 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                 color: AppTheme.primarySlate,
               ),
             ),
-            const SizedBox(height: 10),
-            // Quick action chip to board immediately if desired
-            Align(
-              alignment: Alignment.center,
-              child: InkWell(
-                onTap: _beginHeadingToDestinationPhase,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentEmeraldLight,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.directions_run_rounded,
-                        size: 14,
-                        color: AppTheme.accentEmerald,
-                      ),
-                      SizedBox(width: 5),
-                      Flexible(
-                        child: Text(
-                          'Board Tricycle Now ➔ Start Trip',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.accentEmerald,
+            if (widget.autoAcceptForTesting) ...[
+              const SizedBox(height: 10),
+              // Quick action chip for automated test fast-forward
+              Align(
+                alignment: Alignment.center,
+                child: InkWell(
+                  onTap: _beginHeadingToDestinationPhase,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentEmeraldLight,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.directions_run_rounded,
+                          size: 14,
+                          color: AppTheme.accentEmerald,
+                        ),
+                        SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            'Board Tricycle Now ➔ Start Trip',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.accentEmerald,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
             const SizedBox(height: 12),
             Divider(height: 1, color: Colors.grey.shade200),
             const SizedBox(height: 14),
@@ -1961,18 +2012,20 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      InkWell(
-                        onTap: _triggerArrivedAtDestinationPhase,
-                        child: const Text(
-                          'Arrive Now ➔',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.accentEmerald,
+                      if (widget.autoAcceptForTesting) ...[
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: _triggerArrivedAtDestinationPhase,
+                          child: const Text(
+                            'Arrive Now ➔',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.accentEmerald,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 7),
@@ -2833,20 +2886,30 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13.5,
-            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
-            color: Colors.grey.shade600,
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+              color: Colors.grey.shade600,
+            ),
           ),
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: isBold ? 15 : 14,
-            fontWeight: isBold ? FontWeight.w800 : FontWeight.w700,
-            color: valueColor ?? AppTheme.primarySlate,
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontSize: isBold ? 15 : 14,
+              fontWeight: isBold ? FontWeight.w800 : FontWeight.w700,
+              color: valueColor ?? AppTheme.primarySlate,
+            ),
           ),
         ),
       ],

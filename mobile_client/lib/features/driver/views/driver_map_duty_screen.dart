@@ -297,6 +297,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
 
     int remainingSeconds = TodaQueueService.autoPassSeconds; // 15 seconds
     Timer? countdownTimer;
+    StreamSubscription<Map<String, dynamic>>? cancelOfferSub;
 
     final String passengerName = (request['passenger_name'] as String?) ?? 'Commuter';
     final String passengerCategory = (request['passenger_category'] as String?) ?? 'REGULAR';
@@ -325,14 +326,37 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            cancelOfferSub ??= SupabaseService.onTripStageUpdate.listen((payload) {
+              final stage = (payload['stage'] ?? '').toString();
+              if (stage == 'canceled_by_passenger') {
+                countdownTimer?.cancel();
+                cancelOfferSub?.cancel();
+                SoundAlertService.stop();
+                _isDispatchDialogOpen = false;
+                if (dialogContext.mounted && Navigator.canPop(dialogContext)) {
+                  Navigator.pop(dialogContext);
+                }
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      const SnackBar(
+                        content: Text('Passenger canceled the ride search.'),
+                        backgroundColor: AppTheme.cancelRed,
+                      ),
+                    );
+                }
+              }
+            });
             countdownTimer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
               if (remainingSeconds <= 1) {
                 timer.cancel();
+                cancelOfferSub?.cancel();
                 SoundAlertService.stop();
                 _isDispatchDialogOpen = false;
                 if (Navigator.canPop(dialogContext)) {
                   Navigator.pop(dialogContext);
-                                  }
+                }
               } else {
                 setDialogState(() {
                   remainingSeconds--;
@@ -417,6 +441,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 TextButton(
                   onPressed: () {
                     countdownTimer?.cancel();
+                    cancelOfferSub?.cancel();
                     SoundAlertService.stop();
                     _isDispatchDialogOpen = false;
                     Navigator.pop(dialogContext);
@@ -426,6 +451,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 ElevatedButton(
                   onPressed: () async {
                     countdownTimer?.cancel();
+                    cancelOfferSub?.cancel();
                     SoundAlertService.stop();
                     _isDispatchDialogOpen = false;
                     Navigator.pop(dialogContext);
@@ -439,8 +465,8 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                         plateNumber: 'IN-4829',
                         phone: '+63 917 840 2291',
                         vehicleHeadline: 'Honda TMX 125 Tricycle, Green • Body #0418',
-                        driverLat: _driverLocation.latitude,
-                        driverLng: _driverLocation.longitude,
+                        driverLat: pickupLat + 0.0024,
+                        driverLng: pickupLng - 0.0020,
                         extra: {
                           'ride_id': request['ride_id'],
                         },
@@ -494,6 +520,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
       },
     ).then((_) {
       countdownTimer?.cancel();
+      cancelOfferSub?.cancel();
       _isDispatchDialogOpen = false;
     });
   }
