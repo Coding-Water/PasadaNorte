@@ -64,6 +64,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   StreamSubscription<Map<String, dynamic>>? _stageUpdateSub;
   bool _recordedCompletedActivity = false;
   bool _isDriverArrivedAtPickup = false;
+  bool _isReceivingLiveDriverTelemetry = false;
+  DateTime? _lastCameraFollowAt;
   bool _isChatScreenOpen = false;
   bool _isCallScreenOpen = false;
   int _unreadChatCount = 0;
@@ -209,6 +211,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         if (stage == 'driver_en_route_telemetry') {
           if (_ridePhase == _RidePhase.driverHeadingToPickup &&
               !_isDriverArrivedAtPickup) {
+            _trackingTimer?.cancel();
+            _isReceivingLiveDriverTelemetry = true;
             final lat = (payload['lat'] as num?)?.toDouble();
             final lng = (payload['lng'] as num?)?.toDouble();
             final meters = double.tryParse((payload['reason'] ?? '').toString());
@@ -218,6 +222,11 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                 _tricycleBearingRadians =
                     _computeBearingRadians(_tricycleLivePos, nextPos);
                 _tricycleLivePos = nextPos;
+                _currentApproachIndex = _findNearestPolylineIndex(
+                  _tricycleApproachPath,
+                  nextPos,
+                  minIndex: _currentApproachIndex,
+                );
               }
               if (meters != null) {
                 _distanceToPassengerMeters = max(35.0, meters);
@@ -246,6 +255,8 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
           }
         } else if (stage == 'driver_in_transit_telemetry') {
           if (_ridePhase == _RidePhase.headingToDestination) {
+            _trackingTimer?.cancel();
+            _isReceivingLiveDriverTelemetry = true;
             final lat = (payload['lat'] as num?)?.toDouble();
             final lng = (payload['lng'] as num?)?.toDouble();
             final meters = double.tryParse((payload['reason'] ?? '').toString());
@@ -255,6 +266,11 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                 _tricycleBearingRadians =
                     _computeBearingRadians(_tricycleLivePos, nextPos);
                 _tricycleLivePos = nextPos;
+                _currentDestinationIndex = _findNearestPolylineIndex(
+                  _destinationRoutePath,
+                  nextPos,
+                  minIndex: _currentDestinationIndex,
+                );
               }
               if (meters != null) {
                 _remainingDestinationKm = max(0.035, meters / 1000.0);
@@ -441,7 +457,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
         Duration(milliseconds: widget.autoAcceptForTesting ? 550 : 650),
         (timer) {
       if (!mounted) return;
-      if (_isDriverArrivedAtPickup) {
+      if (_isDriverArrivedAtPickup || _isReceivingLiveDriverTelemetry) {
         timer.cancel();
         return;
       }
@@ -486,6 +502,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   // PHASE 2: Rider takes passenger and heads along road route from Point A (Pickup) to Point B (Destination)
   void _beginHeadingToDestinationPhase() {
     _trackingTimer?.cancel();
+    _isReceivingLiveDriverTelemetry = false;
     if (!mounted) return;
 
     setState(() {
@@ -521,7 +538,10 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
 
     _trackingTimer =
         Timer.periodic(const Duration(milliseconds: 650), (timer) {
-      if (!mounted) return;
+      if (!mounted || _isReceivingLiveDriverTelemetry) {
+        timer.cancel();
+        return;
+      }
       if (_destinationRoutePath.length > 1 &&
           _currentDestinationIndex < maxDestIndex) {
         setState(() {
@@ -631,9 +651,39 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     }
   }
 
+  int _findNearestPolylineIndex(
+    List<LatLng> path,
+    LatLng pos, {
+    int minIndex = 0,
+  }) {
+    if (path.isEmpty) return 0;
+    final start = minIndex.clamp(0, path.length - 1);
+    int bestIdx = start;
+    double bestDistSq = double.infinity;
+    for (int i = start; i < path.length; i++) {
+      final dLat = path[i].latitude - pos.latitude;
+      final dLng = path[i].longitude - pos.longitude;
+      final distSq = dLat * dLat + dLng * dLng;
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
   // Smoothly updates the map camera as the vehicle moves from Point A toward Point B
   // so both the moving tricycle and the destination (Point B) remain clearly framed on screen
   void _followActiveDestinationJourney() {
+    if (_isReceivingLiveDriverTelemetry) {
+      final now = DateTime.now();
+      if (_lastCameraFollowAt != null &&
+          now.difference(_lastCameraFollowAt!) <
+              const Duration(milliseconds: 1200)) {
+        return;
+      }
+      _lastCameraFollowAt = now;
+    }
     try {
       final remainingSlice = _destinationRoutePath.sublist(
         _currentDestinationIndex.clamp(0, _destinationRoutePath.length - 1),
@@ -657,6 +707,15 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
   // Smoothly updates map camera so passenger watches the approaching tricycle close in
   // without needing to swipe or pan the screen
   void _followDriverApproach() {
+    if (_isReceivingLiveDriverTelemetry) {
+      final now = DateTime.now();
+      if (_lastCameraFollowAt != null &&
+          now.difference(_lastCameraFollowAt!) <
+              const Duration(milliseconds: 1200)) {
+        return;
+      }
+      _lastCameraFollowAt = now;
+    }
     try {
       final points = <LatLng>[
         _tricycleLivePos,
