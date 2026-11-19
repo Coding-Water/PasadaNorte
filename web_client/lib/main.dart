@@ -584,240 +584,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   @override
   void initState() {
     super.initState();
-    _mergeSeededDriversIntoDirectory();
+    _ensureInitialDispatchAndAuditLogs();
     _loadDocReviewCache();
     _syncFromSupabase();
     _listenToSosAlerts();
     _listenToDriverApplications();
     _listenToRealtimeDispatchChannel();
-  }
-
-  List<Map<String, dynamic>> _buildSeededDriverAccounts() {
-    final now = DateTime.now();
-    String fmtDays(int daysOffset) =>
-        now.add(Duration(days: daysOffset)).toIso8601String().split('T').first;
-
-    return [
-      // 8 Normal / Compliant Driver Accounts (no expired docs)
-      {
-        'id': 'seed_driver_001',
-        'bodyNo': 'TODA-01 #011',
-        'mtop': 'MINC-10411',
-        'name': 'Mateo Villanueva',
-        'toda': 'TODA-01',
-        'phone': '+639171110101',
-        'plateNo': 'IN-1101',
-        'profile_photo_url': '',
-        'status': 'Active Duty',
-        'verification': 100.0,
-        'trips': 64,
-        'rating': 4.9,
-        'license_expiry_date': fmtDays(320),
-        'orcr_expiry_date': fmtDays(290),
-        'mtop_expiry_date': fmtDays(240),
-        'nbi_expiry_date': fmtDays(210),
-        'isSeededDemo': true,
-      },
-      {
-        'id': 'seed_driver_002',
-        'bodyNo': 'TODA-01 #015',
-        'mtop': 'MINC-10415',
-        'name': 'Ramon Pascual',
-        'toda': 'TODA-01',
-        'phone': '+639171110102',
-        'plateNo': 'IN-1102',
-        'profile_photo_url': '',
-        'status': 'Active Duty',
-        'verification': 100.0,
-        'trips': 51,
-        'rating': 4.8,
-        'license_expiry_date': fmtDays(350),
-        'orcr_expiry_date': fmtDays(260),
-        'mtop_expiry_date': fmtDays(300),
-        'nbi_expiry_date': fmtDays(185),
-        'isSeededDemo': true,
-      },
-      {
-        'id': 'seed_driver_003',
-        'bodyNo': 'TODA-02 #008',
-        'mtop': 'MINC-20808',
-        'name': 'Danilo Agbayani',
-        'toda': 'TODA-02',
-        'phone': '+639171110103',
-        'plateNo': 'IN-2203',
-        'profile_photo_url': '',
-        'status': 'Active Duty',
-        'verification': 100.0,
-        'trips': 47,
-        'rating': 4.9,
-        'license_expiry_date': fmtDays(280),
-        'orcr_expiry_date': fmtDays(310),
-        'mtop_expiry_date': fmtDays(220),
-        'nbi_expiry_date': fmtDays(195),
-        'isSeededDemo': true,
-      },
-      {
-        'id': 'seed_driver_004',
-        'bodyNo': 'TODA-02 #014',
-        'mtop': 'MINC-20814',
-        'name': 'Carlo Bumanglag',
-        'toda': 'TODA-02',
-        'phone': '+639171110104',
-        'plateNo': 'IN-2204',
-        'profile_photo_url': '',
-        'status': 'Active Duty',
-        'verification': 100.0,
-        'trips': 73,
-        'rating': 5.0,
-        'license_expiry_date': fmtDays(400),
-        'orcr_expiry_date': fmtDays(330),
-        'mtop_expiry_date': fmtDays(275),
-        'nbi_expiry_date': fmtDays(230),
-        'isSeededDemo': true,
-      },
-      {
-        'id': 'seed_driver_005',
-        'bodyNo': 'TODA-03 #003',
-        'mtop': 'MINC-30303',
-        'name': 'Ernesto Corpuz',
-        'toda': 'TODA-03',
-        'phone': '+639171110105',
-        'plateNo': 'IN-3305',
-        'profile_photo_url': '',
-        'status': 'Active Duty',
-        'verification': 100.0,
-        'trips': 39,
-        'rating': 4.7,
-        'license_expiry_date': fmtDays(265),
-        'orcr_expiry_date': fmtDays(245),
-        'mtop_expiry_date': fmtDays(190),
-        'nbi_expiry_date': fmtDays(180),
-        'isSeededDemo': true,
-      },
-      {
-        'id': 'seed_driver_006',
-        'bodyNo': 'TODA-03 #009',
-        'mtop': 'MINC-30309',
-        'name': 'Noel Marcos',
-        'toda': 'TODA-03',
-        'phone': '+639171110106',
-        'plateNo': 'IN-3306',
-        'profile_photo_url': '',
-        'status': 'Active Duty',
-        'verification': 100.0,
-        'trips': 58,
-        'rating': 4.8,
-        'license_expiry_date': fmtDays(315),
-        'orcr_expiry_date': fmtDays(270),
-        'mtop_expiry_date': fmtDays(250),
-        'nbi_expiry_date': fmtDays(205),
-        'isSeededDemo': true,
-      },
-      {
-        'id': 'seed_driver_007',
-        'bodyNo': 'TODA-01 #021',
-        'mtop': 'MINC-10421',
-        'name': 'Rogelio Tunac',
-        'toda': 'TODA-01',
-        'phone': '+639171110107',
-        'plateNo': 'IN-1107',
-        'profile_photo_url': '',
-        'status': 'Active Duty',
-        'verification': 100.0,
-        'trips': 82,
-        'rating': 4.9,
-        'license_expiry_date': fmtDays(365),
-        'orcr_expiry_date': fmtDays(305),
-        'mtop_expiry_date': fmtDays(285),
-        'nbi_expiry_date': fmtDays(240),
-        'isSeededDemo': true,
-      },
-      {
-        'id': 'seed_driver_008',
-        'bodyNo': 'TODA-02 #019',
-        'mtop': 'MINC-20819',
-        'name': 'Arnel Galinato',
-        'toda': 'TODA-02',
-        'phone': '+639171110108',
-        'plateNo': 'IN-2208',
-        'profile_photo_url': '',
-        'status': 'Active Duty',
-        'verification': 100.0,
-        'trips': 44,
-        'rating': 4.8,
-        'license_expiry_date': fmtDays(295),
-        'orcr_expiry_date': fmtDays(255),
-        'mtop_expiry_date': fmtDays(215),
-        'nbi_expiry_date': fmtDays(200),
-        'isSeededDemo': true,
-      },
-      // 2 Expired Driver Accounts
-      {
-        'id': 'seed_driver_009',
-        'bodyNo': 'TODA-01 #033',
-        'mtop': 'MINC-10433',
-        'name': 'Eduardo Tamayo',
-        'toda': 'TODA-01',
-        'phone': '+639171110109',
-        'plateNo': 'IN-1109',
-        'profile_photo_url': '',
-        'status': 'Renewal Warning',
-        'verification': 100.0,
-        'trips': 41,
-        'rating': 4.7,
-        'license_expiry_date': fmtDays(-10),
-        'orcr_expiry_date': fmtDays(-3),
-        'mtop_expiry_date': fmtDays(140),
-        'nbi_expiry_date': fmtDays(120),
-        'renewal_grace_until': null,
-        'renewal_notice_sent_at': null,
-        'renewal_notice_message': null,
-        'isSeededDemo': true,
-      },
-      {
-        'id': 'seed_driver_010',
-        'bodyNo': 'TODA-03 #027',
-        'mtop': 'MINC-30327',
-        'name': 'Roberto Domingo',
-        'toda': 'TODA-03',
-        'phone': '+639171110110',
-        'plateNo': 'IN-3310',
-        'profile_photo_url': '',
-        'status': 'Renewal Warning',
-        'verification': 100.0,
-        'trips': 29,
-        'rating': 4.6,
-        'license_expiry_date': fmtDays(95),
-        'orcr_expiry_date': fmtDays(80),
-        'mtop_expiry_date': fmtDays(-7),
-        'nbi_expiry_date': fmtDays(8),
-        'renewal_grace_until': null,
-        'renewal_notice_sent_at': null,
-        'renewal_notice_message': null,
-        'isSeededDemo': true,
-      },
-    ];
-  }
-
-  void _mergeSeededDriversIntoDirectory({List<Map<String, dynamic>>? previousEntries}) {
-    final prevById = <String, Map<String, dynamic>>{};
-    if (previousEntries != null) {
-      for (final d in previousEntries) {
-        final id = d['id']?.toString();
-        if (id != null && d['isSeededDemo'] == true) {
-          prevById[id] = d;
-        }
-      }
-    }
-    for (final seeded in _buildSeededDriverAccounts()) {
-      final id = seeded['id'].toString();
-      final existingIdx = _driverDirectory.indexWhere((d) => d['id'] == id);
-      if (existingIdx < 0) {
-        _driverDirectory.add(prevById[id] ?? seeded);
-      }
-    }
-    _rebuildPilaQueuesFromDirectory();
-    _ensureInitialDispatchAndAuditLogs();
   }
 
   void _rebuildPilaQueuesFromDirectory() {
@@ -845,52 +617,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   }
 
   void _ensureInitialDispatchAndAuditLogs() {
-    if (_dispatchTrips.isEmpty) {
-      _dispatchTrips.addAll([
-        {
-          'id': 'TRP-8901',
-          'bodyNo': 'TODA-01 #011',
-          'rider': 'Maria Clara Santos',
-          'riderRole': 'Student (₱5.00 Off)',
-          'driver': 'Mateo Villanueva',
-          'origin': 'Laoag Public Market',
-          'destination': 'MMSU Laoag Campus',
-          'distanceKm': 1.4,
-          'collectedFare': 15.00,
-          'expectedFare': 15.00,
-          'overchargeAmount': 0.0,
-          'status': 'COMPLIANT',
-        },
-        {
-          'id': 'TRP-8902',
-          'bodyNo': 'TODA-02 #008',
-          'rider': 'Juanito Pelaez',
-          'riderRole': 'Regular',
-          'driver': 'Danilo Agbayani',
-          'origin': 'INCAT Terminal Bay',
-          'destination': 'Laoag City General Hospital',
-          'distanceKm': 2.1,
-          'collectedFare': 22.00,
-          'expectedFare': 22.00,
-          'overchargeAmount': 0.0,
-          'status': 'COMPLIANT',
-        },
-        {
-          'id': 'TRP-8903',
-          'bodyNo': 'TODA-03 #003',
-          'rider': 'Lola Remedios',
-          'riderRole': 'Senior Citizen (₱5.00 Off)',
-          'driver': 'Ernesto Corpuz',
-          'origin': 'Aurora Park / City Hall',
-          'destination': 'Robinsons Place Ilocos',
-          'distanceKm': 3.2,
-          'collectedFare': 35.00,
-          'expectedFare': 20.00,
-          'overchargeAmount': 15.00,
-          'status': 'OVERCHARGED',
-        },
-      ]);
-    }
     if (_systemAuditLogs.isEmpty) {
       _systemAuditLogs.addAll([
         {
@@ -1141,7 +867,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         'renewal_notice_message': a['renewal_notice_message'],
                       }),
             );
-          _mergeSeededDriversIntoDirectory(previousEntries: prevDir);
+          _rebuildPilaQueuesFromDirectory();
+          _ensureInitialDispatchAndAuditLogs();
         });
       });
     } catch (_) {}
@@ -2130,7 +1857,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       'renewal_notice_message': a['renewal_notice_message'],
                     }),
           );
-        _mergeSeededDriversIntoDirectory();
+        _rebuildPilaQueuesFromDirectory();
+        _ensureInitialDispatchAndAuditLogs();
       });
 
       // Sync live emergency SOS alerts
