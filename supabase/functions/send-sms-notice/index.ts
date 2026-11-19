@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const result = await dispatchSmsViaGateway(phoneNumber, message);
+    const result = await dispatchSmsViaGateway(phoneNumber, message, 100);
     return jsonResponse(
       {
         ok: result.ok,

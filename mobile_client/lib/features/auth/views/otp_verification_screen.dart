@@ -95,6 +95,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         'send-otp-sms',
         body: {'phone_number': widget.phoneNumber},
       );
+    } on FunctionException catch (e) {
+      final details = e.details;
+      final serverMsg = details is Map
+          ? (details['error'] ?? details['message'])?.toString()
+          : null;
+      if (mounted) {
+        setState(() {
+          _errorText = e.status == 429
+              ? (serverMsg ??
+                  'An OTP was just sent. Please check your SMS or wait before resending.')
+              : (serverMsg ?? 'Unable to send OTP SMS. Please tap Resend Code.');
+        });
+      }
+      debugPrint('send-otp-sms failed (${e.status}): $e');
     } catch (e) {
       if (mounted) {
         setState(() {

@@ -5171,15 +5171,36 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     final cleanedPhone = phoneNumber.trim();
     if (cleanedPhone.isEmpty || message.trim().isEmpty) return;
     try {
-      await Supabase.instance.client.functions.invoke(
+      final resp = await Supabase.instance.client.functions.invoke(
         'send-sms-notice',
         body: {
           'phone_number': cleanedPhone,
           'message': message,
         },
       );
+      final data = resp.data;
+      if (data is Map && data['ok'] == false && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'SMS Gateway could not deliver SMS notice (gateway phone may be offline).',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     } catch (e) {
       debugPrint('Android SMS Gateway dispatch failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'SMS Gateway unreachable — SMS notice was not delivered.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 

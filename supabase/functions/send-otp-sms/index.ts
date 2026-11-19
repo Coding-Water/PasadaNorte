@@ -67,11 +67,15 @@ Deno.serve(async (req) => {
   const codeHash = await sha256Hex(`${normalizedPhone}:${code}`);
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-  const { error: insertError } = await adminClient.from('sms_otp_codes').insert({
-    phone_number: normalizedPhone,
-    code_hash: codeHash,
-    expires_at: expiresAt,
-  });
+  const { data: insertedRow, error: insertError } = await adminClient
+    .from('sms_otp_codes')
+    .insert({
+      phone_number: normalizedPhone,
+      code_hash: codeHash,
+      expires_at: expiresAt,
+    })
+    .select('id')
+    .single();
 
   if (insertError) {
     return jsonResponse({ error: `Failed to store OTP: ${insertError.message}` }, 500);
@@ -81,6 +85,9 @@ Deno.serve(async (req) => {
     const smsText =
       `PasadaNorte OTP: ${code}. Valid for 5 minutes. Never share this code with anyone.`;
     const result = await dispatchSmsViaGateway(normalizedPhone, smsText, 100);
+    if (!result.ok && insertedRow?.id) {
+      await adminClient.from('sms_otp_codes').delete().eq('id', insertedRow.id);
+    }
     return jsonResponse(
       {
         ok: result.ok,
@@ -91,6 +98,9 @@ Deno.serve(async (req) => {
       result.ok ? 200 : 502,
     );
   } catch (err) {
+    if (insertedRow?.id) {
+      await adminClient.from('sms_otp_codes').delete().eq('id', insertedRow.id);
+    }
     return jsonResponse({ error: String(err) }, 500);
   }
 });
