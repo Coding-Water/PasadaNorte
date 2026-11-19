@@ -522,6 +522,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   final List<Map<String, dynamic>> _smsDispatchLogs = [];
   bool? _isSmsGateActive;
   bool _isCheckingSmsGate = false;
+  int _smsGateDeviceCount = 0;
+  int _smsGateOnlineDeviceCount = 0;
+  String? _smsGateLastSeen;
+  int? _smsGateLastSeenAgeSeconds;
+  Timer? _smsGateStatusTimer;
 
   // TODA Pila FIFO Queue Inspector Data (populated live from terminal queues)
   final Map<String, List<Map<String, dynamic>>> _pilaQueues = {
@@ -590,9 +595,38 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     _loadDocReviewCache();
     _syncFromSupabase();
     _checkSmsGateStatus();
+    _smsGateStatusTimer = Timer.periodic(
+      const Duration(seconds: 60),
+      (_) => _checkSmsGateStatus(),
+    );
     _listenToSosAlerts();
     _listenToDriverApplications();
     _listenToRealtimeDispatchChannel();
+  }
+
+  String _formatSmsGateAge(int? ageSeconds) {
+    if (ageSeconds == null) return 'no heartbeat';
+    if (ageSeconds < 60) return '${ageSeconds}s ago';
+    final mins = ageSeconds ~/ 60;
+    if (mins < 60) return '${mins}m ago';
+    final hours = mins ~/ 60;
+    if (hours < 24) return '${hours}h ago';
+    final days = hours ~/ 24;
+    return '${days}d ago';
+  }
+
+  String _buildSmsGateTooltip() {
+    if (_isCheckingSmsGate) return 'Checking Android SMS Gateway...';
+    final ageLabel = _smsGateLastSeenAgeSeconds != null
+        ? ' • last seen ${_formatSmsGateAge(_smsGateLastSeenAgeSeconds)}'
+        : (_smsGateLastSeen != null ? ' • last seen $_smsGateLastSeen' : '');
+    if (_isSmsGateActive == true) {
+      return 'SMS-Gate online ($_smsGateOnlineDeviceCount/$_smsGateDeviceCount phone active$ageLabel) — click to refresh';
+    }
+    if (_smsGateDeviceCount > 0) {
+      return 'SMS-Gate offline (0/$_smsGateDeviceCount phone online$ageLabel) — click to re-check';
+    }
+    return 'SMS-Gate offline or unreachable — click to re-check';
   }
 
   Future<void> _checkSmsGateStatus() async {
@@ -605,9 +639,19 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       );
       final data = resp.data;
       final active = data is Map && data['active'] == true;
+      final deviceCount = data is Map ? (data['device_count'] as num?)?.toInt() ?? 0 : 0;
+      final onlineCount =
+          data is Map ? (data['online_device_count'] as num?)?.toInt() ?? (active ? 1 : 0) : 0;
+      final lastSeen = data is Map ? data['last_seen']?.toString() : null;
+      final lastSeenAgeSec =
+          data is Map ? (data['last_seen_age_seconds'] as num?)?.toInt() : null;
       if (mounted) {
         setState(() {
           _isSmsGateActive = active;
+          _smsGateDeviceCount = deviceCount;
+          _smsGateOnlineDeviceCount = onlineCount;
+          _smsGateLastSeen = lastSeen;
+          _smsGateLastSeenAgeSeconds = lastSeenAgeSec;
           _isCheckingSmsGate = false;
         });
       }
@@ -736,6 +780,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     _driverAppSubscription?.cancel();
     _dispatchChannel?.unsubscribe();
     _graceCountdownTimer?.cancel();
+    _smsGateStatusTimer?.cancel();
     super.dispose();
   }
 
@@ -1953,7 +1998,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     'name': u['full_name'] ?? 'User',
                     'role': u['role'] ?? 'rider',
                     'idType': u['id_type'] ?? 'Submitted ID',
-                    'similarity': (u['ai_similarity_percent'] as num?)?.toDouble() ?? 0.0,
+                    'similarity': (u['ai_similarity_percent'] as num?)?.toDouble(),
                     'latency': ((u['verification_latency_ms'] as num?)?.toDouble() ?? 0.0) / 1000.0,
                     'status': u['verification_status'] ?? 'pending',
                     'note': u['admin_review_note'] ?? 'Synced from Supabase',
@@ -2702,11 +2747,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 
                               // SMS-Gate Online / Offline Status Pill
                               Tooltip(
-                                message: _isCheckingSmsGate
-                                    ? 'Checking Android SMS Gateway...'
-                                    : (_isSmsGateActive == true
-                                        ? 'SMS-Gate online & ready for OTP / alerts (click to refresh)'
-                                        : 'SMS-Gate offline or unreachable (click to re-check)'),
+                                message: _buildSmsGateTooltip(),
                                 child: InkWell(
                                   onTap: _checkSmsGateStatus,
                                   borderRadius: BorderRadius.circular(8),
@@ -7977,9 +8018,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     );
     final double? faceSimilarity = (faceMatch?['similarity'] as num?)?.toDouble();
     final String faceVerifyStatus = (faceMatch?['status'] ?? 'pending').toString();
-    final String faceDetail = faceSimilarity != null && faceSimilarity > 0
-        ? 'Match ${faceSimilarity.toStringAsFixed(1)}% • $faceVerifyStatus'
-        : 'Liveness & 1:1 Face Match ($faceVerifyStatus)';
+    final String faceDetail = faceSimilarity == null
+        ? 'Liveness & 1:1 Face Match ($faceVerifyStatus)'
+        : (faceSimilarity <= 0
+            ? 'Match 0.0% (No Face Detected) • $faceVerifyStatus'
+            : 'Match ${faceSimilarity.toStringAsFixed(1)}% • $faceVerifyStatus');
     if (!(_docReviewStatus[appKey]?.containsKey('face_bio_scan') ?? false) &&
         faceSimilarity != null &&
         faceSimilarity >= 85.0) {
@@ -9362,11 +9405,14 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     final idPhotoUrl = (pax['id_photo_url'] ?? '').toString();
     final profilePhotoUrl = (pax['profile_photo_url'] ?? '').toString();
     final hasIllustrationAvatar = profilePhotoUrl.startsWith('assets/');
-    final double similarity = (pax['similarity'] as num?)?.toDouble() ?? 0.0;
-    final String faceDetail = similarity > 0
-        ? 'Match ${similarity.toStringAsFixed(1)}% • $status'
-        : 'Liveness & 1:1 Face Match ($status)';
+    final double? similarity = (pax['similarity'] as num?)?.toDouble();
+    final String faceDetail = similarity == null
+        ? 'Liveness & 1:1 Face Match ($status)'
+        : (similarity <= 0
+            ? 'Match 0.0% (No Face Detected) • $status'
+            : 'Match ${similarity.toStringAsFixed(1)}% • $status');
     if (!(_docReviewStatus[paxKey]?.containsKey('face_bio_scan') ?? false) &&
+        similarity != null &&
         similarity >= 85.0) {
       (_docReviewStatus[paxKey] ??= {})['face_bio_scan'] = 'pass';
     }
@@ -10075,8 +10121,16 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 const SizedBox(height: 6),
                 Text('Verification Status: $status', style: const TextStyle(fontSize: 12.5)),
                 Text(
-                  'AI Face Similarity: ${similarity != null && similarity > 0 ? '${similarity.toStringAsFixed(1)}%' : 'Manual Review Required'}',
-                  style: const TextStyle(fontSize: 12.5),
+                  'AI Face Similarity: ${similarity == null ? 'Pending Face Scan' : (similarity <= 0 ? '0.0% (No Face Detected)' : '${similarity.toStringAsFixed(1)}%')}',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: similarity != null && similarity <= 0
+                        ? const Color(0xFFDC2626)
+                        : null,
+                    fontWeight: similarity != null && similarity <= 0
+                        ? FontWeight.w700
+                        : null,
+                  ),
                 ),
                 if (latency != null && latency > 0)
                   Text('Scan Latency: ${latency.toStringAsFixed(2)}s', style: const TextStyle(fontSize: 12.5)),

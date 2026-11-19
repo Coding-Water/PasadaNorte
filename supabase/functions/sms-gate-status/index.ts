@@ -41,6 +41,9 @@ Deno.serve(async (req) => {
     ok: result.ok,
     active: result.active,
     device_count: result.deviceCount,
+    online_device_count: result.onlineDeviceCount,
+    last_seen: result.lastSeen,
+    last_seen_age_seconds: result.lastSeenAgeSeconds,
     gateway_status: result.status,
   });
 });
