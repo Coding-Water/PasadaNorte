@@ -9651,35 +9651,15 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           ? 'Approve Passenger'
                           : 'Pass ID & Face Scan First',
                     ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey.shade300,
-                        disabledForegroundColor: Colors.grey.shade600,
-                      ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      disabledForegroundColor: Colors.grey.shade600,
                     ),
-                  ],
-                )
-              else
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _permanentlyDeletePassengerApp(pax),
-                      icon: const Icon(Icons.delete_outline_rounded,
-                          size: 16, color: Colors.red),
-                      label: const Text(
-                        'Delete Passenger',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.red.shade300),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),
