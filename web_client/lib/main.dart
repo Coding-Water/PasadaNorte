@@ -520,6 +520,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   // MINC Registered Drivers & Operators Directory (populated from approved Supabase driver applications)
   final List<Map<String, dynamic>> _driverDirectory = [];
   final List<Map<String, dynamic>> _smsDispatchLogs = [];
+  bool? _isSmsGateActive;
+  bool _isCheckingSmsGate = false;
 
   // TODA Pila FIFO Queue Inspector Data (populated live from terminal queues)
   final Map<String, List<Map<String, dynamic>>> _pilaQueues = {
@@ -587,9 +589,36 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     _ensureInitialDispatchAndAuditLogs();
     _loadDocReviewCache();
     _syncFromSupabase();
+    _checkSmsGateStatus();
     _listenToSosAlerts();
     _listenToDriverApplications();
     _listenToRealtimeDispatchChannel();
+  }
+
+  Future<void> _checkSmsGateStatus() async {
+    if (_isCheckingSmsGate) return;
+    setState(() => _isCheckingSmsGate = true);
+    try {
+      final resp = await Supabase.instance.client.functions.invoke(
+        'sms-gate-status',
+        body: const <String, dynamic>{},
+      );
+      final data = resp.data;
+      final active = data is Map && data['active'] == true;
+      if (mounted) {
+        setState(() {
+          _isSmsGateActive = active;
+          _isCheckingSmsGate = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isSmsGateActive = false;
+          _isCheckingSmsGate = false;
+        });
+      }
+    }
   }
 
   void _rebuildPilaQueuesFromDirectory() {
@@ -2664,6 +2693,73 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                       ),
                                     ),
                                   ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+
+                              // SMS-Gate Online / Offline Status Pill
+                              Tooltip(
+                                message: _isCheckingSmsGate
+                                    ? 'Checking Android SMS Gateway...'
+                                    : (_isSmsGateActive == true
+                                        ? 'SMS-Gate online & ready for OTP / alerts (click to refresh)'
+                                        : 'SMS-Gate offline or unreachable (click to re-check)'),
+                                child: InkWell(
+                                  onTap: _checkSmsGateStatus,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: _isSmsGateActive == true
+                                          ? const Color(0xFFF0FDF4)
+                                          : (_isSmsGateActive == false
+                                              ? const Color(0xFFFEF2F2)
+                                              : const Color(0xFFF8FAFC)),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: _isSmsGateActive == true
+                                            ? const Color(0xFFBBF7D0)
+                                            : (_isSmsGateActive == false
+                                                ? const Color(0xFFFECACA)
+                                                : const Color(0xFFE2E8F0)),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _isCheckingSmsGate
+                                              ? Icons.sync_rounded
+                                              : (_isSmsGateActive == true
+                                                  ? Icons.sms_rounded
+                                                  : Icons.sms_failed_outlined),
+                                          size: 14,
+                                          color: _isSmsGateActive == true
+                                              ? const Color(0xFF16A34A)
+                                              : (_isSmsGateActive == false
+                                                  ? const Color(0xFFDC2626)
+                                                  : const Color(0xFF64748B)),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _isCheckingSmsGate
+                                              ? 'SMS-Gate • Checking'
+                                              : (_isSmsGateActive == true
+                                                  ? 'SMS-Gate Active'
+                                                  : 'SMS-Gate Offline'),
+                                          style: TextStyle(
+                                            color: _isSmsGateActive == true
+                                                ? const Color(0xFF15803D)
+                                                : (_isSmsGateActive == false
+                                                    ? const Color(0xFFDC2626)
+                                                    : const Color(0xFF475569)),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 11.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -10725,7 +10821,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             Row(
               children: [
                 ElevatedButton.icon(
-                  onPressed: _syncFromSupabase,
+                  onPressed: () {
+                    _syncFromSupabase();
+                    _checkSmsGateStatus();
+                  },
                   icon: const Icon(Icons.sync_rounded, size: 16),
                   label: const Text('Refresh Telemetry'),
                   style: ElevatedButton.styleFrom(

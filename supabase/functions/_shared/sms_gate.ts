@@ -69,3 +69,42 @@ export async function dispatchSmsViaGateway(
     recipient,
   };
 }
+
+export async function checkSmsGatewayStatus(): Promise<{
+  ok: boolean;
+  active: boolean;
+  deviceCount: number;
+  status: number;
+}> {
+  const gatewayUrl =
+    Deno.env.get('SMS_GATEWAY_URL') ?? 'https://api.sms-gate.app/3rdparty/v1/messages';
+  const username = Deno.env.get('SMS_GATEWAY_USERNAME') ?? '';
+  const password = Deno.env.get('SMS_GATEWAY_PASSWORD') ?? '';
+
+  if (!username || !password) {
+    return { ok: false, active: false, deviceCount: 0, status: 500 };
+  }
+
+  const devicesUrl = gatewayUrl.replace(/\/messages\/?$/, '/devices');
+  const basicAuth = btoa(`${username}:${password}`);
+
+  try {
+    const resp = await fetch(devicesUrl, {
+      method: 'GET',
+      headers: { Authorization: `Basic ${basicAuth}` },
+    });
+    if (!resp.ok) {
+      return { ok: false, active: false, deviceCount: 0, status: resp.status };
+    }
+    const data = await resp.json().catch(() => []);
+    const devices = Array.isArray(data) ? data : [];
+    return {
+      ok: true,
+      active: devices.length > 0,
+      deviceCount: devices.length,
+      status: resp.status,
+    };
+  } catch {
+    return { ok: false, active: false, deviceCount: 0, status: 503 };
+  }
+}
