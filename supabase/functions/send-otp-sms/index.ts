@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
   try {
     const smsText =
       `PasadaNorte OTP: ${code}. Valid for 5 minutes. Never share this code with anyone.`;
-    const result = await dispatchSmsViaGateway(normalizedPhone, smsText);
+    const result = await dispatchSmsViaGateway(normalizedPhone, smsText, 100);
     return jsonResponse(
       {
         ok: result.ok,

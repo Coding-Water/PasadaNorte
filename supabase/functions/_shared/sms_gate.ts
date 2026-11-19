@@ -30,6 +30,7 @@ export async function sha256Hex(input: string): Promise<string> {
 export async function dispatchSmsViaGateway(
   phoneNumber: string,
   message: string,
+  priority?: number,
 ): Promise<{ ok: boolean; status: number; body: string; recipient: string }> {
   const gatewayUrl =
     Deno.env.get('SMS_GATEWAY_URL') ?? 'https://api.sms-gate.app/3rdparty/v1/messages';
@@ -48,6 +49,9 @@ export async function dispatchSmsViaGateway(
     textMessage: { text: message },
     phoneNumbers: [recipient],
   };
+  if (typeof priority === 'number') {
+    payload.priority = priority;
+  }
   if (simNumberRaw && !Number.isNaN(Number(simNumberRaw))) {
     payload.simNumber = Number(simNumberRaw);
   }
