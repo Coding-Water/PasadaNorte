@@ -118,7 +118,11 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
     _radarPulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
+    );
+    if (!WidgetsBinding
+        .instance.platformDispatcher.accessibilityFeatures.disableAnimations) {
+      _radarPulseController.repeat(reverse: true);
+    }
 
     _totalTripDistanceKm = max(0.3, widget.fareBreakdown.distanceKm);
     _totalTripDurationMinutes =
@@ -3128,7 +3132,7 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                   child: Container(
                     key: const Key('passenger_chat_unread_badge'),
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                     decoration: BoxDecoration(
                       color: AppTheme.cancelRed,
                       shape: BoxShape.circle,
@@ -3831,18 +3835,18 @@ class _DriverChatScreenState extends State<_DriverChatScreen> {
       {
         'isMe': false,
         'text':
-            "I'm ${widget.driverData['name']}. I'm on my way to your location (${widget.pickupName}). Please wait... ⏳😄",
+            "I'm ${widget.driverData['name']}. I'm on my way to your location (${widget.pickupName}). Please wait...",
         'time': '09:41',
       },
       {
         'isMe': true,
         'text':
-            'Hello Manong, ok I will be waiting for you at ${widget.pickupName}. You can contact me as soon as you arrive 😄',
+            'Hello Manong, ok I will be waiting for you at ${widget.pickupName}. You can contact me as soon as you arrive.',
         'time': '09:41',
       },
       {
         'isMe': false,
-        'text': "Great! I'll be there in less than 2 minutes 🔥",
+        'text': "Great! I'll be there in less than 2 minutes.",
         'time': '09:42',
       },
     ];

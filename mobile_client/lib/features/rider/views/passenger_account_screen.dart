@@ -716,12 +716,12 @@ class _PassengerProfileScreenState extends State<_PassengerProfileScreen> {
                         _readOnlyField(
                           'Middle Name',
                           (_details['middleName'] ?? '').isEmpty
-                              ? '—'
+                              ? '-'
                               : _details['middleName']!,
                         ),
-                        _readOnlyField('Gender', _details['gender'] ?? '—'),
-                        _readOnlyField('Date of Birth', _details['dob'] ?? '—'),
-                        _readOnlyField('Mobile Number', _details['phone'] ?? '—'),
+                        _readOnlyField('Gender', _details['gender'] ?? '-'),
+                        _readOnlyField('Date of Birth', _details['dob'] ?? '-'),
+                        _readOnlyField('Mobile Number', _details['phone'] ?? '-'),
                         _readOnlyField(
                           'Fare Tier',
                           widget.lockedCategory.name.toUpperCase(),
@@ -764,7 +764,7 @@ class _PassengerProfileScreenState extends State<_PassengerProfileScreen> {
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Text(
-              value.isEmpty ? '—' : value,
+              value.isEmpty ? '-' : value,
               style: const TextStyle(
                 fontSize: 14.5,
                 fontWeight: FontWeight.w700,

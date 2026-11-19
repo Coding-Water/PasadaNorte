@@ -366,8 +366,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade700,
-                          fontFamily: 'Inter',
-                        ),
+                                    ),
                         children: [
                           TextSpan(
                             text: _isRegisterMode

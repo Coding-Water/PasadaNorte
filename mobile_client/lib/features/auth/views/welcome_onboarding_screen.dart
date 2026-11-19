@@ -17,8 +17,8 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // PasadaNorte Emerald Color Palette
-  static const Color _primaryGreen = Color(0xFF00C466);
+  // PasadaNorte Emerald Color Palette (WCAG AA compliant with white text)
+  static const Color _primaryGreen = Color(0xFF007A37);
   static const Color _mintBackground = Color(0xFFE8F8EF);
   static const Color _darkHeading = Color(0xFF212121);
   static const Color _subtitleGrey = Color(0xFF757575);
@@ -28,7 +28,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
     {
       'title': 'Welcome to PasadaNorte - Your\nJourney, Your Way',
       'subtitle':
-          "Get ready to experience hassle-free transportation. We've got everything you need to travel with ease. Let's get started!",
+          "Get ready to experience hassle-free transportation. We've got everything you need to travel with ease. Book your next Laoag City ride in seconds.",
     },
     {
       'title': 'Choose Your Ride -\nTailored to Your Needs',
@@ -36,7 +36,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
           'Select your preferred mode of transportation - motorbike / scooter, or car - and order a ride with just a few taps.',
     },
     {
-      'title': 'Secure Payments &\nSeamless Transactions',
+      'title': 'Secure Payments &\nTransparent Ordinance Fares',
       'subtitle':
           'Say hello to convenience payments. Pay for your rides securely using Cash, Maya, GCash QR Ph, or TODA terminal digital dispatch.',
     },
@@ -268,7 +268,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen> {
                                   ),
                                 ),
                                 child: const Text(
-                                  "Let's Get Started",
+                                  "Create Account",
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,

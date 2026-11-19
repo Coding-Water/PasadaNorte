@@ -234,8 +234,8 @@ class _DriverAccountScreenState extends State<DriverAccountScreen> {
               Expanded(
                 child: Text(
                   isOnReview
-                      ? 'On Review — Renewed Documents Submitted'
-                      : 'Expired Documents — Renewal Required',
+                      ? 'On Review - Renewed Documents Submitted'
+                      : 'Expired Documents - Renewal Required',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 14.5,
@@ -538,7 +538,7 @@ class _DriverAccountScreenState extends State<DriverAccountScreen> {
                                 const SnackBar(
                                   backgroundColor: Color(0xFFD97706),
                                   content: Text(
-                                    'Renewed documents submitted! Status is now On Review — waiting for MINC Admin approval.',
+                                    'Renewed documents submitted! Status is now On Review - waiting for MINC Admin approval.',
                                   ),
                                 ),
                               );
@@ -995,7 +995,8 @@ class _DriverPayoutMethodsScreen extends StatelessWidget {
                 ListTile(
                   leading: Icon(Icons.account_balance_wallet_outlined, color: Colors.blue),
                   title: Text('GCash / Maya E-Wallet', style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('E-wallet linking coming soon'),
+                  // TODO: Wire e-wallet payout linking when Maya/GCash merchant API is enabled.
+                subtitle: Text('E-wallet linking coming soon'),
                 ),
               ],
             ),

@@ -74,7 +74,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Secure Payments &\nSeamless Transactions'),
+      find.text('Secure Payments &\nTransparent Ordinance Fares'),
       findsOneWidget,
     );
     expect(
@@ -83,7 +83,7 @@ void main() {
     );
 
     // Final Action on Slide 3: Full-width "Let's Get Started"
-    expect(find.text("Let's Get Started"), findsOneWidget);
+    expect(find.text('Create Account'), findsOneWidget);
     expect(find.text('Skip'), findsNothing);
   });
 

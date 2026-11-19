@@ -8,6 +8,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'theme/web_theme.dart';
 
 const String kSupabaseUrl = 'https://zrkkbknndavvprejskjy.supabase.co';
 const String kSupabasePublishableKey =
@@ -31,21 +32,18 @@ class PasadaNorteWebAdminApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'PasadaNorte — Laoag City TODA & MINC Web Command Center',
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-        fontFamily: 'Inter',
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF059669),
-          primary: const Color(0xFF059669),
-          secondary: const Color(0xFFF59E0B),
-          surface: Colors.white,
-        ),
-      ),
-      home: const _WebAdminAuthGate(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: WebTheme.themeModeNotifier,
+      builder: (context, themeMode, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'PasadaNorte - Laoag City TODA & MINC Web Command Center',
+          theme: WebTheme.lightTheme,
+          darkTheme: WebTheme.darkTheme,
+          themeMode: themeMode,
+          home: const _WebAdminAuthGate(),
+        );
+      },
     );
   }
 }
@@ -205,7 +203,7 @@ class _WebAdminAuthGateState extends State<_WebAdminAuthGate> {
                         onPressed: () =>
                             Supabase.instance.client.auth.signOut(),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF059669),
+                          backgroundColor: WebTheme.brandEmerald,
                           foregroundColor: Colors.white,
                         ),
                         child: const Text('Sign Out'),
@@ -245,7 +243,7 @@ class _WebAdminAuthGateState extends State<_WebAdminAuthGate> {
                     const Icon(
                       Icons.admin_panel_settings_rounded,
                       size: 46,
-                      color: Color(0xFF059669),
+                      color: WebTheme.brandEmerald,
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -318,7 +316,7 @@ class _WebAdminAuthGateState extends State<_WebAdminAuthGate> {
                       child: ElevatedButton(
                         onPressed: (_isLoading || _isLockedOut) ? null : _signIn,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF059669),
+                          backgroundColor: WebTheme.brandEmerald,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -360,10 +358,12 @@ class WebAdminDashboard extends StatefulWidget {
 }
 
 class _WebAdminDashboardState extends State<WebAdminDashboard> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   // Navigation State
   String _selectedSection = 'Analytics';
   int _analyticsSubTab = 0;
   bool _isSyncing = false;
+  bool _isSidebarCollapsed = false;
   String _selectedDateRange = 'Jun 2026';
 
   // Live Supabase Synced Fare State (City Ord. 2023-005)
@@ -394,7 +394,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   bool _ntpClockSynced = true;
   int _ntpDriftMs = 3;
 
-  // Terminals State (wiped clean — admin creates & pins TODA Pilas)
+  // Terminals State (wiped clean - admin creates & pins TODA Pilas)
   final List<Map<String, dynamic>> _terminals = [];
   final MapController _todaStationsMapController = MapController();
   bool _isTodaStationsSatellite = false;
@@ -562,7 +562,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     'Blurry or unreadable photo/scan',
     'Document is expired or invalid',
     'Selfie is not on a plain white background / wearing accessories or mask',
-    '1:1 Face Bio Scan unclear — redo live face scan',
+    '1:1 Face Bio Scan unclear - redo live face scan',
     '1:1 Face Bio Scan needs manual verification',
     'Cropped or missing document details',
     'Wrong file or mismatched document uploaded',
@@ -629,12 +629,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         ? ' • last seen ${_formatSmsGateAge(_smsGateLastSeenAgeSeconds)}'
         : (_smsGateLastSeen != null ? ' • last seen $_smsGateLastSeen' : '');
     if (_isSmsGateActive == true) {
-      return 'SMS-Gate online ($_smsGateOnlineDeviceCount/$_smsGateDeviceCount phone active$ageLabel) — click to refresh';
+      return 'SMS-Gate online ($_smsGateOnlineDeviceCount/$_smsGateDeviceCount phone active$ageLabel) - click to refresh';
     }
     if (_smsGateDeviceCount > 0) {
-      return 'SMS-Gate offline (0/$_smsGateDeviceCount phone online$ageLabel) — click to re-check';
+      return 'SMS-Gate offline (0/$_smsGateDeviceCount phone online$ageLabel) - click to re-check';
     }
-    return 'SMS-Gate offline or unreachable — click to re-check';
+    return 'SMS-Gate offline or unreachable - click to re-check';
   }
 
   Future<void> _checkSmsGateStatus() async {
@@ -819,7 +819,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             _systemAuditLogs.insert(0, {
               'time': 'Just now',
               'actor': driverName.isNotEmpty ? driverName : 'Driver',
-              'action': 'Uploaded renewed documents — waiting for MINC Admin review',
+              'action': 'Uploaded renewed documents - waiting for MINC Admin review',
             });
           });
 
@@ -827,7 +827,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             SnackBar(
               backgroundColor: const Color(0xFFD97706),
               content: Text(
-                '📄 ${driverName.isNotEmpty ? driverName : 'Driver'} uploaded renewed documents — click to review & approve!',
+                '${driverName.isNotEmpty ? driverName : 'Driver'} uploaded renewed documents - click to review & approve!',
               ),
             ),
           );
@@ -1009,7 +1009,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   }
 
   String _formatIncidentTimestamp(dynamic raw) {
-    if (raw == null) return '—';
+    if (raw == null) return '-';
     final dt = DateTime.tryParse(raw.toString())?.toLocal();
     if (dt == null) return raw.toString();
     const months = [
@@ -1025,7 +1025,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   String _computeResolutionDuration(dynamic triggeredRaw, dynamic resolvedRaw) {
     final t1 = triggeredRaw != null ? DateTime.tryParse(triggeredRaw.toString()) : null;
     final t2 = resolvedRaw != null ? DateTime.tryParse(resolvedRaw.toString()) : null;
-    if (t1 == null || t2 == null) return '—';
+    if (t1 == null || t2 == null) return '-';
     final diff = t2.difference(t1);
     if (diff.isNegative) return '< 1m';
     if (diff.inMinutes < 1) return '${diff.inSeconds}s';
@@ -1048,7 +1048,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'Other',
     ];
     const outcomes = [
-      'Driver Safe — Stand Down',
+      'Driver Safe - Stand Down',
       'TODA Assistance Dispatched',
       'PNP / CDRRMO Coordinated',
       'Medical Aid Provided',
@@ -1090,7 +1090,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   color: const Color(0xFFECFDF5),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.fact_check_rounded, color: Color(0xFF059669), size: 22),
+                child: const Icon(Icons.fact_check_rounded, color: WebTheme.brandEmerald, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1223,7 +1223,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         'CRITICAL' => const Color(0xFFDC2626),
                         'HIGH' => const Color(0xFFEA580C),
                         'MEDIUM' => const Color(0xFFD97706),
-                        _ => const Color(0xFF059669),
+                        _ => WebTheme.brandEmerald,
                       };
                       return ChoiceChip(
                         label: Text(sev, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: isSelected ? Colors.white : color)),
@@ -1408,14 +1408,14 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           'time': 'Just now',
                           'actor': newReport['resolved_by'],
                           'action':
-                              'Filed Incident Report $reportCode (${newReport['severity']}) for ${newReport['driver_name']} — ${newReport['outcome']}',
+                              'Filed Incident Report $reportCode (${newReport['severity']}) for ${newReport['driver_name']} - ${newReport['outcome']}',
                         });
                       });
                       if (ctx.mounted) Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('✓ Incident Report $reportCode saved to Incident History.'),
-                          backgroundColor: const Color(0xFF059669),
+                          backgroundColor: WebTheme.brandEmerald,
                           action: SnackBarAction(
                             label: 'View History',
                             textColor: Colors.white,
@@ -1435,7 +1435,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         : 'Save Incident Report'),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
+                backgroundColor: WebTheme.brandEmerald,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -1451,7 +1451,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       'CRITICAL' => const Color(0xFFDC2626),
       'HIGH' => const Color(0xFFEA580C),
       'MEDIUM' => const Color(0xFFD97706),
-      _ => const Color(0xFF059669),
+      _ => WebTheme.brandEmerald,
     };
     final duration = _computeResolutionDuration(report['triggered_at'], report['resolved_at']);
 
@@ -1524,11 +1524,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                _buildReportFieldRow('Trigger Reason', report['alert_reason']?.toString() ?? '—'),
-                _buildReportFieldRow('Outcome', report['outcome']?.toString() ?? '—'),
-                _buildReportFieldRow('Action Taken', report['action_taken']?.toString() ?? '—'),
-                _buildReportFieldRow('Resolution Notes', report['resolution_notes']?.toString() ?? '—'),
-                _buildReportFieldRow('Resolved By', report['resolved_by']?.toString() ?? '—'),
+                _buildReportFieldRow('Trigger Reason', report['alert_reason']?.toString() ?? '-'),
+                _buildReportFieldRow('Outcome', report['outcome']?.toString() ?? '-'),
+                _buildReportFieldRow('Action Taken', report['action_taken']?.toString() ?? '-'),
+                _buildReportFieldRow('Resolution Notes', report['resolution_notes']?.toString() ?? '-'),
+                _buildReportFieldRow('Resolved By', report['resolved_by']?.toString() ?? '-'),
                 _buildReportFieldRow('Triggered At', _formatIncidentTimestamp(report['triggered_at'])),
                 _buildReportFieldRow('Resolved At', '${_formatIncidentTimestamp(report['resolved_at'])} (Duration: $duration)'),
               ],
@@ -1544,7 +1544,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 'Severity: $severity | Category: ${report['incident_category']}',
                 'Driver: ${report['driver_name']} (${report['body_number']} / ${report['plate_number']})',
                 'TODA: ${report['toda']}',
-                'Location: ${report['location_name']} (${report['latitude'] ?? '—'}, ${report['longitude'] ?? '—'})',
+                'Location: ${report['location_name']} (${report['latitude'] ?? '-'}, ${report['longitude'] ?? '-'})',
                 'Outcome: ${report['outcome']}',
                 'Action Taken: ${report['action_taken']}',
                 'Notes: ${report['resolution_notes']}',
@@ -1595,7 +1595,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           'time': 'Just now',
           'actor': 'Command Dispatcher Santos',
           'action':
-              'SOS alert inspected for ${alert['driver_name']} (${alert['body_number']}) — PNP dispatch calling paused for testing.',
+              'SOS alert inspected for ${alert['driver_name']} (${alert['body_number']}) - PNP dispatch calling paused for testing.',
         });
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1715,7 +1715,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             ),
                             Text(
                               'Contact: ${alert['contact']}',
-                              style: const TextStyle(color: Color(0xFF059669), fontSize: 11.5, fontWeight: FontWeight.w700),
+                              style: const TextStyle(color: WebTheme.brandEmerald, fontSize: 11.5, fontWeight: FontWeight.w700),
                             ),
                           ],
                         ),
@@ -1742,7 +1742,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             children: [
                               Icon(Icons.gps_fixed_rounded, color: Color(0xFF38BDF8), size: 16),
                               SizedBox(width: 8),
-                              Text('GPS COORDINATES', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10.5, fontWeight: FontWeight.w800)),
+                              Text('GPS COORDINATES', style: TextStyle(color: WebTheme.inkMuted, fontSize: 10.5, fontWeight: FontWeight.w800)),
                             ],
                           ),
                           Container(
@@ -1814,7 +1814,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
             label: const Text('Mark Incident Resolved'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF059669),
+              foregroundColor: WebTheme.brandEmerald,
               side: const BorderSide(color: Color(0xFFA7F3D0)),
             ),
           ),
@@ -2159,7 +2159,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✓ Fare Guide updated in Supabase cloud! Pushed to all mobile passenger apps.'),
-            backgroundColor: Color(0xFF059669),
+            backgroundColor: WebTheme.brandEmerald,
           ),
         );
       }
@@ -2168,7 +2168,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Saved locally. (Cloud Sync notice: $e)'),
-            backgroundColor: const Color(0xFF059669),
+            backgroundColor: WebTheme.brandEmerald,
           ),
         );
       }
@@ -2243,7 +2243,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.file_download_done_rounded, color: Color(0xFF059669)),
+            const Icon(Icons.file_download_done_rounded, color: WebTheme.brandEmerald),
             const SizedBox(width: 10),
             Text('ML Dataset Exported ($format)', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           ],
@@ -2285,7 +2285,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             },
             icon: const Icon(Icons.copy_rounded, size: 16),
             label: const Text('Copy to Clipboard'),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: WebTheme.brandEmerald, foregroundColor: Colors.white),
           ),
         ],
       ),
@@ -2327,7 +2327,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.verified_rounded, color: Color(0xFF059669)),
+            Icon(Icons.verified_rounded, color: WebTheme.brandEmerald),
             SizedBox(width: 10),
             Text('Digital Pila Field Validation CSV Exported', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           ],
@@ -2365,13 +2365,13 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('✓ Digital Pila Validation CSV copied to clipboard! Ready for SPSS/R/Pandas.'),
-                  backgroundColor: Color(0xFF059669),
+                  backgroundColor: WebTheme.brandEmerald,
                 ),
               );
             },
             icon: const Icon(Icons.copy_rounded, size: 16),
             label: const Text('Copy to Clipboard'),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: WebTheme.brandEmerald, foregroundColor: Colors.white),
           ),
         ],
       ),
@@ -2388,7 +2388,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           children: [
             Icon(Icons.gavel_rounded, color: Color(0xFFDC2626)),
             SizedBox(width: 10),
-            Text('City of Laoag — MINC Summons Notice', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            Text('City of Laoag - MINC Summons Notice', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           ],
         ),
         content: Container(
@@ -2427,7 +2427,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Legal Ordinance Fare: ₱${trip['expectedFare'].toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF059669))),
+                  Text('Legal Ordinance Fare: ₱${trip['expectedFare'].toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w700, color: WebTheme.brandEmerald)),
                   Text('Collected Fare: ₱${trip['collectedFare'].toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFDC2626))),
                 ],
               ),
@@ -2464,278 +2464,87 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: Row(
-        children: [
-          // 1. LEFT SIDEBAR (Krisp Style Shell)
-          Container(
-            width: 260,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(right: BorderSide(color: Colors.grey.shade200)),
-            ),
-            child: Column(
-              children: [
-                // Brand Header with Official Logo
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 16.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF059669).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.asset(
-                            'assets/images/app_logo.png',
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.local_taxi_rounded,
-                              color: Color(0xFF059669),
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'PasadaNorte',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFF0F172A),
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                            Text(
-                              'Laoag MINC Admin',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF059669),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _syncFromSupabase,
-                        tooltip: 'Sync Supabase Cloud',
-                        icon: _isSyncing
-                            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669)))
-                            : Icon(Icons.sync_rounded, size: 18, color: Colors.grey.shade600),
-                      ),
-                    ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceBg = isDark ? WebTheme.darkCanvas : WebTheme.surfaceCanvas;
+    final cardBg = isDark ? WebTheme.darkCard : WebTheme.surfaceCard;
+    final borderClr = isDark ? WebTheme.darkBorder : WebTheme.borderSubtle;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 1024;
+        return Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: surfaceBg,
+          drawer: isDesktop
+              ? null
+              : Drawer(
+                  width: 270,
+                  backgroundColor: cardBg,
+                  child: SafeArea(
+                    child: _buildSidebarNavColumn(
+                      cardBg: cardBg,
+                      borderClr: borderClr,
+                      collapsed: false,
+                      inDrawer: true,
+                    ),
                   ),
                 ),
-                Divider(height: 1, color: Colors.grey.shade200),
-
-                // Sidebar Navigation Links (All 10 Dedicated Views)
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                    children: [
-                      _buildSidebarSectionLabel('PASADANORTE ORGANIZATION'),
-                      _buildSidebarItem(Icons.auto_graph_rounded, 'Analytics'),
-                      _buildSidebarItem(
-                        Icons.desktop_windows_outlined,
-                        'Live Monitoring',
-                        badge: _sosAlerts.any((a) => a['status'] == 'ACTIVE_DISPATCHED')
-                            ? Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFDC2626),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text(
-                                  '🚨 SOS',
-                                  style: TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w900),
-                                ),
-                              )
-                            : null,
-                      ),
-                      _buildSidebarItem(Icons.assignment_outlined, 'Live Dispatch Audit'),
-                      _buildSidebarItem(
-                        Icons.fact_check_outlined,
-                        'Incident Reports & History',
-                        badge: _incidentReports.isNotEmpty
-                            ? Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF059669).withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  '${_incidentReports.length}',
-                                  style: const TextStyle(color: Color(0xFF059669), fontSize: 10, fontWeight: FontWeight.w800),
-                                ),
-                              )
-                            : null,
-                      ),
-                      _buildSidebarItem(Icons.format_list_numbered_rounded, 'TODA Pila Queue Board'),
-
-                      const SizedBox(height: 16),
-                      _buildSidebarSectionLabel('PARATRANSIT OPERATIONS'),
-                      _buildSidebarItem(Icons.psychology_outlined, 'ML Demand Forecasts'),
-                      _buildSidebarItem(Icons.map_outlined, 'Laoag 10-Zone Map & Heatmap'),
-                      _buildSidebarItem(Icons.local_taxi_outlined, 'TODA Stations'),
-                      _buildSidebarItem(Icons.pin_drop_outlined, 'Places & Landmarks'),
-                      _buildSidebarItem(Icons.payments_outlined, 'Fare Matrix (Ord. 2023-005)'),
-
-                      const SizedBox(height: 16),
-                      _buildSidebarSectionLabel('ORGANIZATION MANAGEMENT'),
-                      _buildSidebarItem(Icons.people_outline_rounded, 'Directory & Drivers'),
-                      _buildSidebarItem(Icons.how_to_reg_outlined, 'Driver Applications'),
-                      _buildSidebarItem(
-                        Icons.badge_outlined,
-                        'Passenger Applications',
-                        badge: () {
-                          final pendingCount = _flaggedVerifications
-                              .where((u) =>
-                                  (u['role'] ?? 'rider') == 'rider' &&
-                                  (u['status'] ?? 'pending') == 'pending')
-                              .length;
-                          if (pendingCount == 0) return null;
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF3C7),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '$pendingCount',
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFFB45309),
-                              ),
-                            ),
-                          );
-                        }(),
-                      ),
-                      _buildSidebarItem(Icons.settings_outlined, 'Settings & Compliance'),
-                    ],
-                  ),
-                ),
-
-                // Bottom MINC Admin Profile Footer + Logout Button
-                Divider(height: 1, color: Colors.grey.shade200),
-                Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          const CircleAvatar(
-                            radius: 17,
-                            backgroundColor: Color(0xFFDCFCE7),
-                            child: Text(
-                              'MC',
-                              style: TextStyle(
-                                color: Color(0xFF15803D),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Laoag City LGU',
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                ),
-                                Text(
-                                  Supabase.instance.client.auth.currentUser
-                                          ?.email ??
-                                      'MINC Admin',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF15803D),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF10B981),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          await Supabase.instance.client.auth.signOut();
-                        },
-                        icon: const Icon(Icons.logout_rounded, size: 15),
-                        label: const Text(
-                          'Log Out',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFDC2626),
-                          side: const BorderSide(color: Color(0xFFFECACA)),
-                          backgroundColor: const Color(0xFFFEF2F2),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 2. MAIN CONTENT AREA
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Header Bar with responsive actions
-                Container(
-                  height: 64,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+          body: Row(
+            children: [
+              // 1. LEFT SIDEBAR (PasadaNorte Municipal Dispatch Shell)
+              if (isDesktop)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: _isSidebarCollapsed ? 76 : 260,
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                    color: cardBg,
+                    border: Border(right: BorderSide(color: borderClr)),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _getSectionIcon(_selectedSection),
-                        color: const Color(0xFF0F172A),
-                        size: 20,
+                  child: _buildSidebarNavColumn(
+                    cardBg: cardBg,
+                    borderClr: borderClr,
+                    collapsed: _isSidebarCollapsed,
+                    inDrawer: false,
+                  ),
+                ),
+
+              // 2. MAIN CONTENT AREA
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Header Bar with responsive actions
+                    Container(
+                      height: 64,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? 24 : 12,
                       ),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        border: Border(bottom: BorderSide(color: borderClr)),
+                      ),
+                      child: Row(
+                        children: [
+                          if (!isDesktop) ...[
+                            Semantics(
+                              button: true,
+                              label: 'Open navigation menu',
+                              child: IconButton(
+                                icon: const Icon(Icons.menu_rounded),
+                                tooltip: 'Open navigation menu',
+                                onPressed: () =>
+                                    _scaffoldKey.currentState?.openDrawer(),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+
+
+                          Icon(
+                            _getSectionIcon(_selectedSection),
+                            color: WebTheme.inkPrimary,
+                            size: 20,
+                          ),
                       const SizedBox(width: 10),
                       Flexible(
                         flex: 0,
@@ -2848,46 +2657,53 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 
                               // Live Emergency SOS Status Badge or Test Trigger
                               if (_sosAlerts.any((a) => a['status'] == 'ACTIVE_DISPATCHED'))
-                                GestureDetector(
-                                  onTap: () {
-                                    final alert = _sosAlerts
-                                        .cast<Map<String, dynamic>?>()
-                                        .firstWhere(
-                                          (a) => a?['status'] == 'ACTIVE_DISPATCHED',
-                                          orElse: () => null,
-                                        );
-                                    if (alert != null) {
-                                      _showSosIncidentModal(alert);
-                                    }
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFEF2F2),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: const Color(0xFFF87171)),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          width: 8,
-                                          height: 8,
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFFDC2626),
-                                            shape: BoxShape.circle,
-                                          ),
+                                Semantics(
+                                  button: true,
+                                  label: 'Inspect active SOS incident',
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        final alert = _sosAlerts
+                                            .cast<Map<String, dynamic>?>()
+                                            .firstWhere(
+                                              (a) => a?['status'] == 'ACTIVE_DISPATCHED',
+                                              orElse: () => null,
+                                            );
+                                        if (alert != null) {
+                                          _showSosIncidentModal(alert);
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: WebTheme.dangerFill,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: const Color(0xFFF87171)),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          '🚨 SOS: ${(_sosAlerts.firstWhere((a) => a['status'] == 'ACTIVE_DISPATCHED', orElse: () => <String, dynamic>{})['driver_name'] ?? 'Driver')} (#0042)',
-                                          style: const TextStyle(
-                                            color: Color(0xFFDC2626),
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 12,
-                                          ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              width: 8,
+                                              height: 8,
+                                              decoration: const BoxDecoration(
+                                                color: WebTheme.dangerSolid,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'SOS: ${(_sosAlerts.firstWhere((a) => a['status'] == 'ACTIVE_DISPATCHED', orElse: () => <String, dynamic>{})['driver_name'] ?? 'Driver')} (#0042)',
+                                              style: const TextStyle(
+                                                color: WebTheme.dangerText,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 )
@@ -2895,18 +2711,18 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF0FDF4),
+                                    color: WebTheme.brandMintSurface,
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(color: const Color(0xFFBBF7D0)),
                                   ),
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.shield_rounded, size: 15, color: Color(0xFF059669)),
+                                      Icon(Icons.shield_rounded, size: 15, color: WebTheme.brandEmerald),
                                       SizedBox(width: 6),
                                       Text(
                                         'SOS Standby',
-                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF059669)),
+                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: WebTheme.brandEmerald),
                                       ),
                                     ],
                                   ),
@@ -2917,7 +2733,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 icon: const Icon(Icons.table_view_rounded, size: 16),
                                 label: const Text('Export CSV', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF059669),
+                                  foregroundColor: WebTheme.brandEmerald,
                                   side: const BorderSide(color: Color(0xFFA7F3D0)),
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -2929,7 +2745,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 icon: const Icon(Icons.code_rounded, size: 16),
                                 label: const Text('Export JSON', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF059669),
+                                  foregroundColor: WebTheme.brandEmerald,
                                   side: const BorderSide(color: Color(0xFFA7F3D0)),
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -2941,7 +2757,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text('PasadaNorte Web Admin Portal v2.0 • Active Session (Supabase PostGIS Live).'),
-                                      backgroundColor: Color(0xFF059669),
+                                      backgroundColor: WebTheme.brandEmerald,
                                     ),
                                   );
                                 },
@@ -2996,6 +2812,328 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           ),
         ],
       ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSidebarNavColumn({
+    required Color cardBg,
+    required Color borderClr,
+    required bool collapsed,
+    required bool inDrawer,
+  }) {
+    return Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: collapsed ? 12.0 : 18.0,
+            vertical: 16.0,
+          ),
+          child: Row(
+            mainAxisAlignment:
+                collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: WebTheme.brandEmerald.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'assets/images/app_logo.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.local_taxi_rounded,
+                      color: WebTheme.brandEmerald,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
+              if (!collapsed) ...[
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PasadaNorte',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      Text(
+                        'Laoag MINC Admin',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: WebTheme.brandEmerald,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: _syncFromSupabase,
+                  tooltip: 'Sync Supabase Cloud',
+                  icon: _isSyncing
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: WebTheme.brandEmerald,
+                          ),
+                        )
+                      : const Icon(Icons.sync_rounded, size: 18),
+                ),
+              ],
+            ],
+          ),
+        ),
+        Divider(height: 1, color: borderClr),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+            children: [
+              if (!collapsed)
+                _buildSidebarSectionLabel('PASADANORTE ORGANIZATION'),
+              _buildSidebarItem(Icons.auto_graph_rounded, 'Analytics',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              _buildSidebarItem(
+                Icons.desktop_windows_outlined,
+                'Live Monitoring',
+                collapsed: collapsed,
+                inDrawer: inDrawer,
+                badge: _sosAlerts.any((a) => a['status'] == 'ACTIVE_DISPATCHED')
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: WebTheme.dangerSolid,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'SOS',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900),
+                        ),
+                      )
+                    : null,
+              ),
+              _buildSidebarItem(
+                  Icons.assignment_outlined, 'Live Dispatch Audit',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              _buildSidebarItem(
+                Icons.fact_check_outlined,
+                'Incident Reports & History',
+                collapsed: collapsed,
+                inDrawer: inDrawer,
+                badge: _incidentReports.isNotEmpty
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: WebTheme.brandMintSurface,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${_incidentReports.length}',
+                          style: const TextStyle(
+                              color: WebTheme.brandEmeraldDeep,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800),
+                        ),
+                      )
+                    : null,
+              ),
+              _buildSidebarItem(
+                  Icons.format_list_numbered_rounded, 'TODA Pila Queue Board',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              const SizedBox(height: 12),
+              if (!collapsed)
+                _buildSidebarSectionLabel('PARATRANSIT OPERATIONS'),
+              _buildSidebarItem(
+                  Icons.psychology_outlined, 'ML Demand Forecasts',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              _buildSidebarItem(
+                  Icons.map_outlined, 'Laoag 10-Zone Map & Heatmap',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              _buildSidebarItem(Icons.local_taxi_outlined, 'TODA Stations',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              _buildSidebarItem(
+                  Icons.pin_drop_outlined, 'Places & Landmarks',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              _buildSidebarItem(
+                  Icons.payments_outlined, 'Fare Matrix (Ord. 2023-005)',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              const SizedBox(height: 12),
+              if (!collapsed)
+                _buildSidebarSectionLabel('ORGANIZATION MANAGEMENT'),
+              _buildSidebarItem(
+                  Icons.people_outline_rounded, 'Directory & Drivers',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              _buildSidebarItem(
+                  Icons.how_to_reg_outlined, 'Driver Applications',
+                  collapsed: collapsed, inDrawer: inDrawer),
+              _buildSidebarItem(
+                Icons.badge_outlined,
+                'Passenger Applications',
+                collapsed: collapsed,
+                inDrawer: inDrawer,
+                badge: () {
+                  final pendingCount = _flaggedVerifications
+                      .where((u) =>
+                          (u['role'] ?? 'rider') == 'rider' &&
+                          (u['status'] ?? 'pending') == 'pending')
+                      .length;
+                  if (pendingCount == 0) return null;
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: WebTheme.amberFill,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$pendingCount',
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: WebTheme.amberText,
+                      ),
+                    ),
+                  );
+                }(),
+              ),
+              _buildSidebarItem(
+                  Icons.settings_outlined, 'Settings & Compliance',
+                  collapsed: collapsed, inDrawer: inDrawer),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: borderClr),
+        Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: collapsed
+                    ? MainAxisAlignment.center
+                    : MainAxisAlignment.start,
+                children: [
+                  const CircleAvatar(
+                    radius: 17,
+                    backgroundColor: WebTheme.brandMintSurface,
+                    child: Text(
+                      'MC',
+                      style: TextStyle(
+                        color: WebTheme.brandEmeraldDeep,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (!collapsed) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Laoag City LGU',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            Supabase.instance.client.auth.currentUser?.email ??
+                                'MINC Admin',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: WebTheme.brandEmerald,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: collapsed
+                    ? MainAxisAlignment.center
+                    : MainAxisAlignment.spaceBetween,
+                children: [
+                  if (!inDrawer)
+                    Tooltip(
+                      message:
+                          collapsed ? 'Expand sidebar' : 'Collapse sidebar',
+                      child: IconButton(
+                        onPressed: () => setState(
+                            () => _isSidebarCollapsed = !_isSidebarCollapsed),
+                        icon: Icon(
+                          collapsed
+                              ? Icons.chevron_right_rounded
+                              : Icons.chevron_left_rounded,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  Tooltip(
+                    message: 'Toggle light/dark theme',
+                    child: IconButton(
+                      onPressed: WebTheme.toggleTheme,
+                      icon: Icon(
+                        Theme.of(context).brightness == Brightness.dark
+                            ? Icons.light_mode_rounded
+                            : Icons.dark_mode_rounded,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (!collapsed)
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await Supabase.instance.client.auth.signOut();
+                  },
+                  icon: const Icon(Icons.logout_rounded, size: 15),
+                  label: const Text(
+                    'Log Out',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: WebTheme.dangerText,
+                    side: const BorderSide(color: Color(0xFFFECACA)),
+                    backgroundColor: WebTheme.dangerFill,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -3095,7 +3233,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.analytics_rounded, color: Color(0xFF059669), size: 22),
+                  const Icon(Icons.analytics_rounded, color: WebTheme.brandEmerald, size: 22),
                   const SizedBox(width: 10),
                   Text(
                     'PasadaNorte - $_selectedDateRange',
@@ -3125,16 +3263,18 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         // KPI Metric Cards - Row 1
         LayoutBuilder(
           builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 900;
+            final cols = constraints.maxWidth > 1100
+                ? 3
+                : (constraints.maxWidth > 650 ? 2 : 1);
             return GridView.count(
-              crossAxisCount: isWide ? 3 : 1,
+              crossAxisCount: cols,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              childAspectRatio: isWide ? 1.6 : 2.2,
+              childAspectRatio: cols == 1 ? 2.4 : (cols == 2 ? 1.85 : 1.6),
               children: [
-                _buildKrispMetricCard(
+                _buildOperationalMetricCard(
                   title: 'Completed Trips',
                   value: '${_dispatchTrips.length}',
                   dateLabel: 'Live Supabase Sync',
@@ -3142,7 +3282,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   trendPositive: true,
                   sparklineType: SparklineType.upwardSmooth,
                 ),
-                _buildKrispMetricCard(
+                _buildOperationalMetricCard(
                   title: 'Active Tricycles on Duty',
                   value: '${_driverDirectory.length}',
                   dateLabel: 'Live MINC Directory',
@@ -3150,7 +3290,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   trendPositive: true,
                   sparklineType: SparklineType.steadyRise,
                 ),
-                _buildKrispMetricCard(
+                _buildOperationalMetricCard(
                   title: 'Pending Driver Applications',
                   value: '${_driverApplications.where((a) => a['application_status'] == 'submitted').length}',
                   dateLabel: 'Live Supabase Queue',
@@ -3180,7 +3320,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               mainAxisSpacing: 16,
               childAspectRatio: isWide ? 2.4 : 2.2,
               children: [
-                _buildKrispMetricCard(
+                _buildOperationalMetricCard(
                   title: 'Driver Approval Rate',
                   value: approvalRate,
                   dateLabel: 'Live MINC Audit',
@@ -3188,7 +3328,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   trendPositive: true,
                   sparklineType: SparklineType.mildRise,
                 ),
-                _buildKrispMetricCard(
+                _buildOperationalMetricCard(
                   title: 'Registered Biometric Users',
                   value: '${_flaggedVerifications.length}',
                   dateLabel: 'Live Supabase Users',
@@ -3258,7 +3398,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 icon: const Icon(Icons.psychology_outlined),
                 label: const Text('Open Live ML Demand Forecasts'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
+                  backgroundColor: WebTheme.brandEmerald,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -3355,7 +3495,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       'Hour ${currentHour.toString().padLeft(2, '0')}:00 • ${currentHour >= 12 ? 'PM' : 'AM'}',
                       style: const TextStyle(
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF059669),
+                        color: WebTheme.brandEmerald,
                         fontSize: 14,
                       ),
                     ),
@@ -3366,7 +3506,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     icon: const Icon(Icons.refresh_rounded, size: 16),
                     label: const Text('Refresh Live'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
+                      backgroundColor: WebTheme.brandEmerald,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 12),
@@ -3529,7 +3669,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                           fontSize: 12,
                                           fontWeight: FontWeight.w700,
                                           color: live > 0
-                                              ? const Color(0xFF059669)
+                                              ? WebTheme.brandEmerald
                                               : const Color(0xFF64748B),
                                         ))),
                                 Padding(
@@ -3552,12 +3692,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                     ),
                                     child: Text(
                                       isK5Suppressed
-                                          ? '🔒 Protected (k < 5 PIA)'
+                                          ? 'Protected (k < 5 PIA)'
                                           : '✓ High-Confidence Broadcast',
                                       style: TextStyle(
                                         color: isK5Suppressed
                                             ? const Color(0xFFB45309)
-                                            : const Color(0xFF059669),
+                                            : WebTheme.brandEmerald,
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -3637,7 +3777,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(8)),
-                  child: Text('Selected: ${selectedZone['code']} — ${selectedZone['name']}', style: const TextStyle(color: Color(0xFF0369A1), fontWeight: FontWeight.w800, fontSize: 12)),
+                  child: Text('Selected: ${selectedZone['code']} - ${selectedZone['name']}', style: const TextStyle(color: Color(0xFF0369A1), fontWeight: FontWeight.w800, fontSize: 12)),
                 ),
               ],
             ),
@@ -3732,7 +3872,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             alpha: isSelected ? 0.44 : 0.32,
                           ),
                           borderColor: isSelected
-                              ? const Color(0xFF059669)
+                              ? WebTheme.brandEmerald
                               : heatColor.withValues(alpha: 0.78),
                           borderStrokeWidth: isSelected ? 2.2 : 1.4,
                         );
@@ -3754,7 +3894,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           } else if (demand >= 15) {
                             pillBorder = const Color(0xFFF59E0B);
                           } else if (demand < 5) {
-                            pillBorder = const Color(0xFF94A3B8);
+                            pillBorder = WebTheme.inkMuted;
                           }
 
                           return Marker(
@@ -3770,7 +3910,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 );
                               },
                               child: Tooltip(
-                                message: '${z['code']} — ${z['name']} (${demand < 5 ? '<5' : demand.toInt()} req/hr)',
+                                message: '${z['code']} - ${z['name']} (${demand < 5 ? '<5' : demand.toInt()} req/hr)',
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 180),
                                   padding: const EdgeInsets.symmetric(
@@ -3779,7 +3919,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: isSelected
-                                        ? const Color(0xFF059669)
+                                        ? WebTheme.brandEmerald
                                         : Colors.white.withValues(alpha: 0.92),
                                     borderRadius: BorderRadius.circular(12),
                                     boxShadow: [
@@ -4002,7 +4142,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             width: 10,
                             height: 10,
                             decoration: const BoxDecoration(
-                              color: Color(0xFF94A3B8),
+                              color: WebTheme.inkMuted,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -4039,17 +4179,17 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF059669).withValues(alpha: 0.12),
+                  color: WebTheme.brandEmerald.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.location_on_rounded, color: Color(0xFF059669), size: 28),
+                child: const Icon(Icons.location_on_rounded, color: WebTheme.brandEmerald, size: 28),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${selectedZone['code']} — ${selectedZone['name']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    Text('${selectedZone['code']} - ${selectedZone['name']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                     const SizedBox(height: 4),
                     Text('Latitude: ${selectedZone['lat']} • Longitude: ${selectedZone['lng']} • Historical Trips: ${selectedZone['trips']}', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
                   ],
@@ -4067,7 +4207,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       fontWeight: FontWeight.w900,
                       color: selectedDemand < 5
                           ? const Color(0xFFD97706)
-                          : const Color(0xFF059669),
+                          : WebTheme.brandEmerald,
                     ),
                   ),
                   Text(
@@ -4090,8 +4230,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 icon: const Icon(Icons.edit_location_alt_rounded, size: 16),
                 label: const Text('Edit / Re-pin'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF059669),
-                  side: const BorderSide(color: Color(0xFF059669)),
+                  foregroundColor: WebTheme.brandEmerald,
+                  side: const BorderSide(color: WebTheme.brandEmerald),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -4119,10 +4259,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.layers_rounded, color: Color(0xFF059669), size: 20),
+                        Icon(Icons.layers_rounded, color: WebTheme.brandEmerald, size: 20),
                         SizedBox(width: 10),
                         Text(
-                          'All 10 Laoag Demand Zones — Quick Edit & Radius',
+                          'All 10 Laoag Demand Zones - Quick Edit & Radius',
                           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                         ),
                       ],
@@ -4166,8 +4306,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           height: 44,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF059669)
-                                : const Color(0xFF059669).withValues(alpha: 0.12),
+                                ? WebTheme.brandEmerald
+                                : WebTheme.brandEmerald.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -4176,7 +4316,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                               style: TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 12.5,
-                                color: isSelected ? Colors.white : const Color(0xFF059669),
+                                color: isSelected ? Colors.white : WebTheme.brandEmerald,
                               ),
                             ),
                           ),
@@ -4203,7 +4343,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           icon: const Icon(Icons.edit_location_alt_rounded, size: 15),
                           label: const Text('Pin & Edit'),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF059669),
+                            foregroundColor: WebTheme.brandEmerald,
                             side: BorderSide(color: Colors.grey.shade300),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -4228,7 +4368,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Row(
           children: [
-            Icon(Icons.layers_rounded, color: Color(0xFF059669)),
+            Icon(Icons.layers_rounded, color: WebTheme.brandEmerald),
             SizedBox(width: 8),
             Text(
               'Configure Laoag 10 Demand Zones',
@@ -4248,13 +4388,13 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               final lng = (z['lng'] as num).toDouble().toStringAsFixed(5);
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: const Color(0xFF059669).withValues(alpha: 0.12),
+                  backgroundColor: WebTheme.brandEmerald.withValues(alpha: 0.12),
                   child: Text(
                     z['code'].toString(),
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF059669),
+                      color: WebTheme.brandEmerald,
                     ),
                   ),
                 ),
@@ -4308,7 +4448,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Row(
             children: [
-              const Icon(Icons.edit_location_alt_rounded, color: Color(0xFF059669)),
+              const Icon(Icons.edit_location_alt_rounded, color: WebTheme.brandEmerald),
               const SizedBox(width: 8),
               Text(
                 'Set Zone $code Location & Name',
@@ -4352,7 +4492,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         style: const TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF059669),
+                          color: WebTheme.brandEmerald,
                         ),
                       ),
                     ],
@@ -4391,9 +4531,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                     point: pinnedPoint,
                                     radius: zoneRadius,
                                     useRadiusInMeter: true,
-                                    color: const Color(0xFF059669)
+                                    color: WebTheme.brandEmerald
                                         .withValues(alpha: 0.22),
-                                    borderColor: const Color(0xFF059669),
+                                    borderColor: WebTheme.brandEmerald,
                                     borderStrokeWidth: 2,
                                   ),
                                 ],
@@ -4461,7 +4601,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF059669),
+                          color: WebTheme.brandEmerald,
                         ),
                       ),
                     ],
@@ -4471,7 +4611,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     min: 100.0,
                     max: 600.0,
                     divisions: 50,
-                    activeColor: const Color(0xFF059669),
+                    activeColor: WebTheme.brandEmerald,
                     label: '${zoneRadius.round()} m',
                     onChanged: (val) => setDialogState(() => zoneRadius = val),
                   ),
@@ -4492,7 +4632,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               icon: const Icon(Icons.save_rounded, size: 18),
               label: const Text('Save Zone'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
+                backgroundColor: WebTheme.brandEmerald,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -4528,7 +4668,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Zone $code ($newName) saved & synced.'),
-            backgroundColor: const Color(0xFF059669),
+            backgroundColor: WebTheme.brandEmerald,
           ),
         );
       }
@@ -4617,7 +4757,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         ),
                         child: Icon(
                           isOvercharged ? Icons.report_problem_rounded : Icons.check_circle_rounded,
-                          color: isOvercharged ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                          color: isOvercharged ? const Color(0xFFDC2626) : WebTheme.brandEmerald,
                           size: 22,
                         ),
                       ),
@@ -4639,7 +4779,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                   child: Text(
                                     isOvercharged ? 'OVERCHARGED (+₱${trip['overchargeAmount']?.toStringAsFixed(2)})' : 'COMPLIANT',
                                     style: TextStyle(
-                                      color: isOvercharged ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                      color: isOvercharged ? const Color(0xFFDC2626) : WebTheme.brandEmerald,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 10.5,
                                     ),
@@ -4782,7 +4922,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   icon: const Icon(Icons.add_rounded, size: 18),
                   label: const Text('File Manual Report'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
+                    backgroundColor: WebTheme.brandEmerald,
                     foregroundColor: Colors.white,
                   ),
                 ),
@@ -4848,7 +4988,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   children: [
                     Text('PENDING POST-SOS REPORTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey.shade600)),
                     const SizedBox(height: 6),
-                    Text('${unfiledResolvedSos.length}', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: unfiledResolvedSos.isNotEmpty ? const Color(0xFFD97706) : const Color(0xFF059669))),
+                    Text('${unfiledResolvedSos.length}', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: unfiledResolvedSos.isNotEmpty ? const Color(0xFFD97706) : WebTheme.brandEmerald)),
                     Text(
                       unfiledResolvedSos.isNotEmpty ? 'Resolved SOS needing report' : 'All resolved SOS documented',
                       style: const TextStyle(fontSize: 11.5, color: Colors.grey),
@@ -4889,7 +5029,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   children: unfiledResolvedSos.map((alert) {
                     return ActionChip(
                       avatar: const Icon(Icons.note_add_rounded, size: 16, color: Color(0xFF92400E)),
-                      label: Text('${alert['driver_name']} (${alert['body_number']}) — File Report'),
+                      label: Text('${alert['driver_name']} (${alert['body_number']}) - File Report'),
                       backgroundColor: Colors.white,
                       side: const BorderSide(color: Color(0xFFFCD34D)),
                       onPressed: () => _openResolveIncidentReportDialog(alert, isAlreadyResolved: true),
@@ -4970,7 +5110,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       'CRITICAL' => const Color(0xFFDC2626),
                       'HIGH' => const Color(0xFFEA580C),
                       'MEDIUM' => const Color(0xFFD97706),
-                      _ => const Color(0xFF059669),
+                      _ => WebTheme.brandEmerald,
                     };
                     final duration = _computeResolutionDuration(report['triggered_at'], report['resolved_at']);
 
@@ -5035,7 +5175,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 ),
                                 const SizedBox(height: 5),
                                 Text(
-                                  'Outcome: ${report['outcome']} — ${report['action_taken']}',
+                                  'Outcome: ${report['outcome']} - ${report['action_taken']}',
                                   style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
                                 ),
                                 if ((report['resolution_notes'] ?? '').toString().isNotEmpty) ...[
@@ -5195,7 +5335,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'SMS Gateway unreachable — SMS notice was not delivered.',
+              'SMS Gateway unreachable - SMS notice was not delivered.',
             ),
             backgroundColor: Colors.orange,
           ),
@@ -5285,7 +5425,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: const Color(0xFF059669),
+          backgroundColor: WebTheme.brandEmerald,
           content: Text(
             'SMS + In-App Notification sent to $name ($phone) • $graceDays-day grace period until $graceDateLabel',
           ),
@@ -5316,7 +5456,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       _systemAuditLogs.insert(0, {
         'time': 'Just now',
         'actor': 'MINC Officer',
-        'action': 'Approved renewed documents for $name — Active Duty restored (valid until $validUntil)',
+        'action': 'Approved renewed documents for $name - Active Duty restored (valid until $validUntil)',
       });
     });
 
@@ -5357,9 +5497,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: const Color(0xFF059669),
+          backgroundColor: WebTheme.brandEmerald,
           content: Text(
-            '✅ Approved $name\'s renewed documents — driver turned Green and can now accept passengers!',
+            'Approved $name\'s renewed documents - driver turned Green and can now accept passengers!',
           ),
         ),
       );
@@ -5442,7 +5582,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             child: const Icon(
                               Icons.image_search_rounded,
                               size: 42,
-                              color: Color(0xFF059669),
+                              color: WebTheme.brandEmerald,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -5480,7 +5620,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   Expanded(
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
+                        backgroundColor: WebTheme.brandEmerald,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
@@ -5512,7 +5652,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     const reasons = [
       'Blurry or unreadable photo/scan',
       'Incorrect or mismatched document uploaded',
-      'Document is still expired — upload renewed copy',
+      'Document is still expired - upload renewed copy',
       'Cropped or missing expiry date / signature',
       'Others',
     ];
@@ -5815,7 +5955,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.check_circle_rounded, color: Color(0xFF059669)),
+                            Icon(Icons.check_circle_rounded, color: WebTheme.brandEmerald),
                             SizedBox(width: 10),
                             Text('All documents are valid and compliant.', style: TextStyle(fontWeight: FontWeight.w600)),
                           ],
@@ -5861,7 +6001,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: isDocPassed
-                                      ? const Color(0xFF059669)
+                                      ? WebTheme.brandEmerald
                                       : (uploadedFile != null
                                           ? const Color(0xFFD97706)
                                           : (isExp ? const Color(0xFFDC2626) : const Color(0xFFD97706))),
@@ -6008,7 +6148,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         if (submittedFiles.isNotEmpty || allSubmittedPassed) ...[
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF059669),
+                              backgroundColor: WebTheme.brandEmerald,
                               foregroundColor: Colors.white,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -6109,7 +6249,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     size: 18,
                     color: driversWithExpiryAlerts.isNotEmpty
                         ? const Color(0xFFDC2626)
-                        : const Color(0xFF059669),
+                        : WebTheme.brandEmerald,
                   ),
                   const SizedBox(width: 8),
                   Column(
@@ -6124,7 +6264,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           fontSize: 12,
                           color: driversWithExpiryAlerts.isNotEmpty
                               ? const Color(0xFFDC2626)
-                              : const Color(0xFF059669),
+                              : WebTheme.brandEmerald,
                         ),
                       ),
                       const Text(
@@ -6205,7 +6345,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               : (showRedAlert ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5));
           final Color badgeTextColor = showYellowGrace
               ? const Color(0xFFB45309)
-              : (showRedAlert ? const Color(0xFFDC2626) : const Color(0xFF059669));
+              : (showRedAlert ? const Color(0xFFDC2626) : WebTheme.brandEmerald);
           final String displayStatus = isOnReview
               ? 'Renewal On Review'
               : (isGraceExpired
@@ -6333,7 +6473,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 : (showRedAlert ? Icons.gpp_maybe_rounded : Icons.verified_user_rounded),
                             color: showYellowGrace
                                 ? const Color(0xFFD97706)
-                                : (showRedAlert ? const Color(0xFFDC2626) : const Color(0xFF059669)),
+                                : (showRedAlert ? const Color(0xFFDC2626) : WebTheme.brandEmerald),
                             size: 16,
                           ),
                           const SizedBox(width: 4),
@@ -6349,7 +6489,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                               fontWeight: FontWeight.w800,
                               color: showYellowGrace
                                   ? const Color(0xFFB45309)
-                                  : (showRedAlert ? const Color(0xFFDC2626) : const Color(0xFF059669)),
+                                  : (showRedAlert ? const Color(0xFFDC2626) : WebTheme.brandEmerald),
                               fontSize: 12,
                             ),
                           ),
@@ -6399,7 +6539,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.local_taxi_rounded, color: Color(0xFF059669), size: 22),
+                        const Icon(Icons.local_taxi_rounded, color: WebTheme.brandEmerald, size: 22),
                         const SizedBox(width: 10),
                         Text(term['name'], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                       ],
@@ -6410,7 +6550,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         color: const Color(0xFFECFDF5),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text('${queue.length} in queue', style: const TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w800, fontSize: 11)),
+                      child: Text('${queue.length} in queue', style: const TextStyle(color: WebTheme.brandEmerald, fontWeight: FontWeight.w800, fontSize: 11)),
                     ),
                   ],
                 ),
@@ -6439,7 +6579,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: isRankOne ? const Color(0xFF059669) : Colors.grey.shade300,
+                              color: isRankOne ? WebTheme.brandEmerald : Colors.grey.shade300,
                               shape: BoxShape.circle,
                             ),
                             child: Center(
@@ -6468,7 +6608,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             child: Text(
                               item['status'],
                               style: TextStyle(
-                                color: isRankOne ? const Color(0xFF059669) : Colors.grey.shade700,
+                                color: isRankOne ? WebTheme.brandEmerald : Colors.grey.shade700,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 11,
                               ),
@@ -6593,7 +6733,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   width: 36,
                   height: 36,
                   child: Icon(Icons.my_location_rounded,
-                      size: 18, color: Color(0xFF059669)),
+                      size: 18, color: WebTheme.brandEmerald),
                 ),
               ),
             ),
@@ -6634,7 +6774,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           title: Row(
             children: [
               const Icon(Icons.add_location_alt_rounded,
-                  color: Color(0xFF059669)),
+                  color: WebTheme.brandEmerald),
               const SizedBox(width: 8),
               Text(
                 isEdit
@@ -6694,7 +6834,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         style: const TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF059669),
+                          color: WebTheme.brandEmerald,
                         ),
                       ),
                     ],
@@ -6733,9 +6873,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                     point: pinnedPoint,
                                     radius: radius,
                                     useRadiusInMeter: true,
-                                    color: const Color(0xFF059669)
+                                    color: WebTheme.brandEmerald
                                         .withValues(alpha: 0.20),
-                                    borderColor: const Color(0xFF059669),
+                                    borderColor: WebTheme.brandEmerald,
                                     borderStrokeWidth: 2,
                                   ),
                                 ],
@@ -6807,7 +6947,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     min: 10.0,
                     max: 150.0,
                     divisions: 28,
-                    activeColor: const Color(0xFF059669),
+                    activeColor: WebTheme.brandEmerald,
                     onChanged: (v) => setDialogState(() => radius = v),
                   ),
                   Row(
@@ -6879,7 +7019,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               icon: const Icon(Icons.save_rounded, size: 17),
               label: Text(isEdit ? 'Save Pila Settings' : 'Create TODA Pila'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
+                backgroundColor: WebTheme.brandEmerald,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -6923,7 +7063,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           content: Text(
             '${updated['name']} saved & synced to Driver Maps!',
           ),
-          backgroundColor: const Color(0xFF059669),
+          backgroundColor: WebTheme.brandEmerald,
         ),
       );
     }
@@ -6977,7 +7117,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       evaluatedBgColor = const Color(0xFFFEF3C7);
     } else {
       evaluatedStatus = 'QUEUED IN DIGITAL PILA (Position #1)';
-      evaluatedColor = const Color(0xFF059669);
+      evaluatedColor = WebTheme.brandEmerald;
       evaluatedBgColor = const Color(0xFFDCFCE7);
     }
 
@@ -7009,7 +7149,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               icon: const Icon(Icons.add_location_alt_rounded, size: 18),
               label: const Text('Create TODA Pila'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
+                backgroundColor: WebTheme.brandEmerald,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
                 shape: RoundedRectangleBorder(
@@ -7069,11 +7209,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           radius: (t['radius'] as num).toDouble(),
                           useRadiusInMeter: true,
                           color: (isSelected
-                                  ? const Color(0xFF059669)
+                                  ? WebTheme.brandEmerald
                                   : const Color(0xFF0052CC))
                               .withValues(alpha: isSelected ? 0.25 : 0.14),
                           borderColor: isSelected
-                              ? const Color(0xFF059669)
+                              ? WebTheme.brandEmerald
                               : const Color(0xFF0052CC),
                           borderStrokeWidth: isSelected ? 2.5 : 1.5,
                         );
@@ -7102,7 +7242,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                               ),
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? const Color(0xFF059669)
+                                    ? WebTheme.brandEmerald
                                     : Colors.white,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
@@ -7127,7 +7267,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                     size: 14,
                                     color: isSelected
                                         ? Colors.white
-                                        : const Color(0xFF059669),
+                                        : WebTheme.brandEmerald,
                                   ),
                                   const SizedBox(width: 5),
                                   Flexible(
@@ -7171,7 +7311,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.touch_app_rounded,
-                            size: 15, color: Color(0xFF059669)),
+                            size: 15, color: WebTheme.brandEmerald),
                         SizedBox(width: 6),
                         Text(
                           'Click anywhere on the map to pin a new TODA Pila',
@@ -7370,7 +7510,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.access_time_filled_rounded, color: Color(0xFF059669), size: 22),
+                  const Icon(Icons.access_time_filled_rounded, color: WebTheme.brandEmerald, size: 22),
                   const SizedBox(width: 8),
                   Text(
                     'NTP Sync: ${_ntpClockSynced ? "ACTIVE (+$_ntpDriftMs ms)" : "DESYNCED"}',
@@ -7379,8 +7519,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   const Spacer(),
                   OutlinedButton.icon(
                     onPressed: () => _exportDigitalPilaValidationCsv(activeTerminal, evaluatedStatus),
-                    icon: const Icon(Icons.download_rounded, size: 14, color: Color(0xFF059669)),
-                    label: const Text('Export Validation CSV', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w700, fontSize: 12)),
+                    icon: const Icon(Icons.download_rounded, size: 14, color: WebTheme.brandEmerald),
+                    label: const Text('Export Validation CSV', style: TextStyle(color: WebTheme.brandEmerald, fontWeight: FontWeight.w700, fontSize: 12)),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Color(0xFFA7F3D0)),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -7406,9 +7546,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.sync_rounded, color: Color(0xFF059669), size: 18),
+                          Icon(Icons.sync_rounded, color: WebTheme.brandEmerald, size: 18),
                           SizedBox(width: 4),
-                          Text('Sync', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w700, fontSize: 13)),
+                          Text('Sync', style: TextStyle(color: WebTheme.brandEmerald, fontWeight: FontWeight.w700, fontSize: 13)),
                         ],
                       ),
                     ),
@@ -7533,7 +7673,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 min: 0.0,
                 max: 50.0,
                 divisions: 50,
-                activeColor: const Color(0xFF059669),
+                activeColor: WebTheme.brandEmerald,
                 label: '${_simulatedDistanceMeters.toStringAsFixed(0)}m',
                 onChanged: (val) => setState(() => _simulatedDistanceMeters = val),
               ),
@@ -7549,7 +7689,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 min: 0.0,
                 max: 30.0,
                 divisions: 30,
-                activeColor: const Color(0xFF059669),
+                activeColor: WebTheme.brandEmerald,
                 label: '${_simulatedSpeedKmh.toStringAsFixed(1)} km/h',
                 onChanged: (val) => setState(() => _simulatedSpeedKmh = val),
               ),
@@ -7565,7 +7705,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 min: 0.0,
                 max: 60.0,
                 divisions: 60,
-                activeColor: const Color(0xFF059669),
+                activeColor: WebTheme.brandEmerald,
                 label: '${_simulatedDwellSeconds}s',
                 onChanged: (val) => setState(() => _simulatedDwellSeconds = val.round()),
               ),
@@ -7594,7 +7734,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               color: isSelected ? const Color(0xFFF0FDF4) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isSelected ? const Color(0xFF059669) : Colors.grey.shade200,
+                color: isSelected ? WebTheme.brandEmerald : Colors.grey.shade200,
                 width: isSelected ? 1.5 : 1.0,
               ),
             ),
@@ -7615,7 +7755,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF059669),
+                              color: WebTheme.brandEmerald,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Text('ACTIVE IN BENCH', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
@@ -7625,7 +7765,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     ),
                     Text(
                       'Radius: ${(t['radius'] as num).toStringAsFixed(0)} meters',
-                      style: const TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w800),
+                      style: const TextStyle(color: WebTheme.brandEmerald, fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
@@ -7670,7 +7810,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   min: 10.0,
                   max: 150.0,
                   divisions: 28,
-                  activeColor: const Color(0xFF059669),
+                  activeColor: WebTheme.brandEmerald,
                   label: '${(t['radius'] as num).toStringAsFixed(0)}m',
                   onChanged: (val) {
                     setState(() => t['radius'] = val);
@@ -7786,7 +7926,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Row(
             children: [
-              const Icon(Icons.pin_drop_rounded, color: Color(0xFF059669)),
+              const Icon(Icons.pin_drop_rounded, color: WebTheme.brandEmerald),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -7853,7 +7993,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         style: const TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF059669),
+                          color: WebTheme.brandEmerald,
                         ),
                       ),
                     ],
@@ -8022,10 +8162,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             SnackBar(
                               content: Text(
                                 isEditing
-                                    ? 'Updated pin for "$cleanName" — live on mobile search!'
-                                    : 'Added pin "$cleanName" — live on mobile search!',
+                                    ? 'Updated pin for "$cleanName" - live on mobile search!'
+                                    : 'Added pin "$cleanName" - live on mobile search!',
                               ),
-                              backgroundColor: const Color(0xFF059669),
+                              backgroundColor: WebTheme.brandEmerald,
                             ),
                           );
                         }
@@ -8053,7 +8193,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   : const Icon(Icons.save_rounded, size: 17),
               label: Text(isEditing ? 'Save Pin Changes' : 'Save New Pin'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
+                backgroundColor: WebTheme.brandEmerald,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -8118,7 +8258,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Deleted "$name" from laoag_locations.'),
-            backgroundColor: const Color(0xFF059669),
+            backgroundColor: WebTheme.brandEmerald,
           ),
         );
       }
@@ -8200,7 +8340,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               icon: const Icon(Icons.add_location_alt_rounded, size: 18),
               label: const Text('Add Place Pin'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
+                backgroundColor: WebTheme.brandEmerald,
                 foregroundColor: Colors.white,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
@@ -8265,7 +8405,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           alignment: Alignment.topCenter,
                           child: Tooltip(
                             message:
-                                '${p['name']} (${p['zone_code'] ?? 'PIN'}) — click to edit',
+                                '${p['name']} (${p['zone_code'] ?? 'PIN'}) - click to edit',
                             child: GestureDetector(
                               onTap: () {
                                 setState(() => _selectedPlaceKey = key);
@@ -8275,7 +8415,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 Icons.location_on_rounded,
                                 size: isSelected ? 40 : 28,
                                 color: isSelected
-                                    ? const Color(0xFF059669)
+                                    ? WebTheme.brandEmerald
                                     : const Color(0xFFDC2626),
                               ),
                             ),
@@ -8475,7 +8615,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
-                                ? const Color(0xFF059669)
+                                ? WebTheme.brandEmerald
                                 : const Color(0xFFE2E8F0),
                           ),
                         ),
@@ -8527,7 +8667,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                               icon: const Icon(
                                 Icons.my_location_rounded,
                                 size: 18,
-                                color: Color(0xFF059669),
+                                color: WebTheme.brandEmerald,
                               ),
                               onPressed: () {
                                 setState(() => _selectedPlaceKey = key);
@@ -8635,7 +8775,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             icon: const Icon(Icons.cloud_upload_rounded),
             label: const Text('Save Fare Updates to Cloud'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
+              backgroundColor: WebTheme.brandEmerald,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             ),
@@ -8746,7 +8886,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 title: 'Approved Drivers',
                 value: '$approvedCount',
                 icon: Icons.check_circle_outline_rounded,
-                color: const Color(0xFF059669),
+                color: WebTheme.brandEmerald,
               ),
             ),
             const SizedBox(width: 12),
@@ -8791,7 +8931,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 const SizedBox(width: 10),
                 const Expanded(
                   child: Text(
-                    'Rejected Trash — Rejected applications are stored here for future reference. You can permanently delete them or leave them here.',
+                    'Rejected Trash - Rejected applications are stored here for future reference. You can permanently delete them or leave them here.',
                     style: TextStyle(fontSize: 12.5, color: Color(0xFF991B1B), fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -8974,7 +9114,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     String statusLabel = 'PENDING REVIEW';
     if (isApproved) {
       statusBg = const Color(0xFFD1FAE5);
-      statusColor = const Color(0xFF059669);
+      statusColor = WebTheme.brandEmerald;
       statusLabel = 'APPROVED DRIVER';
     } else if (isResubmit) {
       statusBg = const Color(0xFFFEF9C3);
@@ -9118,7 +9258,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           children: [
                             const Row(
                               children: [
-                                Icon(Icons.badge_rounded, size: 16, color: Color(0xFF059669)),
+                                Icon(Icons.badge_rounded, size: 16, color: WebTheme.brandEmerald),
                                 SizedBox(width: 6),
                                 Text(
                                   'Personal & Clearance Documents',
@@ -9452,7 +9592,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: allRequirementsFulfilled
-                                  ? const Color(0xFF059669)
+                                  ? WebTheme.brandEmerald
                                   : Colors.grey.shade300,
                               foregroundColor: allRequirementsFulfilled
                                   ? Colors.white
@@ -9489,10 +9629,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           ),
                           OutlinedButton.icon(
                             onPressed: () => _approveDriverApp(app, isReassign: true),
-                            icon: const Icon(Icons.edit_location_alt_rounded, size: 14, color: Color(0xFF059669)),
+                            icon: const Icon(Icons.edit_location_alt_rounded, size: 14, color: WebTheme.brandEmerald),
                             label: const Text(
                               'Assign TODA Pila',
-                              style: TextStyle(fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.bold),
+                              style: TextStyle(fontSize: 11.5, color: WebTheme.brandEmerald, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
@@ -9519,7 +9659,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         initial,
         style: TextStyle(
           fontWeight: FontWeight.w800,
-          color: isApproved ? const Color(0xFF059669) : const Color(0xFF0F172A),
+          color: isApproved ? WebTheme.brandEmerald : const Color(0xFF0F172A),
         ),
       ),
     );
@@ -9815,7 +9955,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             : Icons.cancel_rounded),
                 size: 14,
                 color: isPassed
-                    ? const Color(0xFF059669)
+                    ? WebTheme.brandEmerald
                     : isResubmit
                         ? const Color(0xFFD97706)
                         : (isAvailable
@@ -9891,7 +10031,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       color: isAvailable
                           ? (isPassed
                               ? const Color(0xFF15803D)
-                              : const Color(0xFF059669))
+                              : WebTheme.brandEmerald)
                           : Colors.grey.shade400,
                       fontWeight: FontWeight.bold,
                     ),
@@ -10185,7 +10325,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 title: 'Approved Passengers',
                 value: '$approvedCount',
                 icon: Icons.verified_user_rounded,
-                color: const Color(0xFF059669),
+                color: WebTheme.brandEmerald,
               ),
             ),
             const SizedBox(width: 16),
@@ -10222,12 +10362,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 selected: _passengerAppFilter == filter.$1,
                 onSelected: (_) =>
                     setState(() => _passengerAppFilter = filter.$1),
-                selectedColor: const Color(0xFF059669).withValues(alpha: 0.14),
+                selectedColor: WebTheme.brandEmerald.withValues(alpha: 0.14),
                 labelStyle: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                   color: _passengerAppFilter == filter.$1
-                      ? const Color(0xFF059669)
+                      ? WebTheme.brandEmerald
                       : Colors.grey.shade700,
                 ),
               ),
@@ -10305,7 +10445,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         style: TextStyle(
           fontWeight: FontWeight.w800,
           color: isApproved
-              ? const Color(0xFF059669)
+              ? WebTheme.brandEmerald
               : const Color(0xFF334155),
         ),
       ),
@@ -10350,7 +10490,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     String statusLabel = 'PENDING REVIEW (<= 1 HR)';
     if (isApproved) {
       statusBg = const Color(0xFFD1FAE5);
-      statusColor = const Color(0xFF059669);
+      statusColor = WebTheme.brandEmerald;
       statusLabel = 'APPROVED PASSENGER';
     } else if (isResubmit) {
       statusBg = const Color(0xFFFEF9C3);
@@ -10488,7 +10628,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   const Row(
                     children: [
                       Icon(Icons.fact_check_outlined,
-                          size: 16, color: Color(0xFF059669)),
+                          size: 16, color: WebTheme.brandEmerald),
                       SizedBox(width: 6),
                       Text(
                         'Passenger Identity Verification (2 Required Checks)',
@@ -10620,7 +10760,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           : 'Pass ID & Face Scan First',
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
+                      backgroundColor: WebTheme.brandEmerald,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: Colors.grey.shade300,
                       disabledForegroundColor: Colors.grey.shade600,
@@ -10657,7 +10797,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${pax['name']} approved as PasadaNorte Passenger!'),
-          backgroundColor: const Color(0xFF059669),
+          backgroundColor: WebTheme.brandEmerald,
         ),
       );
     }
@@ -10876,7 +11016,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${pax['name']} permanently deleted from Supabase.'),
-          backgroundColor: const Color(0xFF059669),
+          backgroundColor: WebTheme.brandEmerald,
         ),
       );
     }
@@ -11019,7 +11159,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.face_retouching_natural_rounded, color: Color(0xFF059669)),
+            const Icon(Icons.face_retouching_natural_rounded, color: WebTheme.brandEmerald),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -11171,7 +11311,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             return DropdownMenuItem(
                               value: code,
                               child: Text(
-                                '$code — $name',
+                                '$code - $name',
                                 style: const TextStyle(fontSize: 12.5),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -11218,7 +11358,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   Navigator.pop(ctx, true);
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
+                  backgroundColor: WebTheme.brandEmerald,
                   foregroundColor: Colors.white,
                 ),
                 child: Text(
@@ -11241,7 +11381,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     );
     final terminalName = (matchedTerminal?['name'] ?? selectedToda).toString();
     final note =
-        'Approved by Laoag MINC Officer. Assigned TODA Pila: $selectedToda ($pilaSlot) — $terminalName.';
+        'Approved by Laoag MINC Officer. Assigned TODA Pila: $selectedToda ($pilaSlot) - $terminalName.';
 
     setState(() {
       app['application_status'] = 'approved';
@@ -11310,7 +11450,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         content: Text(
           '✓ ${app['full_name']} assigned to $selectedToda ($pilaSlot).',
         ),
-        backgroundColor: const Color(0xFF059669),
+        backgroundColor: WebTheme.brandEmerald,
       ),
     );
   }
@@ -11644,7 +11784,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Row(
                   children: [
-                    Icon(Icons.school_rounded, color: Color(0xFF059669), size: 24),
+                    Icon(Icons.school_rounded, color: WebTheme.brandEmerald, size: 24),
                     SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -11656,7 +11796,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         ],
                       ),
                     ),
-                    Text('Active (Ord. 2023-005)', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w800, fontSize: 11)),
+                    Text('Active (Ord. 2023-005)', style: TextStyle(color: WebTheme.brandEmerald, fontWeight: FontWeight.w800, fontSize: 11)),
                   ],
                 ),
               ),
@@ -11665,7 +11805,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Row(
                   children: [
-                    Icon(Icons.balance_rounded, color: Color(0xFF059669), size: 24),
+                    Icon(Icons.balance_rounded, color: WebTheme.brandEmerald, size: 24),
                     SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -11677,7 +11817,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         ],
                       ),
                     ),
-                    Text('Schema Ready', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w800, fontSize: 11)),
+                    Text('Schema Ready', style: TextStyle(color: WebTheme.brandEmerald, fontWeight: FontWeight.w800, fontSize: 11)),
                   ],
                 ),
               ),
@@ -11752,7 +11892,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   icon: const Icon(Icons.sync_rounded, size: 16),
                   label: const Text('Refresh Telemetry'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
+                    backgroundColor: WebTheme.brandEmerald,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   ),
@@ -11791,7 +11931,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     ),
                     Text(
                       activeAlerts.isNotEmpty ? 'Immediate response required' : 'All Laoag corridors normal',
-                      style: TextStyle(fontSize: 11.5, color: activeAlerts.isNotEmpty ? const Color(0xFFB91C1C) : const Color(0xFF059669), fontWeight: FontWeight.w600),
+                      style: TextStyle(fontSize: 11.5, color: activeAlerts.isNotEmpty ? const Color(0xFFB91C1C) : WebTheme.brandEmerald, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -11813,7 +11953,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('ACTIVE TRICYCLES ON ROAD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey.shade600)),
-                        const Icon(Icons.two_wheeler_rounded, color: Color(0xFF059669), size: 18),
+                        const Icon(Icons.two_wheeler_rounded, color: WebTheme.brandEmerald, size: 18),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -11883,9 +12023,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        activeAlerts.isNotEmpty ? '🚨 ${activeAlerts.length} ACTIVE INCIDENT' : '✓ 0 ACTIVE DISTRESS',
+                        activeAlerts.isNotEmpty ? '${activeAlerts.length} ACTIVE INCIDENT' : '✓ 0 ACTIVE DISTRESS',
                         style: TextStyle(
-                          color: activeAlerts.isNotEmpty ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                          color: activeAlerts.isNotEmpty ? const Color(0xFFDC2626) : WebTheme.brandEmerald,
                           fontWeight: FontWeight.w800,
                           fontSize: 11.5,
                         ),
@@ -11922,7 +12062,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           ),
                           child: Icon(
                             isActive ? Icons.emergency_rounded : Icons.check_circle_rounded,
-                            color: isActive ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                            color: isActive ? const Color(0xFFDC2626) : WebTheme.brandEmerald,
                             size: 22,
                           ),
                         ),
@@ -11944,7 +12084,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                     child: Text(
                                       alert['status'],
                                       style: TextStyle(
-                                        color: isActive ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                        color: isActive ? const Color(0xFFDC2626) : WebTheme.brandEmerald,
                                         fontWeight: FontWeight.w800,
                                         fontSize: 10.5,
                                       ),
@@ -11995,7 +12135,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                               OutlinedButton(
                                 onPressed: () => _resolveSosAlert(alert),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF059669),
+                                  foregroundColor: WebTheme.brandEmerald,
                                   side: const BorderSide(color: Color(0xFFA7F3D0)),
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 ),
@@ -12013,7 +12153,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                       onPressed: () => _showIncidentReportDetailModal(existingReport),
                                       icon: const Icon(Icons.fact_check_rounded, size: 16),
                                       label: Text('Report ${existingReport['report_code']}'),
-                                      style: TextButton.styleFrom(foregroundColor: const Color(0xFF059669)),
+                                      style: TextButton.styleFrom(foregroundColor: WebTheme.brandEmerald),
                                     );
                                   }
                                   return OutlinedButton.icon(
@@ -12082,7 +12222,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        '🚨 ACTIVE EMERGENCY SOS (${activeAlerts.length})',
+                        'ACTIVE EMERGENCY SOS (${activeAlerts.length})',
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11),
                       ),
                     ),
@@ -12159,45 +12299,88 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     );
   }
 
-  Widget _buildSidebarItem(IconData icon, String title, {Widget? badge}) {
+  Widget _buildSidebarItem(
+    IconData icon,
+    String title, {
+    Widget? badge,
+    bool collapsed = false,
+    bool inDrawer = false,
+  }) {
     final isSelected = _selectedSection == title;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      child: Material(
-        color: isSelected ? const Color(0xFFF1F5F9) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () {
-            setState(() {
-              _selectedSection = title;
-            });
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 19,
-                  color: isSelected ? const Color(0xFF059669) : Colors.grey.shade600,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                      color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF475569),
-                    ),
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: title,
+      child: Tooltip(
+        message: collapsed ? title : '',
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 2),
+          child: Material(
+            color: isSelected
+                ? (isDark ? WebTheme.darkBorder : const Color(0xFFF1F5F9))
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                setState(() {
+                  _selectedSection = title;
+                });
+                if (inDrawer) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: collapsed ? 0 : 12,
+                    vertical: 10,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: collapsed
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.start,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 20,
+                        color: isSelected
+                            ? WebTheme.brandEmerald
+                            : (isDark
+                                ? WebTheme.darkInkSecondary
+                                : WebTheme.inkSecondary),
+                      ),
+                      if (!collapsed) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: isSelected
+                                  ? (isDark
+                                      ? WebTheme.darkInkPrimary
+                                      : WebTheme.inkPrimary)
+                                  : (isDark
+                                      ? WebTheme.darkInkSecondary
+                                      : WebTheme.inkSecondary),
+                            ),
+                          ),
+                        ),
+                        if (badge != null) badge,
+                      ],
+                    ],
                   ),
                 ),
-                if (badge != null) badge,
-              ],
+              ),
             ),
           ),
         ),
@@ -12215,7 +12398,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: isSelected ? const Color(0xFF059669) : Colors.transparent,
+              color: isSelected ? WebTheme.brandEmerald : Colors.transparent,
               width: 2.5,
             ),
           ),
@@ -12225,14 +12408,14 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-            color: isSelected ? const Color(0xFF059669) : const Color(0xFF64748B),
+            color: isSelected ? WebTheme.brandEmerald : const Color(0xFF64748B),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildKrispMetricCard({
+  Widget _buildOperationalMetricCard({
     required String title,
     required String value,
     required String dateLabel,
@@ -12368,7 +12551,7 @@ class _KrispTrendChartPainter extends CustomPainter {
       ..color = Colors.grey.shade100
       ..strokeWidth = 1.0;
 
-    const textStyle = TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w600);
+    const textStyle = TextStyle(color: WebTheme.inkMuted, fontSize: 10, fontWeight: FontWeight.w600);
     final levels = [100.0, 80.0, 60.0, 40.0, 20.0, 0.0];
 
     for (final level in levels) {

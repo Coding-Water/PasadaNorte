@@ -601,18 +601,12 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF059669), Color(0xFF047857)],
+                    colors: [AppTheme.accentEmerald, AppTheme.accentEmeraldDark],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF059669).withValues(alpha: 0.25),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                  boxShadow: AppTheme.level1Shadow,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -648,7 +642,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('💵 Cash Collected', style: TextStyle(color: Colors.white, fontSize: 11)),
+                                const Text('Cash Collected', style: TextStyle(color: Colors.white, fontSize: 11)),
                                 const SizedBox(height: 2),
                                 Text(
                                   '₱${DriverStatsService.cashEarnings.toStringAsFixed(2)}',
@@ -669,7 +663,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('📱 GCash QR', style: TextStyle(color: Colors.white, fontSize: 11)),
+                                const Text('GCash QR', style: TextStyle(color: Colors.white, fontSize: 11)),
                                 const SizedBox(height: 2),
                                 Text(
                                   '₱${DriverStatsService.gcashEarnings.toStringAsFixed(2)}',
@@ -1542,7 +1536,7 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  _isOnline ? Icons.bolt_rounded : Icons.power_settings_new_rounded,
+                                  _isOnline ? Icons.sensors_rounded : Icons.power_settings_new_rounded,
                                   color: Colors.white,
                                   size: 18,
                                 ),

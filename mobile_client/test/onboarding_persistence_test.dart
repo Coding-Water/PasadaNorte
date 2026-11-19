@@ -108,7 +108,7 @@ void main() {
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
-      final getStartedBtn = find.text("Let's Get Started");
+      final getStartedBtn = find.text('Create Account');
       expect(getStartedBtn, findsOneWidget);
       await tester.tap(getStartedBtn);
       await tester.pumpAndSettle();

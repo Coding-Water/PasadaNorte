@@ -180,12 +180,19 @@ class _PasadaNorteMobileAppState extends State<PasadaNorteMobileApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: SystemNotificationService.navigatorKey,
-      debugShowCheckedModeBanner: false,
-      title: 'PasadaNorte Laoag City',
-      theme: AppTheme.lightTheme,
-      home: _resolveInitialHome(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppTheme.themeModeNotifier,
+      builder: (context, themeMode, _) {
+        return MaterialApp(
+          navigatorKey: SystemNotificationService.navigatorKey,
+          debugShowCheckedModeBanner: false,
+          title: 'PasadaNorte Laoag City',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeMode,
+          home: _resolveInitialHome(),
+        );
+      },
     );
   }
 }

@@ -324,7 +324,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     children: [
                       const SizedBox(height: 8),
                       const Text(
-                        'Enter OTP Code 🔐',
+                        'Enter OTP Code',
                         style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w800,

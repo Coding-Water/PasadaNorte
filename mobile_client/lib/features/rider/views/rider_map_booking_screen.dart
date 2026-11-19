@@ -1054,7 +1054,7 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
           ),
           const SizedBox(width: 4),
           IconButton(
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             padding: EdgeInsets.zero,
             icon: Icon(
               isBookmarked

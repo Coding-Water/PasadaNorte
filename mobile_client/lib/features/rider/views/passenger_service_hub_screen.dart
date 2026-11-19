@@ -88,7 +88,7 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
             backgroundColor: Colors.white,
             elevation: 0,
             selectedItemColor: AppTheme.accentEmerald,
-            unselectedItemColor: Colors.grey.shade400,
+            unselectedItemColor: AppTheme.inkMuted,
             selectedLabelStyle: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 12,
@@ -208,7 +208,7 @@ class _PassengerServiceHubScreenState extends State<PassengerServiceHubScreen> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF00C466), Color(0xFF059669)],
+                    colors: [AppTheme.accentEmerald, AppTheme.accentEmeraldDark],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),

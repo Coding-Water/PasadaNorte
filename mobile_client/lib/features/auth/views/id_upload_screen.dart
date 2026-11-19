@@ -482,7 +482,7 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
         actions: [
           TextButton.icon(
             onPressed: _autoFillDemoData,
-            icon: const Icon(Icons.bolt_rounded, color: AppTheme.accentEmerald, size: 18),
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: AppTheme.accentEmerald, size: 18),
             label: const Text(
               'Auto-Fill',
               style: TextStyle(color: AppTheme.accentEmerald, fontWeight: FontWeight.bold, fontSize: 13),

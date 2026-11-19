@@ -70,7 +70,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Enter OTP Code 🔐'), findsOneWidget);
+      expect(find.text('Enter OTP Code'), findsOneWidget);
       expect(find.text('Resend code'), findsOneWidget);
       expect(find.textContaining('Static OTP for Registration'), findsNothing);
       expect(find.textContaining('Attempts left:'), findsNothing);

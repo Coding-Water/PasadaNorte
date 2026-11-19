@@ -2886,7 +2886,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
               elevation: 0,
             ),
-            icon: const Icon(Icons.flash_on_rounded, size: 18),
+            icon: const Icon(Icons.near_me_rounded, size: 18),
             label: const Text(
               'ENTER PILA NOW (FAST-FORWARD)',
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
@@ -2938,7 +2938,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
               elevation: 0,
             ),
-            icon: const Icon(Icons.flash_on_rounded, size: 16),
+            icon: const Icon(Icons.near_me_rounded, size: 16),
             label: const Text(
               'ENTER PILA NOW (FAST-FORWARD)',
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
@@ -3008,7 +3008,7 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                   child: Container(
                     key: const Key('driver_chat_unread_badge'),
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                     decoration: BoxDecoration(
                       color: AppTheme.cancelRed,
                       shape: BoxShape.circle,
