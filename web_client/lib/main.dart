@@ -839,7 +839,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             ..clear()
             ..addAll(data.map(_parseDriverApplicationRow));
           _reconcileResubmittedApps();
-          final prevDir = List<Map<String, dynamic>>.from(_driverDirectory);
           _driverDirectory
             ..clear()
             ..addAll(
