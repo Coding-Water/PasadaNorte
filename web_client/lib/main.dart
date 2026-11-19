@@ -5259,6 +5259,25 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     return '${hours}h ${mins}m ${secs}s';
   }
 
+  Future<void> _dispatchAdminSmsNotice({
+    required String phoneNumber,
+    required String message,
+  }) async {
+    final cleanedPhone = phoneNumber.trim();
+    if (cleanedPhone.isEmpty || message.trim().isEmpty) return;
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'send-sms-notice',
+        body: {
+          'phone_number': cleanedPhone,
+          'message': message,
+        },
+      );
+    } catch (e) {
+      debugPrint('Android SMS Gateway dispatch failed: $e');
+    }
+  }
+
   Future<void> _sendRenewalSmsAndAppNotification({
     required Map<String, dynamic> driver,
     required List<Map<String, dynamic>> issues,
@@ -5334,6 +5353,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     } catch (e) {
       debugPrint('Supabase broadcast document_renewal_notice error: $e');
     }
+
+    await _dispatchAdminSmsNotice(
+      phoneNumber: phone,
+      message: smsMessage,
+    );
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -10046,6 +10070,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       }).eq('phone_number', pax['phone_number']);
     } catch (_) {}
 
+    await _dispatchAdminSmsNotice(
+      phoneNumber: (pax['phone_number'] ?? '').toString(),
+      message:
+          'PasadaNorte MINC: Hi ${pax['name'] ?? 'Passenger'}, your ID & face verification is APPROVED. You can now book rides with your verified discount.',
+    );
+
     if (mounted) {
       setState(() {
         pax['status'] = 'approved';
@@ -10083,6 +10113,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         'admin_review_note': combinedNote,
       }).eq('phone_number', pax['phone_number']);
     } catch (_) {}
+
+    await _dispatchAdminSmsNotice(
+      phoneNumber: (pax['phone_number'] ?? '').toString(),
+      message:
+          'PasadaNorte MINC: Hi ${pax['name'] ?? 'Passenger'}, please re-upload your ID or face scan in the app. Note: $combinedNote',
+    );
 
     if (mounted) {
       setState(() {
@@ -10188,6 +10224,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         'admin_review_note': confirmedReason,
       }).eq('phone_number', pax['phone_number']);
     } catch (_) {}
+
+    await _dispatchAdminSmsNotice(
+      phoneNumber: (pax['phone_number'] ?? '').toString(),
+      message:
+          'PasadaNorte MINC: Hi ${pax['name'] ?? 'Passenger'}, your passenger verification was declined. Reason: $confirmedReason',
+    );
 
     if (mounted) {
       setState(() {
@@ -10514,6 +10556,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       return;
     }
 
+    await _dispatchAdminSmsNotice(
+      phoneNumber: (app['phone_number'] ?? app['phone'] ?? '').toString(),
+      message:
+          'PasadaNorte MINC: Congratulations ${app['full_name'] ?? 'Driver'}! Your franchise application is APPROVED ($selectedToda - $pilaSlot). You may now go online.',
+    );
+
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -10655,6 +10703,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     return;
                   }
 
+                  await _dispatchAdminSmsNotice(
+                    phoneNumber: (app['phone_number'] ?? app['phone'] ?? '').toString(),
+                    message:
+                        'PasadaNorte MINC: Hi ${app['full_name'] ?? 'Driver'}, please resubmit your driver application documents. Reason: $finalNote',
+                  );
+
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -10789,6 +10843,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                     }
                     return;
                   }
+
+                  await _dispatchAdminSmsNotice(
+                    phoneNumber: (app['phone_number'] ?? app['phone'] ?? '').toString(),
+                    message:
+                        'PasadaNorte MINC: Hi ${app['full_name'] ?? 'Driver'}, your driver application was rejected. Reason: $finalReason',
+                  );
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(

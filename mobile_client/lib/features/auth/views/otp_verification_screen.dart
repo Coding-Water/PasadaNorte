@@ -37,6 +37,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       node.addListener(_onFocusChanged);
     }
     _startCountdownTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sendOtpSms();
+    });
   }
 
   void _onFocusChanged() {
@@ -75,20 +78,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   String get _otpCode => _controllers.map((c) => c.text).join();
 
-  Future<void> _resendOtp() async {
-    if (_resendCountdown > 0 || _isLockedOut) return;
-    _startCountdownTimer();
+  Future<void> _sendOtpSms() async {
     final client = SupabaseService.client;
     if (client == null) return;
     try {
-      await client.auth.signInWithOtp(phone: widget.phoneNumber);
-    } catch (_) {
+      await client.functions.invoke(
+        'send-otp-sms',
+        body: {'phone_number': widget.phoneNumber},
+      );
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _errorText = 'Unable to resend OTP. Please try again.';
+          _errorText = 'Unable to send OTP SMS. Please tap Resend Code.';
         });
       }
+      debugPrint('send-otp-sms failed: $e');
     }
+  }
+
+  Future<void> _resendOtp() async {
+    if (_resendCountdown > 0 || _isLockedOut) return;
+    _startCountdownTimer();
+    setState(() => _errorText = null);
+    await _sendOtpSms();
   }
 
   Future<void> _verifyOtp() async {
@@ -110,14 +122,26 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           'OTP verification service is unavailable. Please try again.';
     } else {
       try {
-        final response = await client.auth.verifyOTP(
-          phone: widget.phoneNumber,
-          token: _otpCode,
-          type: OtpType.sms,
+        final response = await client.functions.invoke(
+          'verify-otp-sms',
+          body: {
+            'phone_number': widget.phoneNumber,
+            'code': _otpCode,
+          },
         );
-        isValid = response.session != null || response.user != null;
-      } on AuthException catch (e) {
-        failureMessage = e.message;
+        final data = response.data;
+        if (data is Map && data['verified'] == true) {
+          isValid = true;
+        } else if (data is Map && data['error'] != null) {
+          failureMessage = data['error'].toString();
+        }
+      } on FunctionException catch (e) {
+        final details = e.details;
+        if (details is Map && details['error'] != null) {
+          failureMessage = details['error'].toString();
+        } else {
+          failureMessage = 'Invalid OTP code. Please try again.';
+        }
       } catch (_) {
         failureMessage = 'Invalid OTP code. Please try again.';
       }
