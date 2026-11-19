@@ -9779,6 +9779,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       {
                         'full_name': pax['name'],
                         'phone_number': pax['phone_number'],
+                        'role': 'rider',
+                        'profile_photo_url': profilePhotoUrl,
+                        'id_photo_url': idPhotoUrl,
+                        'id_type': pax['idType'] ?? '',
                       },
                       pax,
                     ),
@@ -10110,6 +10114,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     final latency = (faceMatch?['latency'] as num?)?.toDouble();
     final status = (faceMatch?['status'] ?? 'pending').toString();
     final note = (faceMatch?['note'] ?? 'Live 1:1 liveness & selfie comparison').toString();
+    final isPassenger = (app['role'] ?? '').toString() == 'rider';
+    final selfieTitle = isPassenger
+        ? 'Passenger Live Verification Selfie'
+        : 'Driver White-BG Selfie';
+    final selfieUrl = (app['profile_photo_url'] ?? '').toString().trim();
+    final submittedIdUrl = (app['id_photo_url'] ?? '').toString().trim();
 
     showDialog(
       context: context,
@@ -10128,7 +10138,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Applicant: ${app['full_name'] ?? 'Driver'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text(
+                '${isPassenger ? 'Passenger' : 'Driver'} Applicant: ${app['full_name'] ?? (isPassenger ? 'Passenger' : 'Driver')}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
               const SizedBox(height: 8),
               Text('Verification Status: $status', style: const TextStyle(fontSize: 12.5)),
               Text(
@@ -10140,13 +10153,40 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               const SizedBox(height: 6),
               Text('System Note: $note', style: const TextStyle(fontSize: 12, color: Colors.black54)),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _showDriverAppDocDialog(context, 'Driver White-BG Selfie', app['profile_photo_url']);
-                },
-                icon: const Icon(Icons.photo_camera_front_rounded, size: 16),
-                label: const Text('Inspect Submitted Selfie Photo'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showDriverAppDocDialog(
+                        context,
+                        selfieTitle,
+                        selfieUrl.isNotEmpty ? selfieUrl : null,
+                      );
+                    },
+                    icon: const Icon(Icons.photo_camera_front_rounded, size: 16),
+                    label: Text(
+                      isPassenger
+                          ? 'Inspect Passenger Live Selfie'
+                          : 'Inspect Submitted Selfie Photo',
+                    ),
+                  ),
+                  if (isPassenger)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showDriverAppDocDialog(
+                          context,
+                          'Passenger Submitted ID (${app['id_type'] ?? ''})',
+                          submittedIdUrl.isNotEmpty ? submittedIdUrl : null,
+                        );
+                      },
+                      icon: const Icon(Icons.badge_outlined, size: 16),
+                      label: const Text('Inspect Submitted ID'),
+                    ),
+                ],
               ),
             ],
           ),
