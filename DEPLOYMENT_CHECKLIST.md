@@ -58,6 +58,16 @@
 - [x] **Web Admin Places & Landmarks Pin Editor (`web_client/lib/main.dart`)**: Dedicated **Places & Landmarks** screen backed by `public.laoag_locations` + `20261119200000_laoag_locations_admin_rls.sql` so MINC admins can drop/fix rooftop pins visually on Satellite view and sync instantly to mobile apps with no APK rebuild.
 - [x] **Passenger Pickup Landmark / Note (`rider_map_booking_screen.dart` & `bill_summary_checkout_screen.dart`)**: Optional landmark note field shown on checkout and forwarded directly to drivers alongside the pickup pin.
 
+### 11. Temporary QA MINC Admin Account (Revoke After QA Testing)
+- [ ] **Revoke / Delete QA Web Admin Account in Supabase Auth**:
+  - After QA finishes testing on `https://coding-water.github.io/PasadaNorte/`, delete the temporary QA admin user in **Supabase Dashboard → Authentication → Users** (or revoke its `minc_admin` claim via SQL Editor):
+    ```sql
+    UPDATE auth.users
+    SET raw_app_meta_data = raw_app_meta_data - 'role'
+    WHERE email = 'qa.admin@pasadanorte.ph';
+    ```
+  - Verify only authorized production MINC Administrators retain `raw_app_meta_data ->> 'role' = 'minc_admin'`.
+
 ---
 
 ## 📋 Status Tracking Table
@@ -74,3 +84,4 @@
 | **Decision Notifications (Android + SMS)** | `system_notification_service.dart`, `send-sms-notice`, `sms-gate-status` | Native Android alerts + live SMS Gateway alerts + 60s `lastSeen` gateway health monitor active | Android + SMS alerts for Approved / Resubmit / Rejected | 🟢 Completed |
 | **Dual-Emulator Launch Config** | `.vscode/launch.json` | Kept intentionally for local Driver + Passenger multi-emulator testing (excluded from release builds) | Keep for dev workflow | 🟢 Kept Intentionally |
 | **Maps & Geocoding (Zero-Fee)** | `location_service.dart`, `rider_map_booking_screen.dart`, `web_client/lib/main.dart`, `laoag_locations` | Geocoder filters, Supabase landmark priority, Photon reverse backup, Web Admin **Places & Landmarks Pin Editor**, and Passenger Pickup Landmark Note active at \$0/mo | Accurate zero-fee address search, pin curation, and landmark notes | 🟢 Completed |
+| **QA MINC Admin Account** | Supabase `auth.users` (`app_metadata.role`) | Temporary QA MINC Admin account created for web portal testing | Delete user or revoke `minc_admin` role after QA sign-off | 🟡 Revoke After QA Test |
