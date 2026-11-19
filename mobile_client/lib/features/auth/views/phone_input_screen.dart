@@ -1,15 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/services/driver_stats_service.dart';
-import '../../../core/services/session_cache_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../driver/views/driver_map_duty_screen.dart';
-import '../../fare/services/fare_calculator_service.dart';
-import '../../rider/views/passenger_service_hub_screen.dart';
-import 'driver_application_status_screen.dart';
 import 'otp_verification_screen.dart';
-import 'passenger_application_status_screen.dart';
 
 class PhoneInputScreen extends StatefulWidget {
   final bool initialIsRegisterMode;
@@ -46,118 +39,22 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
 
     final fullPhoneNumber = '+63${_phoneController.text.trim()}';
 
-    if (!_isRegisterMode) {
-      setState(() => _isCheckingAccount = true);
-      final existingUser = await SupabaseService.findUserByPhone(fullPhoneNumber);
-      if (!mounted) return;
-      setState(() => _isCheckingAccount = false);
+    setState(() => _isCheckingAccount = true);
+    final existingUser = await SupabaseService.findUserByPhone(fullPhoneNumber);
+    if (!mounted) return;
+    setState(() => _isCheckingAccount = false);
 
+    if (_isRegisterMode) {
       if (existingUser != null) {
-        final fullName = (existingUser['full_name'] as String?) ?? 'Laoag User';
-        final roleStr = (existingUser['role'] as String?) ?? 'rider';
-
-        if (roleStr == 'toda_admin' || roleStr == 'minc_admin') {
-                    return;
-        }
-
-        if (roleStr == 'driver') {
-          final appRow =
-              await SupabaseService.getDriverApplicationByPhone(fullPhoneNumber);
-          if (!mounted) return;
-          final appStatus = (appRow?['application_status'] ?? '').toString();
-          final isPendingReview = appRow != null && appStatus != 'approved';
-          DriverStatsService.isFranchiseActive = !isPendingReview;
-          final plate = (appRow?['plate_or_mv_file'] ?? '').toString().trim();
-          final toda = (appRow?['toda_code'] ?? '').toString().trim();
-          if (plate.isNotEmpty) DriverStatsService.plateNumber = plate;
-          if (toda.isNotEmpty) DriverStatsService.todaAssociation = toda;
-
-          await SessionCacheService.saveDriverSession(
-            phoneNumber: fullPhoneNumber,
-            fullName: fullName,
-            isPendingReview: isPendingReview,
-          );
-          if (!mounted) return;
-
-          if (isPendingReview) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DriverApplicationStatusScreen(
-                  phoneNumber: fullPhoneNumber,
-                  fullName: fullName,
-                ),
-              ),
-              (route) => false,
-            );
-          } else {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DriverMapDutyScreen(fullName: fullName),
-              ),
-              (route) => false,
-            );
-          }
-        } else {
-          final idTypeStr = (existingUser['id_type'] as String?) ?? 'National ID (PhilID)';
-          PassengerCategory lockedCat = PassengerCategory.regular;
-          if (idTypeStr.toUpperCase().contains('STUDENT')) {
-            lockedCat = PassengerCategory.student;
-          } else if (idTypeStr.toUpperCase().contains('SENIOR') ||
-              idTypeStr.toUpperCase().contains('PWD')) {
-            lockedCat = PassengerCategory.senior;
-          }
-
-          final riderStatus =
-              (existingUser['verification_status'] as String?) ?? 'approved';
-          final isRiderPending = riderStatus != 'approved';
-
-          await SessionCacheService.saveRiderSession(
-            phoneNumber: fullPhoneNumber,
-            fullName: fullName,
-            idType: idTypeStr,
-            isPendingReview: isRiderPending,
-          );
-          if (!mounted) return;
-
-          if (isRiderPending) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder: (_) => PassengerApplicationStatusScreen(
-                  phoneNumber: fullPhoneNumber,
-                  fullName: fullName,
-                  passengerCategory: lockedCat,
-                  idType: idTypeStr,
-                ),
-              ),
-              (route) => false,
-            );
-          } else {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder: (_) => PassengerServiceHubScreen(
-                  fullName: fullName,
-                  lockedCategory: lockedCat,
-                  verifiedIdType: idTypeStr,
-                ),
-              ),
-              (route) => false,
-            );
-          }
-        }
-        return;
-      } else {
-        final shouldRegister = await showDialog<bool>(
+        final shouldLogin = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('Account Not Found'),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('Phone Number Already Registered'),
             content: Text(
-              'No PasadaNorte account was found for $fullPhoneNumber. '
-              'Would you like to register as a Passenger or Driver?',
+              'An account for $fullPhoneNumber already exists in PasadaNorte. '
+              'Please log in with OTP to access your account or check your review status.',
             ),
             actions: [
               TextButton(
@@ -170,21 +67,90 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                   backgroundColor: AppTheme.accentEmerald,
                   minimumSize: const Size(120, 44),
                 ),
-                child: const Text('Register Now'),
+                child: const Text('Log In with OTP'),
               ),
             ],
           ),
         );
 
-        if (shouldRegister != true || !mounted) return;
-        setState(() => _isRegisterMode = true);
+        if (shouldLogin != true || !mounted) return;
+        setState(() => _isRegisterMode = false);
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtpVerificationScreen(
+              phoneNumber: fullPhoneNumber,
+              existingUser: existingUser,
+            ),
+          ),
+        );
+        return;
       }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              OtpVerificationScreen(phoneNumber: fullPhoneNumber),
+        ),
+      );
+      return;
     }
+
+    // Login Mode
+    if (existingUser != null) {
+      final roleStr = (existingUser['role'] as String?) ?? 'rider';
+      if (roleStr == 'toda_admin' || roleStr == 'minc_admin') {
+        return;
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtpVerificationScreen(
+            phoneNumber: fullPhoneNumber,
+            existingUser: existingUser,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final shouldRegister = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Account Not Found'),
+        content: Text(
+          'No PasadaNorte account was found for $fullPhoneNumber. '
+          'Would you like to register as a Passenger or Driver?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.accentEmerald,
+              minimumSize: const Size(120, 44),
+            ),
+            child: const Text('Register Now'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldRegister != true || !mounted) return;
+    setState(() => _isRegisterMode = true);
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => OtpVerificationScreen(phoneNumber: fullPhoneNumber),
+        builder: (context) =>
+            OtpVerificationScreen(phoneNumber: fullPhoneNumber),
       ),
     );
   }

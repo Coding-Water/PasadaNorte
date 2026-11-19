@@ -11,7 +11,6 @@ import '../../fare/services/fare_calculator_service.dart';
 import '../../rider/views/passenger_service_hub_screen.dart';
 import '../models/user_model.dart';
 import 'face_scan_screen.dart';
-import 'welcome_onboarding_screen.dart';
 
 class PassengerApplicationStatusScreen extends StatefulWidget {
   final String phoneNumber;
@@ -46,6 +45,24 @@ class _PassengerApplicationStatusScreenState
   StreamSubscription<List<Map<String, dynamic>>>? _realtimeSub;
   final ImagePicker _picker = ImagePicker();
   String? _reuploadedIdPath;
+  bool _idReuploaded = false;
+  bool _faceRedone = false;
+
+  bool get _mentionsId {
+    final noteLower = (_adminNote ?? '').toLowerCase();
+    return noteLower.contains('submitted id') ||
+        noteLower.contains('valid id') ||
+        noteLower.contains('government id');
+  }
+
+  bool get _mentionsFace {
+    final noteLower = (_adminNote ?? '').toLowerCase();
+    return noteLower.contains('face') || noteLower.contains('bio scan');
+  }
+
+  bool get _showBothResubmit => !_mentionsId && !_mentionsFace;
+  bool get _needsIdResubmit => _mentionsId || _showBothResubmit;
+  bool get _needsFaceResubmit => _mentionsFace || _showBothResubmit;
 
   @override
   void initState() {
@@ -166,21 +183,37 @@ class _PassengerApplicationStatusScreenState
     if (path == null) return;
     setState(() => _isUploadingId = true);
 
+    final allDone = !_needsFaceResubmit || _faceRedone;
     await SupabaseService.resubmitRiderIdDocument(
       phoneNumber: widget.phoneNumber,
       localPath: path,
+      markPending: allDone,
     );
 
     if (!mounted) return;
     setState(() {
       _reuploadedIdPath = path;
+      _idReuploaded = true;
       _isUploadingId = false;
     });
-        _fetchStatus();
+
+    if (allDone) {
+      _fetchStatus();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'ID uploaded! Now complete Redo 1:1 Face Bio Scan to submit for review.',
+          ),
+          backgroundColor: AppTheme.accentEmerald,
+        ),
+      );
+    }
   }
 
   Future<void> _redoFaceScan() async {
-    await Navigator.push(
+    final stillNeedsId = _needsIdResubmit && !_idReuploaded;
+    final res = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => FaceScanScreen(
@@ -192,12 +225,26 @@ class _PassengerApplicationStatusScreenState
           idPhotoPath: _reuploadedIdPath ?? widget.idPhotoPath ?? '',
           profilePhotoPath: widget.profilePhotoPath,
           isResubmissionRedo: true,
+          returnToCallerOnComplete: stillNeedsId,
         ),
       ),
     );
-    if (mounted) {
-      _fetchStatus();
+    if (!mounted) return;
+    if (stillNeedsId) {
+      if (res != null) {
+        setState(() => _faceRedone = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '1:1 Face Bio Scan completed! Now re-upload your ID above to submit for review.',
+            ),
+            backgroundColor: AppTheme.accentEmerald,
+          ),
+        );
+      }
+      return;
     }
+    _fetchStatus();
   }
 
   void _proceedToPasadaNorte() {
@@ -209,18 +256,6 @@ class _PassengerApplicationStatusScreenState
           lockedCategory: widget.passengerCategory,
           verifiedIdType: widget.idType,
         ),
-      ),
-      (route) => false,
-    );
-  }
-
-  Future<void> _switchAccount() async {
-    await SessionCacheService.clearSession();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const WelcomeOnboardingScreen(),
       ),
       (route) => false,
     );
@@ -241,7 +276,9 @@ class _PassengerApplicationStatusScreenState
         noteLower.contains('face') || noteLower.contains('bio scan');
     final showBothResubmit = !mentionsId && !mentionsFace;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -467,19 +504,27 @@ class _PassengerApplicationStatusScreenState
                       children: [
                         Row(
                           children: [
-                            const Icon(
-                              Icons.badge_rounded,
+                            Icon(
+                              _idReuploaded
+                                  ? Icons.check_circle_rounded
+                                  : Icons.badge_rounded,
                               size: 20,
-                              color: AppTheme.primarySlate,
+                              color: _idReuploaded
+                                  ? AppTheme.accentEmerald
+                                  : AppTheme.primarySlate,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Re-upload ${widget.idType}',
-                                style: const TextStyle(
+                                _idReuploaded
+                                    ? '${widget.idType} Re-uploaded'
+                                    : 'Re-upload ${widget.idType}',
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: AppTheme.primarySlate,
+                                  color: _idReuploaded
+                                      ? AppTheme.accentEmerald
+                                      : AppTheme.primarySlate,
                                 ),
                               ),
                             ),
@@ -526,10 +571,20 @@ class _PassengerApplicationStatusScreenState
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _redoFaceScan,
-                      icon: const Icon(Icons.face_retouching_natural_rounded),
-                      label: const Text('Redo 1:1 Face Bio Scan'),
+                      icon: Icon(
+                        _faceRedone
+                            ? Icons.check_circle_rounded
+                            : Icons.face_retouching_natural_rounded,
+                      ),
+                      label: Text(
+                        _faceRedone
+                            ? '1:1 Face Bio Scan Completed (Tap to Redo)'
+                            : 'Redo 1:1 Face Bio Scan',
+                      ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange.shade700,
+                        backgroundColor: _faceRedone
+                            ? AppTheme.accentEmerald
+                            : Colors.orange.shade700,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: const StadiumBorder(),
@@ -554,20 +609,10 @@ class _PassengerApplicationStatusScreenState
                   ),
                 ),
               ],
-              const SizedBox(height: 24),
-              TextButton(
-                onPressed: _switchAccount,
-                child: Text(
-                  'Use a different phone number',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -1,6 +1,10 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show Rect;
+import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:image/image.dart' as img;
+import 'package:tflite_flutter/tflite_flutter.dart';
 import '../../features/auth/models/user_model.dart';
 import '../../features/fare/services/fare_calculator_service.dart';
 import 'supabase_service.dart';
@@ -57,46 +61,10 @@ class FaceVerificationService {
   // Matches >= 85.0% are automatically approved; matches < 85.0% are routed
   // to TODA/MINC administrators for manual review.
   static double autoApprovalThresholdPercent = 85.0;
+  static Interpreter? _mobileFaceNetInterpreter;
 
-  // Shared in-memory/synced queue for the Web Admin Portal review panel
-  static final List<FaceVerificationRecord> verificationQueue = [
-    FaceVerificationRecord(
-      id: 'VER-2026-001',
-      fullName: 'Marco Agbayani',
-      phoneNumber: '+639174451029',
-      role: UserRole.rider,
-      idType: 'Student ID (MMSU)',
-      similarityScorePercent: 76.4,
-      processingTimeMs: 1420,
-      status: VerificationStatus.pending,
-      adminNote: 'Low lighting on ID portrait; awaiting manual admin inspection.',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 18)),
-    ),
-    FaceVerificationRecord(
-      id: 'VER-2026-002',
-      fullName: 'Ernesto Corpuz',
-      phoneNumber: '+639189923310',
-      role: UserRole.driver,
-      idType: 'Professional Driver\'s License',
-      similarityScorePercent: 79.8,
-      processingTimeMs: 1650,
-      status: VerificationStatus.pending,
-      adminNote: 'Glare on laminated license photo; referred to TODA admin.',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 42)),
-    ),
-    FaceVerificationRecord(
-      id: 'VER-2026-003',
-      fullName: 'Kyla Mae Pascual',
-      phoneNumber: '+639158831920',
-      role: UserRole.rider,
-      idType: 'National ID (PhilID)',
-      similarityScorePercent: 94.6,
-      processingTimeMs: 1180,
-      status: VerificationStatus.approved,
-      adminNote: 'Auto-approved (1:1 cosine similarity >= 85.0%). Raw images purged.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 1, minutes: 10)),
-    ),
-  ];
+  // Shared in-memory/synced queue for the Web Admin Portal review panel (populated live; no mock entries)
+  static final List<FaceVerificationRecord> verificationQueue = [];
 
   static Future<FaceVerificationResult> verifyOneToOne({
     required String fullName,
@@ -108,6 +76,7 @@ class FaceVerificationService {
     required String liveFacePath,
     String? profilePhotoPath,
     bool simulateLowConfidenceCase = false,
+    bool keepReuploadStatus = false,
   }) async {
     final stopwatch = Stopwatch()..start();
     double computedScore;
@@ -124,7 +93,7 @@ class FaceVerificationService {
 
     stopwatch.stop();
 
-    return _recordAndBuildResult(
+    return await _recordAndBuildResult(
       fullName: fullName,
       phoneNumber: phoneNumber,
       role: role,
@@ -133,7 +102,9 @@ class FaceVerificationService {
       score: computedScore,
       elapsedMs: stopwatch.elapsedMilliseconds,
       idPhotoPath: idPhotoPath,
+      liveFacePath: liveFacePath,
       profilePhotoPath: profilePhotoPath,
+      keepReuploadStatus: keepReuploadStatus,
     );
   }
 
@@ -146,7 +117,8 @@ class FaceVerificationService {
     final idFile = File(idPhotoPath);
     final liveFile = File(liveFacePath);
     if (!idFile.existsSync() || !liveFile.existsSync()) {
-      return 91.5;
+      // Missing local ID or selfie (e.g., redo scan without local ID) -> 0.0% manual review
+      return 0.0;
     }
 
     final detector = FaceDetector(
@@ -165,15 +137,27 @@ class FaceVerificationService {
           await detector.processImage(InputImage.fromFilePath(liveFacePath));
 
       if (idFaces.isEmpty || liveFaces.isEmpty) {
-        // No clear face detected on ID or selfie -> route to admin review (< 85%)
-        return 68.5;
+        // No face detected on ID (e.g. blank/dark image) or selfie -> 0.0%
+        return 0.0;
       }
 
+      // Prefer MobileFaceNet TFLite 192D biometric embedding similarity when available
+      final tfliteScore = await _computeMobileFaceNetSimilarity(
+        idPhotoPath: idPhotoPath,
+        idFace: idFaces.first,
+        liveFacePath: liveFacePath,
+        liveFace: liveFaces.first,
+      );
+      if (tfliteScore != null) {
+        return tfliteScore;
+      }
+
+      // Fallback to geometric landmark ratio similarity (e.g. headless tests)
       final v1 = _extractLandmarkVector(idFaces.first);
       final v2 = _extractLandmarkVector(liveFaces.first);
       if (v1 == null || v2 == null) {
-        // Partial landmarks (glare/occlusion) -> route to admin review
-        return 76.2;
+        // Missing landmarks (glare/occlusion) -> 0.0% manual review
+        return 0.0;
       }
 
       final cosSim = _cosineSimilarity(v1, v2).clamp(0.0, 1.0);
@@ -181,10 +165,138 @@ class FaceVerificationService {
       final scaled = (60.0 + ((cosSim - 0.75).clamp(0.0, 0.25) / 0.25) * 38.5);
       return double.parse(scaled.toStringAsFixed(1));
     } catch (_) {
-      return 78.4;
+      return 0.0;
     } finally {
       await detector.close();
     }
+  }
+
+  static Future<Interpreter?> _getMobileFaceNetInterpreter() async {
+    if (_mobileFaceNetInterpreter != null) return _mobileFaceNetInterpreter;
+    try {
+      _mobileFaceNetInterpreter =
+          await Interpreter.fromAsset('assets/models/mobilefacenet.tflite');
+      return _mobileFaceNetInterpreter;
+    } catch (e) {
+      debugPrint('MobileFaceNet TFLite load skipped: $e');
+      return null;
+    }
+  }
+
+  static Future<double?> _computeMobileFaceNetSimilarity({
+    required String idPhotoPath,
+    required Face idFace,
+    required String liveFacePath,
+    required Face liveFace,
+  }) async {
+    final interpreter = await _getMobileFaceNetInterpreter();
+    if (interpreter == null) return null;
+
+    try {
+      final emb1 = await _extractFaceEmbedding(
+        interpreter: interpreter,
+        imagePath: idPhotoPath,
+        boundingBox: idFace.boundingBox,
+      );
+      final emb2 = await _extractFaceEmbedding(
+        interpreter: interpreter,
+        imagePath: liveFacePath,
+        boundingBox: liveFace.boundingBox,
+      );
+      final emb2Flipped = await _extractFaceEmbedding(
+        interpreter: interpreter,
+        imagePath: liveFacePath,
+        boundingBox: liveFace.boundingBox,
+        flipHorizontal: true,
+      );
+      if (emb1 == null || emb2 == null) return null;
+
+      final directSim = _cosineSimilarity(emb1, emb2).clamp(-1.0, 1.0);
+      final flippedSim = emb2Flipped != null
+          ? _cosineSimilarity(emb1, emb2Flipped).clamp(-1.0, 1.0)
+          : directSim;
+      final cosSim = math.max(directSim, flippedSim);
+
+      // MobileFaceNet L2-normalized cosine similarity (calibrated for physical ID photo vs live front-camera selfie):
+      // >= 0.42 -> same identity (85.0%..99.0% auto-approve)
+      // <  0.42 -> uncertain / mismatch (35.0%..84.0% admin review)
+      const double matchThreshold = 0.42;
+      final double scorePercent;
+      if (cosSim >= matchThreshold) {
+        scorePercent = 85.0 + ((cosSim - matchThreshold) / (1.0 - matchThreshold)) * 14.0;
+      } else {
+        scorePercent = 35.0 + (cosSim.clamp(0.0, matchThreshold) / matchThreshold) * 49.0;
+      }
+      return double.parse(scorePercent.toStringAsFixed(1));
+    } catch (e) {
+      debugPrint('MobileFaceNet inference failed, falling back: $e');
+      return null;
+    }
+  }
+
+  static Future<List<double>?> _extractFaceEmbedding({
+    required Interpreter interpreter,
+    required String imagePath,
+    required Rect boundingBox,
+    bool flipHorizontal = false,
+  }) async {
+    final bytes = await File(imagePath).readAsBytes();
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return null;
+
+    var oriented = img.bakeOrientation(decoded);
+    if (boundingBox.right > oriented.width * 1.15 ||
+        boundingBox.bottom > oriented.height * 1.15) {
+      oriented = decoded;
+    }
+    final padX = boundingBox.width * 0.15;
+    final padY = boundingBox.height * 0.15;
+
+    final left = math.max(0, (boundingBox.left - padX).floor());
+    final top = math.max(0, (boundingBox.top - padY).floor());
+    final right = math.min(oriented.width, (boundingBox.right + padX).ceil());
+    final bottom = math.min(oriented.height, (boundingBox.bottom + padY).ceil());
+    final cropW = right - left;
+    final cropH = bottom - top;
+    if (cropW < 16 || cropH < 16) return null;
+
+    var cropped = img.copyCrop(
+      oriented,
+      x: left,
+      y: top,
+      width: cropW,
+      height: cropH,
+    );
+    if (flipHorizontal) {
+      cropped = img.flipHorizontal(cropped);
+    }
+    final resized = img.copyResize(cropped, width: 112, height: 112);
+
+    // Input tensor: [1, 112, 112, 3] float32 normalized to [-1.0, 1.0]
+    final input = List.generate(
+      1,
+      (_) => List.generate(
+        112,
+        (y) => List.generate(112, (x) {
+          final pixel = resized.getPixel(x, y);
+          return <double>[
+            (pixel.r.toDouble() - 128.0) / 128.0,
+            (pixel.g.toDouble() - 128.0) / 128.0,
+            (pixel.b.toDouble() - 128.0) / 128.0,
+          ];
+        }),
+      ),
+    );
+
+    final outShape = interpreter.getOutputTensor(0).shape;
+    final embSize = outShape.isNotEmpty ? outShape.last : 192;
+    final output = List.generate(1, (_) => List<double>.filled(embSize, 0.0));
+
+    interpreter.run(input, output);
+    final raw = output.first;
+    final norm = math.sqrt(raw.fold<double>(0.0, (sum, v) => sum + v * v));
+    if (norm <= 0) return raw;
+    return raw.map((v) => v / norm).toList();
   }
 
   static List<double>? _extractLandmarkVector(Face face) {
@@ -260,7 +372,7 @@ class FaceVerificationService {
     return dot / (math.sqrt(normA) * math.sqrt(normB));
   }
 
-  static FaceVerificationResult _recordAndBuildResult({
+  static Future<FaceVerificationResult> _recordAndBuildResult({
     required String fullName,
     required String phoneNumber,
     required UserRole role,
@@ -269,13 +381,17 @@ class FaceVerificationService {
     required double score,
     required int elapsedMs,
     String? idPhotoPath,
+    String? liveFacePath,
     String? profilePhotoPath,
-  }) {
+    bool keepReuploadStatus = false,
+  }) async {
     final bool passed = score >= autoApprovalThresholdPercent;
     final status = passed ? VerificationStatus.approved : VerificationStatus.pending;
     final note = passed
         ? '1:1 face match passed (>= ${autoApprovalThresholdPercent.toStringAsFixed(0)}% threshold calibrated on 40-pair set). Raw verification images purged immediately per RA 10173 & NPC Circular No. 2023-03.'
-        : 'Confidence below ${autoApprovalThresholdPercent.toStringAsFixed(0)}% threshold. Routed to TODA/MINC Web Portal for manual review (encrypted staging retained <= 72h; purged upon decision).';
+        : (score <= 0.0
+            ? 'No detectable face on uploaded ID or selfie (0.0% match). Routed to TODA/MINC Web Portal for manual review.'
+            : 'Confidence below ${autoApprovalThresholdPercent.toStringAsFixed(0)}% threshold. Routed to TODA/MINC Web Portal for manual review (encrypted staging retained <= 72h; purged upon decision).');
 
     verificationQueue.insert(
       0,
@@ -301,7 +417,16 @@ class FaceVerificationService {
       verificationImagesDeleted: passed,
     );
 
-    SupabaseService.recordFaceVerification(
+    // Always upload the live captured selfie for admin 1:1 inspection when available
+    // (or fall back to the optional profile photo if the live file is missing).
+    String? effectiveSelfiePath = profilePhotoPath;
+    if (liveFacePath != null &&
+        liveFacePath.isNotEmpty &&
+        File(liveFacePath).existsSync()) {
+      effectiveSelfiePath = liveFacePath;
+    }
+
+    await SupabaseService.recordFaceVerification(
       fullName: fullName,
       phoneNumber: phoneNumber,
       role: role,
@@ -309,7 +434,8 @@ class FaceVerificationService {
       idType: idType,
       result: result,
       idPhotoPath: idPhotoPath,
-      profilePhotoPath: profilePhotoPath,
+      profilePhotoPath: effectiveSelfiePath,
+      keepReuploadStatus: keepReuploadStatus,
     );
 
     return result;

@@ -3,16 +3,25 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/driver_stats_service.dart';
+import '../../../core/services/session_cache_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../driver/views/driver_map_duty_screen.dart';
+import '../../fare/services/fare_calculator_service.dart';
+import '../../rider/views/passenger_service_hub_screen.dart';
+import 'driver_application_status_screen.dart';
+import 'passenger_application_status_screen.dart';
 import 'role_selection_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String phoneNumber;
+  final Map<String, dynamic>? existingUser;
 
   const OtpVerificationScreen({
     super.key,
     required this.phoneNumber,
+    this.existingUser,
   });
 
   @override
@@ -173,11 +182,102 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _isLoading = false;
     });
 
+    if (widget.existingUser != null) {
+      await _completeExistingUserLogin(widget.existingUser!);
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => RoleSelectionScreen(phoneNumber: widget.phoneNumber),
       ),
+    );
+  }
+
+  Future<void> _completeExistingUserLogin(
+      Map<String, dynamic> existingUser) async {
+    final fullPhoneNumber = widget.phoneNumber;
+    final fullName = (existingUser['full_name'] as String?) ?? 'Laoag User';
+    final roleStr = (existingUser['role'] as String?) ?? 'rider';
+
+    if (roleStr == 'toda_admin' || roleStr == 'minc_admin') {
+      return;
+    }
+
+    if (roleStr == 'driver') {
+      final appRow =
+          await SupabaseService.getDriverApplicationByPhone(fullPhoneNumber);
+      if (!mounted) return;
+      final appStatus = (appRow?['application_status'] ?? '').toString();
+      final isPendingReview = appRow != null && appStatus != 'approved';
+      DriverStatsService.isFranchiseActive = !isPendingReview;
+      final plate = (appRow?['plate_or_mv_file'] ?? '').toString().trim();
+      final toda = (appRow?['toda_code'] ?? '').toString().trim();
+      if (plate.isNotEmpty) DriverStatsService.plateNumber = plate;
+      if (toda.isNotEmpty) DriverStatsService.todaAssociation = toda;
+
+      await SessionCacheService.saveDriverSession(
+        phoneNumber: fullPhoneNumber,
+        fullName: fullName,
+        isPendingReview: isPendingReview,
+      );
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => isPendingReview
+              ? DriverApplicationStatusScreen(
+                  phoneNumber: fullPhoneNumber,
+                  fullName: fullName,
+                )
+              : DriverMapDutyScreen(fullName: fullName),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    final idTypeStr =
+        (existingUser['id_type'] as String?) ?? 'National ID (PhilID)';
+    PassengerCategory lockedCat = PassengerCategory.regular;
+    if (idTypeStr.toUpperCase().contains('STUDENT')) {
+      lockedCat = PassengerCategory.student;
+    } else if (idTypeStr.toUpperCase().contains('SENIOR') ||
+        idTypeStr.toUpperCase().contains('PWD')) {
+      lockedCat = PassengerCategory.senior;
+    }
+
+    final riderStatus =
+        (existingUser['verification_status'] as String?) ?? 'approved';
+    final isRiderPending = riderStatus != 'approved';
+
+    await SessionCacheService.saveRiderSession(
+      phoneNumber: fullPhoneNumber,
+      fullName: fullName,
+      idType: idTypeStr,
+      isPendingReview: isRiderPending,
+    );
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => isRiderPending
+            ? PassengerApplicationStatusScreen(
+                phoneNumber: fullPhoneNumber,
+                fullName: fullName,
+                passengerCategory: lockedCat,
+                idType: idTypeStr,
+              )
+            : PassengerServiceHubScreen(
+                fullName: fullName,
+                lockedCategory: lockedCat,
+                verifiedIdType: idTypeStr,
+              ),
+      ),
+      (route) => false,
     );
   }
 

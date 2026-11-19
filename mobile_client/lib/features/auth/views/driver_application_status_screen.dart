@@ -10,7 +10,6 @@ import '../../driver/views/driver_map_duty_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import '../models/user_model.dart';
 import 'face_scan_screen.dart';
-import 'phone_input_screen.dart';
 
 // NOTIFICATION CHECKLIST:
 // [x] Native Android Notification Center alerts (Approved / Resubmission / Rejected)
@@ -42,6 +41,7 @@ class _DriverApplicationStatusScreenState
       'Your documents are currently being reviewed by Laoag City MINC / TODA administrators.';
   bool _isRefreshing = false;
   bool _isResubmitting = false;
+  bool _faceScanRedone = false;
   String? _lastNotifiedStatus;
 
   final Map<String, String> _replacementFiles = {};
@@ -231,6 +231,17 @@ class _DriverApplicationStatusScreenState
   }
 
   Future<void> _submitResubmission() async {
+    if (_needsFaceScanRedo && !_faceScanRedone) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please complete Redo 1:1 Face Bio Scan before submitting.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     if (_replacementFiles.isEmpty) {
             return;
     }
@@ -285,7 +296,9 @@ class _DriverApplicationStatusScreenState
                 ? 'Application Rejected'
                 : 'Your documents are currently being reviewed';
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
@@ -457,8 +470,9 @@ class _DriverApplicationStatusScreenState
                         ),
                         const SizedBox(height: 10),
                         ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.pushReplacement(
+                          onPressed: () async {
+                            final hasFlaggedDocs = _flaggedFieldsToShow.isNotEmpty;
+                            final res = await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => FaceScanScreen(
@@ -467,14 +481,35 @@ class _DriverApplicationStatusScreenState
                                   role: UserRole.driver,
                                   passengerCategory: PassengerCategory.regular,
                                   idType: "Professional Driver's License",
-                                  idPhotoPath: '',
+                                  idPhotoPath: _replacementFiles['license_photo_url'] ?? '',
                                   isResubmissionRedo: true,
+                                  returnToCallerOnComplete: hasFlaggedDocs,
                                 ),
                               ),
                             );
+                            if (context.mounted && hasFlaggedDocs && res != null) {
+                              setState(() => _faceScanRedone = true);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    '1:1 Face Bio Scan completed! Now upload your flagged documents below and tap Submit.',
+                                  ),
+                                  backgroundColor: AppTheme.accentEmerald,
+                                ),
+                              );
+                            }
                           },
-                          icon: const Icon(Icons.face_retouching_natural_rounded, size: 18),
-                          label: const Text('Redo 1:1 Face Bio Scan'),
+                          icon: Icon(
+                            _faceScanRedone
+                                ? Icons.check_circle_rounded
+                                : Icons.face_retouching_natural_rounded,
+                            size: 18,
+                          ),
+                          label: Text(
+                            _faceScanRedone
+                                ? '1:1 Face Bio Scan Completed (Tap to Redo)'
+                                : 'Redo 1:1 Face Bio Scan',
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.accentEmerald,
                             foregroundColor: Colors.white,
@@ -619,34 +654,10 @@ class _DriverApplicationStatusScreenState
                   ),
                 ),
               ],
-              const SizedBox(height: 18),
-              Center(
-                child: TextButton(
-                  onPressed: () async {
-                    await SessionCacheService.clearSession();
-                    if (!context.mounted) return;
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            const PhoneInputScreen(initialIsRegisterMode: false),
-                      ),
-                      (route) => false,
-                    );
-                  },
-                  child: const Text(
-                    'Use a different account',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
+      ),
       ),
     );
   }

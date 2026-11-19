@@ -24,6 +24,8 @@ dependencies:
   camera: ^0.12.2
   google_mlkit_face_detection: ^1.0.3
   file_picker: ^13.3.3
+  tflite_flutter: ^0.12.1
+  image: ^4.13.1
 
 dev_dependencies:
   flutter_test:
@@ -35,4 +37,5 @@ flutter:
   assets:
     - assets/images/
     - assets/images/avatars/
+    - assets/models/mobilefacenet.tflite
 

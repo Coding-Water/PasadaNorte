@@ -33,6 +33,7 @@ class FaceScanScreen extends StatefulWidget {
   final String? profilePhotoPath;
   final Map<String, String> vehicleDocumentationPhotos;
   final bool isResubmissionRedo;
+  final bool returnToCallerOnComplete;
 
   const FaceScanScreen({
     super.key,
@@ -45,6 +46,7 @@ class FaceScanScreen extends StatefulWidget {
     this.profilePhotoPath,
     this.vehicleDocumentationPhotos = const {},
     this.isResubmissionRedo = false,
+    this.returnToCallerOnComplete = false,
   });
 
   @override
@@ -56,7 +58,6 @@ class _FaceScanScreenState extends State<FaceScanScreen>
   bool _inLivenessStage = false;
   _LivenessStep _livenessStep = _LivenessStep.tiltLeft;
   bool _isScanning = false;
-  bool _simulateLowConfidence = false;
   FaceVerificationResult? _result;
   Timer? _livenessTimer;
   late final AnimationController _progressController;
@@ -68,6 +69,9 @@ class _FaceScanScreenState extends State<FaceScanScreen>
   bool _isProcessingFrame = false;
   bool _sawEyesOpenBeforeBlink = false;
   bool _sawBlinkClosed = false;
+  bool _firstTiltPositive = true;
+  bool _usingPhotoPollingFallback = false;
+  Timer? _photoPollingTimer;
   String _liveFeedbackHint = 'Keep your face inside the oval frame';
 
   static const _orientations = {
@@ -92,12 +96,15 @@ class _FaceScanScreenState extends State<FaceScanScreen>
   @override
   void dispose() {
     _livenessTimer?.cancel();
+    _photoPollingTimer?.cancel();
     _disposeCameraResources();
     _progressController.dispose();
     super.dispose();
   }
 
   Future<void> _disposeCameraResources() async {
+    _photoPollingTimer?.cancel();
+    _photoPollingTimer = null;
     final controller = _cameraController;
     _cameraController = null;
     if (controller != null) {
@@ -161,7 +168,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
         ResolutionPreset.medium,
         enableAudio: false,
         imageFormatGroup: Platform.isAndroid
-            ? ImageFormatGroup.nv21
+            ? ImageFormatGroup.yuv420
             : ImageFormatGroup.bgra8888,
       );
 
@@ -181,6 +188,8 @@ class _FaceScanScreenState extends State<FaceScanScreen>
       );
 
       _cameraController = controller;
+      _usingPhotoPollingFallback = false;
+      _photoPollingTimer?.cancel();
       setState(() {
         _useLiveCamera = true;
         _inLivenessStage = true;
@@ -213,87 +222,174 @@ class _FaceScanScreenState extends State<FaceScanScreen>
     _isProcessingFrame = true;
     try {
       final inputImage = _inputImageFromCameraImage(image);
-      if (inputImage == null) return;
+      if (inputImage == null) {
+        if (mounted) {
+          setState(() {
+            _liveFeedbackHint =
+                'Unsupported camera frame (planes=${image.planes.length}, fmt=${image.format.raw})';
+          });
+        }
+        return;
+      }
 
       final faces = await _faceDetector!.processImage(inputImage);
-      if (!mounted || _livenessStep == _LivenessStep.completed) return;
+      await _handleDetectedFaces(faces);
+    } on PlatformException catch (e) {
+      if (e.code == 'InputImageConverterError' && !_usingPhotoPollingFallback) {
+        await _switchToPhotoPollingLiveness();
+      } else if (mounted) {
+        setState(() => _liveFeedbackHint = 'Face detector error: ${e.message ?? e.code}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _liveFeedbackHint = 'Face detector error: $e');
+      }
+    } finally {
+      _isProcessingFrame = false;
+    }
+  }
 
-      if (faces.isEmpty) {
-        setState(() => _liveFeedbackHint = 'Position your face inside the oval frame');
+  Future<void> _switchToPhotoPollingLiveness() async {
+    if (_usingPhotoPollingFallback) return;
+    _usingPhotoPollingFallback = true;
+    try {
+      if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+        await _cameraController!.stopImageStream();
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() => _liveFeedbackHint = 'Slowly tilt your head left');
+    }
+
+    _photoPollingTimer?.cancel();
+    _photoPollingTimer = Timer.periodic(const Duration(milliseconds: 550), (t) async {
+      if (!mounted ||
+          _isProcessingFrame ||
+          _isScanning ||
+          _livenessStep == _LivenessStep.completed ||
+          _faceDetector == null ||
+          _cameraController == null ||
+          !_cameraController!.value.isInitialized) {
+        if (!mounted || _livenessStep == _LivenessStep.completed) {
+          t.cancel();
+        }
         return;
       }
-      if (faces.length > 1) {
-        setState(() => _liveFeedbackHint = 'Only one face should be in the frame');
+
+      _isProcessingFrame = true;
+      XFile? shot;
+      try {
+        shot = await _cameraController!.takePicture();
+        if (!mounted || _livenessStep == _LivenessStep.completed) return;
+        final inputImage = InputImage.fromFilePath(shot.path);
+        final faces = await _faceDetector!.processImage(inputImage);
+        await _handleDetectedFaces(faces, capturedPhotoPath: shot.path);
+      } catch (e) {
+        if (mounted) {
+          setState(() => _liveFeedbackHint = 'Liveness capture error: $e');
+        }
+      } finally {
+        if (shot != null && _livenessStep != _LivenessStep.completed) {
+          try {
+            await File(shot.path).delete();
+          } catch (_) {}
+        }
+        _isProcessingFrame = false;
+      }
+    });
+  }
+
+  Future<void> _handleDetectedFaces(
+    List<Face> faces, {
+    String? capturedPhotoPath,
+  }) async {
+    if (!mounted || _livenessStep == _LivenessStep.completed) return;
+
+    if (faces.isEmpty) {
+      setState(() => _liveFeedbackHint = 'Position your face inside the oval frame');
+      return;
+    }
+    if (faces.length > 1) {
+      setState(() => _liveFeedbackHint = 'Only one face should be in the frame');
+      return;
+    }
+
+    final face = faces.first;
+    final yaw = face.headEulerAngleY ?? 0.0;
+    final roll = face.headEulerAngleZ ?? 0.0;
+    final leftEye = face.leftEyeOpenProbability;
+    final rightEye = face.rightEyeOpenProbability;
+
+    if (_livenessStep == _LivenessStep.tiltLeft) {
+      if (yaw.abs() > 10.0 || roll.abs() > 9.0) {
+        _firstTiltPositive = (yaw.abs() >= roll.abs() ? yaw : roll) >= 0;
+        setState(() {
+          _livenessStep = _LivenessStep.tiltRight;
+          _liveFeedbackHint = 'Great! Now tilt your head the other way';
+        });
+        _animateProgressTo(0.12, 0.45);
+      } else {
+        setState(() => _liveFeedbackHint = 'Slowly tilt your head left');
+      }
+      return;
+    }
+
+    if (_livenessStep == _LivenessStep.tiltRight) {
+      final tiltedOpposite = _firstTiltPositive
+          ? (yaw < -10.0 || roll < -9.0)
+          : (yaw > 10.0 || roll > 9.0);
+      if (tiltedOpposite) {
+        setState(() {
+          _livenessStep = _LivenessStep.blinkOnce;
+          _sawEyesOpenBeforeBlink = false;
+          _sawBlinkClosed = false;
+          _liveFeedbackHint = 'Look straight ahead and blink once';
+        });
+        _animateProgressTo(0.45, 0.78);
+      } else {
+        setState(() => _liveFeedbackHint = 'Slowly tilt your head right');
+      }
+      return;
+    }
+
+    if (_livenessStep == _LivenessStep.blinkOnce) {
+      if (yaw.abs() > 20.0) {
+        setState(() => _liveFeedbackHint = 'Face straight ahead to blink');
+        return;
+      }
+      if (leftEye == null || rightEye == null) return;
+
+      if (!_sawEyesOpenBeforeBlink && leftEye > 0.55 && rightEye > 0.55) {
+        _sawEyesOpenBeforeBlink = true;
+        setState(() => _liveFeedbackHint = 'Now blink once');
         return;
       }
 
-      final face = faces.first;
-      final yaw = face.headEulerAngleY ?? 0.0;
-      final roll = face.headEulerAngleZ ?? 0.0;
-      final leftEye = face.leftEyeOpenProbability;
-      final rightEye = face.rightEyeOpenProbability;
+      if (_sawEyesOpenBeforeBlink &&
+          !_sawBlinkClosed &&
+          leftEye < 0.38 &&
+          rightEye < 0.38) {
+        _sawBlinkClosed = true;
+        return;
+      }
 
-      if (_livenessStep == _LivenessStep.tiltLeft) {
-        if (yaw > 14.0 || roll > 12.0) {
-          setState(() {
-            _livenessStep = _LivenessStep.tiltRight;
-            _liveFeedbackHint = 'Great! Now tilt your head to the right';
-          });
-          _animateProgressTo(0.12, 0.45);
+      if (_sawBlinkClosed && leftEye > 0.50 && rightEye > 0.50) {
+        _photoPollingTimer?.cancel();
+        setState(() {
+          _livenessStep = _LivenessStep.completed;
+          _liveFeedbackHint = 'Capturing selfie...';
+        });
+        _animateProgressTo(0.78, 1.0);
+        if (capturedPhotoPath != null) {
+          await _startFaceVerification(
+            skipPermissionCheck: true,
+            liveFacePath: capturedPhotoPath,
+          );
         } else {
-          setState(() => _liveFeedbackHint = 'Slowly tilt your head left');
-        }
-        return;
-      }
-
-      if (_livenessStep == _LivenessStep.tiltRight) {
-        if (yaw < -14.0 || roll < -12.0) {
-          setState(() {
-            _livenessStep = _LivenessStep.blinkOnce;
-            _sawEyesOpenBeforeBlink = false;
-            _sawBlinkClosed = false;
-            _liveFeedbackHint = 'Look straight ahead and blink once';
-          });
-          _animateProgressTo(0.45, 0.78);
-        } else {
-          setState(() => _liveFeedbackHint = 'Slowly tilt your head right');
-        }
-        return;
-      }
-
-      if (_livenessStep == _LivenessStep.blinkOnce) {
-        if (yaw.abs() > 14.0) {
-          setState(() => _liveFeedbackHint = 'Face straight ahead to blink');
-          return;
-        }
-        if (leftEye == null || rightEye == null) return;
-
-        if (!_sawEyesOpenBeforeBlink && leftEye > 0.65 && rightEye > 0.65) {
-          _sawEyesOpenBeforeBlink = true;
-          setState(() => _liveFeedbackHint = 'Now blink once');
-          return;
-        }
-
-        if (_sawEyesOpenBeforeBlink &&
-            !_sawBlinkClosed &&
-            leftEye < 0.30 &&
-            rightEye < 0.30) {
-          _sawBlinkClosed = true;
-          return;
-        }
-
-        if (_sawBlinkClosed && leftEye > 0.60 && rightEye > 0.60) {
-          setState(() {
-            _livenessStep = _LivenessStep.completed;
-            _liveFeedbackHint = 'Capturing selfie...';
-          });
-          _animateProgressTo(0.78, 1.0);
           await _captureAndVerifyLiveSelfie();
         }
       }
-    } catch (_) {
-    } finally {
-      _isProcessingFrame = false;
     }
   }
 
@@ -308,8 +404,8 @@ class _FaceScanScreenState extends State<FaceScanScreen>
     if (Platform.isIOS) {
       rotation = InputImageRotationValue.fromRawValue(sensorOrientation);
     } else if (Platform.isAndroid) {
-      var rotationCompensation = _orientations[controller.value.deviceOrientation];
-      if (rotationCompensation == null) return null;
+      var rotationCompensation =
+          _orientations[controller.value.deviceOrientation] ?? 0;
       if (camera.lensDirection == CameraLensDirection.front) {
         rotationCompensation = (sensorOrientation + rotationCompensation) % 360;
       } else {
@@ -319,8 +415,25 @@ class _FaceScanScreenState extends State<FaceScanScreen>
     }
     if (rotation == null) return null;
 
-    final format = InputImageFormatValue.fromRawValue(image.format.raw);
-    if (format == null) return null;
+    if (Platform.isAndroid && image.planes.length >= 2) {
+      final nv21Bytes = image.planes.length >= 3
+          ? _convertYuv420ToNv21(image)
+          : _convertTwoPlaneToNv21(image);
+      return InputImage.fromBytes(
+        bytes: nv21Bytes,
+        metadata: InputImageMetadata(
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: rotation,
+          format: InputImageFormat.nv21,
+          bytesPerRow: image.width,
+        ),
+      );
+    }
+
+    final format = Platform.isAndroid
+        ? InputImageFormat.nv21
+        : (InputImageFormatValue.fromRawValue(image.format.raw) ??
+            InputImageFormat.bgra8888);
 
     if (image.planes.length == 1) {
       final plane = image.planes.first;
@@ -330,20 +443,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
           size: Size(image.width.toDouble(), image.height.toDouble()),
           rotation: rotation,
           format: format,
-          bytesPerRow: plane.bytesPerRow,
-        ),
-      );
-    }
-
-    if (Platform.isAndroid && image.planes.length == 3) {
-      final nv21Bytes = _convertYuv420ToNv21(image);
-      return InputImage.fromBytes(
-        bytes: nv21Bytes,
-        metadata: InputImageMetadata(
-          size: Size(image.width.toDouble(), image.height.toDouble()),
-          rotation: rotation,
-          format: InputImageFormat.nv21,
-          bytesPerRow: image.width,
+          bytesPerRow: plane.bytesPerRow > 0 ? plane.bytesPerRow : image.width,
         ),
       );
     }
@@ -362,7 +462,10 @@ class _FaceScanScreenState extends State<FaceScanScreen>
     int dstIndex = 0;
     for (int row = 0; row < height; row++) {
       final rowStart = row * yPlane.bytesPerRow;
-      nv21.setRange(dstIndex, dstIndex + width, yPlane.bytes, rowStart);
+      final copyLen = math.min(width, yPlane.bytes.length - rowStart);
+      if (copyLen > 0) {
+        nv21.setRange(dstIndex, dstIndex + copyLen, yPlane.bytes, rowStart);
+      }
       dstIndex += width;
     }
 
@@ -375,9 +478,37 @@ class _FaceScanScreenState extends State<FaceScanScreen>
       final uRowStart = row * uPlane.bytesPerRow;
       final vRowStart = row * vPlane.bytesPerRow;
       for (int col = 0; col < uvWidth; col++) {
-        nv21[dstIndex++] = vPlane.bytes[vRowStart + col * vPixelStride];
-        nv21[dstIndex++] = uPlane.bytes[uRowStart + col * uPixelStride];
+        final vIdx = vRowStart + col * vPixelStride;
+        final uIdx = uRowStart + col * uPixelStride;
+        nv21[dstIndex++] = vIdx < vPlane.bytes.length ? vPlane.bytes[vIdx] : 128;
+        nv21[dstIndex++] = uIdx < uPlane.bytes.length ? uPlane.bytes[uIdx] : 128;
       }
+    }
+    return nv21;
+  }
+
+  Uint8List _convertTwoPlaneToNv21(CameraImage image) {
+    final width = image.width;
+    final height = image.height;
+    final yPlane = image.planes[0];
+    final uvPlane = image.planes[1];
+    final nv21 = Uint8List(width * height + (width * height ~/ 2));
+
+    int dstIndex = 0;
+    for (int row = 0; row < height; row++) {
+      final rowStart = row * yPlane.bytesPerRow;
+      nv21.setRange(dstIndex, dstIndex + width, yPlane.bytes, rowStart);
+      dstIndex += width;
+    }
+
+    final uvHeight = height ~/ 2;
+    for (int row = 0; row < uvHeight; row++) {
+      final rowStart = row * uvPlane.bytesPerRow;
+      final copyLen = math.min(width, uvPlane.bytes.length - rowStart);
+      if (copyLen > 0) {
+        nv21.setRange(dstIndex, dstIndex + copyLen, uvPlane.bytes, rowStart);
+      }
+      dstIndex += width;
     }
     return nv21;
   }
@@ -462,7 +593,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
       idPhotoPath: widget.idPhotoPath,
       liveFacePath: liveFacePath ?? 'live_capture_${DateTime.now().millisecondsSinceEpoch}.jpg',
       profilePhotoPath: widget.profilePhotoPath,
-      simulateLowConfidenceCase: _simulateLowConfidence,
+      keepReuploadStatus: widget.returnToCallerOnComplete,
     );
 
     if (!mounted) return;
@@ -554,6 +685,10 @@ class _FaceScanScreenState extends State<FaceScanScreen>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
+              if (widget.returnToCallerOnComplete) {
+                Navigator.pop(context, result);
+                return;
+              }
               if (widget.role == UserRole.driver) {
                 if (widget.isResubmissionRedo) {
                   unawaited(
@@ -562,7 +697,14 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                     ),
                   );
                 }
-                Navigator.pushReplacement(
+                unawaited(
+                  SessionCacheService.saveDriverSession(
+                    phoneNumber: widget.phoneNumber,
+                    fullName: widget.fullName,
+                    isPendingReview: true,
+                  ),
+                );
+                Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
                     builder: (context) => DriverApplicationStatusScreen(
@@ -570,6 +712,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                       fullName: widget.fullName,
                     ),
                   ),
+                  (route) => false,
                 );
               } else {
                 if (widget.isResubmissionRedo) {
@@ -588,7 +731,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                     isPendingReview: true,
                   ),
                 );
-                Navigator.pushReplacement(
+                Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
                     builder: (context) => PassengerApplicationStatusScreen(
@@ -600,6 +743,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                       profilePhotoPath: widget.profilePhotoPath,
                     ),
                   ),
+                  (route) => false,
                 );
               }
             },
@@ -608,7 +752,7 @@ class _FaceScanScreenState extends State<FaceScanScreen>
               foregroundColor: Colors.white,
               shape: const StadiumBorder(),
             ),
-            child: Text(approved ? 'Continue to PasadaNorte' : 'Continue (Preview Mode)'),
+            child: Text(approved ? 'Continue to PasadaNorte' : 'View Application Status'),
           ),
         ],
       ),
@@ -828,17 +972,6 @@ class _FaceScanScreenState extends State<FaceScanScreen>
                     ),
                   ),
                   const SizedBox(height: 12),
-                  SwitchListTile(
-                    dense: true,
-                    activeThumbColor: AppTheme.accentEmerald,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    title: const Text(
-                      'Simulate Low-Confidence Scan (< 85% Match)',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                    value: _simulateLowConfidence,
-                    onChanged: (val) => setState(() => _simulateLowConfidence = val),
-                  ),
                   const SizedBox(height: 8),
                 ],
               ),

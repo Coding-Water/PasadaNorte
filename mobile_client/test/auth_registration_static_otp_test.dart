@@ -439,7 +439,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1250));
       await tester.pumpAndSettle();
 
-      expect(find.text('1:1 Face Match Verified'), findsOneWidget);
+      expect(find.text('Referred to Admin Review'), findsOneWidget);
     });
 
     testWidgets('IdUploadScreen supports Files upload and shows uploaded filename', (tester) async {
