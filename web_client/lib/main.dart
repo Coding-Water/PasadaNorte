@@ -365,7 +365,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   int _analyticsSubTab = 0;
   bool _isSyncing = false;
   String _selectedDateRange = 'Jun 2026';
-  String _activeRbacRole = 'minc_admin'; // 'minc_admin' or 'toda_admin' (Pillar 4 RBAC)
 
   // Live Supabase Synced Fare State (City Ord. 2023-005)
   double _regFirstKm = 20.00;
@@ -2628,60 +2627,86 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                   ),
                 ),
 
-                // Bottom Admin Profile Footer with RBAC Role Switcher
+                // Bottom MINC Admin Profile Footer + Logout Button
                 Divider(height: 1, color: Colors.grey.shade200),
                 Padding(
                   padding: const EdgeInsets.all(14.0),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      CircleAvatar(
-                        radius: 17,
-                        backgroundColor: _activeRbacRole == 'minc_admin' ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
-                        child: Text(
-                          _activeRbacRole == 'minc_admin' ? 'MC' : 'TD',
-                          style: TextStyle(
-                            color: _activeRbacRole == 'minc_admin' ? const Color(0xFF15803D) : const Color(0xFFB45309),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Laoag City LGU', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                            InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _activeRbacRole = _activeRbacRole == 'minc_admin' ? 'toda_admin' : 'minc_admin';
-                                });
-                              },
-                              child: Row(
-                                children: [
-                                  Text(
-                                    _activeRbacRole == 'minc_admin' ? 'MINC Super-Admin' : 'TODA Dispatcher',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.bold,
-                                      color: _activeRbacRole == 'minc_admin' ? const Color(0xFF15803D) : const Color(0xFFD97706),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.sync_alt_rounded, size: 11, color: Colors.grey),
-                                ],
+                      Row(
+                        children: [
+                          const CircleAvatar(
+                            radius: 17,
+                            backgroundColor: Color(0xFFDCFCE7),
+                            child: Text(
+                              'MC',
+                              style: TextStyle(
+                                color: Color(0xFF15803D),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Laoag City LGU',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                Text(
+                                  Supabase.instance.client.auth.currentUser
+                                          ?.email ??
+                                      'MINC Admin',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF15803D),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
                       ),
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _activeRbacRole == 'minc_admin' ? const Color(0xFF10B981) : Colors.orange,
-                          shape: BoxShape.circle,
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          await Supabase.instance.client.auth.signOut();
+                        },
+                        icon: const Icon(Icons.logout_rounded, size: 15),
+                        label: const Text(
+                          'Log Out',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFDC2626),
+                          side: const BorderSide(color: Color(0xFFFECACA)),
+                          backgroundColor: const Color(0xFFFEF2F2),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
                     ],
@@ -8528,8 +8553,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   // 8. FARE MATRIX VIEW (City Ordinance 2023-005)
   // ===========================================================================
   Widget _buildFareMatrixView() {
-    final isMincAdmin = _activeRbacRole == 'minc_admin';
-
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -8554,20 +8577,20 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: isMincAdmin ? const Color(0xFFDCFCE7) : const Color(0xFFFEF2F2),
+                  color: const Color(0xFFDCFCE7),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: isMincAdmin ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5)),
+                  border: Border.all(color: const Color(0xFF86EFAC)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    Icon(isMincAdmin ? Icons.verified_user_rounded : Icons.lock_outline_rounded, size: 14, color: isMincAdmin ? const Color(0xFF15803D) : const Color(0xFFDC2626)),
-                    const SizedBox(width: 6),
+                    Icon(Icons.verified_user_rounded, size: 14, color: Color(0xFF15803D)),
+                    SizedBox(width: 6),
                     Text(
-                      isMincAdmin ? 'RBAC: MINC Super-Admin (Editable)' : 'RBAC: TODA Dispatcher (Read-Only)',
+                      'RBAC: MINC Admin (Editable)',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: isMincAdmin ? const Color(0xFF15803D) : const Color(0xFFDC2626),
+                        color: Color(0xFF15803D),
                       ),
                     ),
                   ],
@@ -8575,46 +8598,23 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               ),
             ],
           ),
-          if (!isMincAdmin) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFDE68A)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 18),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'City Ordinance No. 2023-005 rates are legally binding. Terminal TODA dispatchers have read-only inspection access; rate updates are restricted to MINC Municipal Super-Administrators.',
-                      style: TextStyle(fontSize: 11.5, color: Color(0xFF92400E)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(child: _buildFareInput('Regular First 1.0 km (₱)', _regFirstKm, (v) => _regFirstKm = v, enabled: isMincAdmin)),
+              Expanded(child: _buildFareInput('Regular First 1.0 km (₱)', _regFirstKm, (v) => _regFirstKm = v)),
               const SizedBox(width: 16),
-              Expanded(child: _buildFareInput('Discounted First 1.0 km (20% Student/PWD)', _discFirstKm, (v) => _discFirstKm = v, enabled: isMincAdmin)),
+              Expanded(child: _buildFareInput('Discounted First 1.0 km (20% Student/PWD)', _discFirstKm, (v) => _discFirstKm = v)),
               const SizedBox(width: 16),
-              Expanded(child: _buildFareInput('Succeeding Per-Km Rate (₱)', _succKm, (v) => _succKm = v, enabled: isMincAdmin)),
+              Expanded(child: _buildFareInput('Succeeding Per-Km Rate (₱)', _succKm, (v) => _succKm = v)),
             ],
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: isMincAdmin ? _saveFareGuideToSupabase : null,
-            icon: Icon(isMincAdmin ? Icons.cloud_upload_rounded : Icons.lock_rounded),
-            label: Text(isMincAdmin ? 'Save Fare Updates to Cloud' : 'Locked (Requires MINC Admin)'),
+            onPressed: _saveFareGuideToSupabase,
+            icon: const Icon(Icons.cloud_upload_rounded),
+            label: const Text('Save Fare Updates to Cloud'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: isMincAdmin ? const Color(0xFF059669) : Colors.grey.shade400,
+              backgroundColor: const Color(0xFF059669),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             ),
