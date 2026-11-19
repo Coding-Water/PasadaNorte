@@ -266,7 +266,7 @@ class SystemNotificationService {
   // ===============================================
   // NOTIFICATION CHECKLIST:
   // [x] Native Android Notification Center alerts (Approved / Resubmission / Rejected)
-  // [ ] TODO: Add SMS notification later for Approved, Resubmission, and Rejected decisions
+  // [x] SMS notifications dispatched via send-sms-notice for Approved, Resubmission, and Rejected decisions
 
   /// Fires a native Android/iOS notification when MINC updates a driver's application status.
   static Future<void> showDriverApplicationNotification({

@@ -14,7 +14,7 @@ import 'phone_input_screen.dart';
 
 // NOTIFICATION CHECKLIST:
 // [x] Native Android Notification Center alerts (Approved / Resubmission / Rejected)
-// [ ] TODO: Add SMS notification later for Approved, Resubmission, and Rejected decisions
+// [x] SMS notifications dispatched via send-sms-notice for Approved, Resubmission, and Rejected decisions
 
 class DriverApplicationStatusScreen extends StatefulWidget {
   final String phoneNumber;

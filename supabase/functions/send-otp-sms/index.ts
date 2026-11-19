@@ -1,3 +1,4 @@
+// @ts-nocheck -- Deno Edge Function (uses esm.sh URL imports & Deno global)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   corsHeaders,
