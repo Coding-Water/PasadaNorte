@@ -53,11 +53,10 @@
   - Retained intentionally for local 2-device Driver + Passenger testing (does not affect production APKs or web builds).
 
 ### 10. Free OpenStreetMap & Curated Ilocos Norte Geocoding (Zero-Fee Architecture)
-- [x] **No Paid Google Maps Platform Dependency**: PasadaNorte intentionally stays on `flutter_map` (OpenStreetMap / Esri Satellite tiles) + Valhalla/OSRM road routing + Supabase `laoag_locations` at **\$0/month**.
-- [ ] **Optional Free Accuracy Upgrades (No API Fees)**:
-  - Add a **Places & Landmarks Pin Editor** in `web_client` backed by `public.laoag_locations` so MINC/TODA admins can fix inaccurate pins visually on Satellite view and sync instantly to all mobile clients.
-  - Filter low-confidence (`score < 70`) / generic `Locality` geocoder hits in `location_service.dart` and prioritize `laoag_locations` + `toda_terminals` during reverse geocoding.
-  - Add Grab-style **Drag-to-Pin Crosshair + Satellite Toggle + Pickup Landmark Note** on the passenger booking map, and contribute missing Laoag POIs directly to `openstreetmap.org`.
+- [x] **No Paid Google Maps Platform Dependency**: PasadaNorte stays on `flutter_map` + Valhalla/OSRM road routing + Supabase `laoag_locations` at **\$0/month**.
+- [x] **Geocoder Accuracy Fix (`location_service.dart`)**: Filters low-confidence (`score < 70`) and generic `Locality`/`Postal` ArcGIS fallback pins, reads ArcGIS `PlaceName`/`ShortLabel`, checks Supabase `laoag_locations` + `toda_terminals` first on tap/search, and adds `photon.komoot.io/reverse` as a free reverse fallback.
+- [x] **Web Admin Places & Landmarks Pin Editor (`web_client/lib/main.dart`)**: Dedicated **Places & Landmarks** screen backed by `public.laoag_locations` + `20261119200000_laoag_locations_admin_rls.sql` so MINC admins can drop/fix rooftop pins visually on Satellite view and sync instantly to mobile apps with no APK rebuild.
+- [x] **Passenger Pickup Landmark / Note (`rider_map_booking_screen.dart` & `bill_summary_checkout_screen.dart`)**: Optional landmark note field shown on checkout and forwarded directly to drivers alongside the pickup pin.
 
 ---
 
@@ -74,4 +73,4 @@
 | **Face Bio Auto-Pass & Passenger Reuse** | `web_client/lib/main.dart`, `face_verification_service.dart` | Auto-marks `face_bio_scan` Pass when `>= 85.0%` + Passenger Applications side-by-side ID/Selfie inspection active | Auto-mark `face_bio_scan` Pass in web checklist when `>= 85%` | 🟢 Completed |
 | **Decision Notifications (Android + SMS)** | `system_notification_service.dart`, `send-sms-notice`, `sms-gate-status` | Native Android alerts + live SMS Gateway alerts + 60s `lastSeen` gateway health monitor active | Android + SMS alerts for Approved / Resubmit / Rejected | 🟢 Completed |
 | **Dual-Emulator Launch Config** | `.vscode/launch.json` | Kept intentionally for local Driver + Passenger multi-emulator testing (excluded from release builds) | Keep for dev workflow | 🟢 Kept Intentionally |
-| **Maps & Geocoding (Zero-Fee OSM)** | `location_service.dart`, `rider_map_booking_screen.dart`, `laoag_locations` | Free OSM (`flutter_map`) + Valhalla/OSRM + `laoag_locations` active at \$0/mo (paid Google Maps excluded) | Optional free pin-accuracy upgrades (Admin Pin Editor, Drag-Pin + Landmark Note, OSM edits) | 🟢 Zero-Fee Active / 🟡 Free Accuracy Upgrades Optional |
+| **Maps & Geocoding (Zero-Fee)** | `location_service.dart`, `rider_map_booking_screen.dart`, `web_client/lib/main.dart`, `laoag_locations` | Geocoder filters, Supabase landmark priority, Photon reverse backup, Web Admin **Places & Landmarks Pin Editor**, and Passenger Pickup Landmark Note active at \$0/mo | Accurate zero-fee address search, pin curation, and landmark notes | 🟢 Completed |

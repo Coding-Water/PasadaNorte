@@ -13,6 +13,7 @@ class BillSummaryCheckoutScreen extends StatefulWidget {
   final int durationMinutes;
   final FareBreakdown fareBreakdown;
   final String deliveryNotes;
+  final String pickupLandmarkNote;
 
   const BillSummaryCheckoutScreen({
     super.key,
@@ -23,6 +24,7 @@ class BillSummaryCheckoutScreen extends StatefulWidget {
     required this.durationMinutes,
     required this.fareBreakdown,
     this.deliveryNotes = '',
+    this.pickupLandmarkNote = '',
   });
 
   @override
@@ -61,12 +63,21 @@ class _BillSummaryCheckoutScreenState extends State<BillSummaryCheckoutScreen> {
   ];
 
   void _confirmAndDispatch() {
+    final landmark = widget.pickupLandmarkNote.trim();
+    final effectivePickup = landmark.isEmpty
+        ? widget.pickupPoint
+        : LocationPoint(
+            latitude: widget.pickupPoint.latitude,
+            longitude: widget.pickupPoint.longitude,
+            name: '${widget.pickupPoint.name} • Landmark: $landmark',
+            zoneCode: widget.pickupPoint.zoneCode,
+          );
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => LiveRideTrackingScreen(
           passengerName: widget.fullName,
-          pickupPoint: widget.pickupPoint,
+          pickupPoint: effectivePickup,
           dropoffPoint: widget.dropoffPoint,
           routePolyline: widget.routePolyline,
           fareBreakdown: widget.fareBreakdown,
@@ -163,6 +174,28 @@ class _BillSummaryCheckoutScreenState extends State<BillSummaryCheckoutScreen> {
                         ),
                       ],
                     ),
+                    if (widget.pickupLandmarkNote.trim().isNotEmpty) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Divider(height: 1),
+                      ),
+                      Row(
+                        children: [
+                          const Icon(Icons.flag_rounded, color: AppTheme.accentEmerald, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Pickup Landmark: ${widget.pickupLandmarkNote.trim()}',
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.primarySlate,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (widget.deliveryNotes.trim().isNotEmpty) ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8.0),

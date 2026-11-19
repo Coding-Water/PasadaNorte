@@ -481,11 +481,138 @@ class LocationService {
   static const String googleMapsApiKey =
       String.fromEnvironment('GOOGLE_MAPS_API_KEY');
 
-  // Multi-source Live Geocoding Search bounded strictly to Laoag City & San Nicolas Metro
-  // 1. Tokenized keyword scoring against our verified 2,400+ place Laoag City Dataset (All 80 Barangays + OSM + ArcGIS/Google POIs)
-  // 2. Google Maps Places / Geocoding API (when GOOGLE_MAPS_API_KEY is configured)
-  // 3. Esri ArcGIS World Geocoder Live API (commercial street & POI database aligned with Google Maps, no API key required)
-  // 4. Live Photon (Komoot) & Nominatim OpenStreetMap Geocoders bounded strictly to Laoag City
+  // Cached Supabase admin-curated landmarks (laoag_locations + toda_terminals)
+  static List<LocationPoint> _cachedSupabaseLandmarks = const [];
+  static DateTime? _supabaseLandmarksFetchedAt;
+
+  static void invalidateLandmarkCache() {
+    _cachedSupabaseLandmarks = const [];
+    _supabaseLandmarksFetchedAt = null;
+  }
+
+  static bool _isGenericAreaName(String label) {
+    final norm = label.toLowerCase().trim();
+    return norm.isEmpty ||
+        norm == 'laoag' ||
+        norm == 'laoag city' ||
+        norm == 'ilocos norte' ||
+        norm == 'philippines';
+  }
+
+  static Future<List<LocationPoint>> _getSupabaseCuratedLandmarks() async {
+    if (!SupabaseService.isConnected) return _cachedSupabaseLandmarks;
+    final now = DateTime.now();
+    if (_supabaseLandmarksFetchedAt != null &&
+        now.difference(_supabaseLandmarksFetchedAt!) <
+            const Duration(minutes: 5) &&
+        _cachedSupabaseLandmarks.isNotEmpty) {
+      return _cachedSupabaseLandmarks;
+    }
+    final sb = SupabaseService.client;
+    if (sb == null) return _cachedSupabaseLandmarks;
+
+    final List<LocationPoint> fetched = [];
+    try {
+      final rows = await sb
+          .from('laoag_locations')
+          .select('name, latitude, longitude, zone_code')
+          .limit(500)
+          .timeout(const Duration(seconds: 3));
+      for (final row in rows) {
+        final name = (row['name'] as String?)?.trim() ?? '';
+        final lat = (row['latitude'] as num?)?.toDouble();
+        final lng = (row['longitude'] as num?)?.toDouble();
+        final zc = (row['zone_code'] as String?) ?? 'Z01';
+        if (name.isNotEmpty &&
+            lat != null &&
+            lng != null &&
+            isWithinServiceArea(lat, lng)) {
+          fetched.add(
+            LocationPoint(
+              name: name,
+              latitude: lat,
+              longitude: lng,
+              zoneCode: zc,
+            ),
+          );
+        }
+      }
+    } catch (_) {}
+
+    try {
+      final terminals = await sb
+          .from('toda_terminals')
+          .select('terminal_name, toda_code, latitude, longitude')
+          .timeout(const Duration(seconds: 3));
+      for (final t in terminals) {
+        final name = (t['terminal_name'] as String?)?.trim() ?? '';
+        final code = (t['toda_code'] as String?)?.trim() ?? 'TODA';
+        final lat = (t['latitude'] as num?)?.toDouble();
+        final lng = (t['longitude'] as num?)?.toDouble();
+        if (name.isNotEmpty &&
+            lat != null &&
+            lng != null &&
+            isWithinServiceArea(lat, lng)) {
+          fetched.add(
+            LocationPoint(
+              name: '$name ($code Pila)',
+              latitude: lat,
+              longitude: lng,
+              zoneCode: code,
+            ),
+          );
+        }
+      }
+    } catch (_) {}
+
+    if (fetched.isNotEmpty) {
+      _cachedSupabaseLandmarks = fetched;
+      _supabaseLandmarksFetchedAt = now;
+    }
+    return _cachedSupabaseLandmarks;
+  }
+
+  static int _scorePlaceMatch(
+    LocationPoint place,
+    String lowerQuery,
+    List<String> queryTokens,
+  ) {
+    final lowerName = place.name.toLowerCase();
+    final normalizedName =
+        lowerName.replaceAll(RegExp(r'[^\w\s]'), ' ').trim();
+
+    int score = 0;
+    if (lowerName.startsWith(lowerQuery) ||
+        normalizedName.startsWith(lowerQuery)) {
+      score += 120;
+    } else if (lowerName.contains(lowerQuery) ||
+        normalizedName.contains(lowerQuery)) {
+      score += 90;
+    }
+
+    if (queryTokens.isNotEmpty) {
+      int matchedTokens = 0;
+      for (final token in queryTokens) {
+        if (normalizedName.contains(token)) {
+          matchedTokens++;
+        }
+      }
+      if (matchedTokens == queryTokens.length) {
+        score += 60 + (matchedTokens * 10);
+      } else if (queryTokens.length > 1 &&
+          matchedTokens >= queryTokens.length - 1 &&
+          matchedTokens >= 2) {
+        score += 25;
+      }
+    }
+    return score;
+  }
+
+  // Multi-source Live Geocoding Search bounded strictly to Ilocos Norte service area:
+  // 1. Supabase admin-curated laoag_locations + toda_terminals (instant sync from Web Pin Editor)
+  // 2. Local curated gazetteer (80 Laoag Barangays + Ilocos Norte Municipal Hubs)
+  // 3. Esri ArcGIS World Geocoder (score >= 70, excluding generic city-centroid fallbacks)
+  // 4. Live Photon (Komoot) & Nominatim OpenStreetMap Geocoders bounded strictly to Ilocos Norte
   static Future<List<LocationPoint>> searchPlacesInLaoag(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
@@ -511,7 +638,7 @@ class LocationService {
       }
     }
 
-    // 1. Supabase Cloud Database Search (laoag_locations table with pg_trgm index)
+    // 1. Supabase Cloud Database Search (admin-curated laoag_locations + toda_terminals)
     if (SupabaseService.isConnected) {
       try {
         final sb = SupabaseService.client;
@@ -527,7 +654,10 @@ class LocationService {
             final lat = (row['latitude'] as num?)?.toDouble();
             final lng = (row['longitude'] as num?)?.toDouble();
             final zc = (row['zone_code'] as String?) ?? 'Z01';
-            if (name != null && lat != null && lng != null) {
+            if (name != null &&
+                lat != null &&
+                lng != null &&
+                isWithinServiceArea(lat, lng)) {
               addUnique(
                 LocationPoint(
                   name: name,
@@ -540,6 +670,22 @@ class LocationService {
           }
         }
       } catch (_) {}
+
+      // Multi-token fuzzy ranking across cached Supabase landmarks & TODA Pilas
+      final curated = await _getSupabaseCuratedLandmarks();
+      if (curated.isNotEmpty && combinedResults.length < 25) {
+        final scoredCurated = <MapEntry<int, LocationPoint>>[];
+        for (final place in curated) {
+          final score = _scorePlaceMatch(place, lowerQuery, queryTokens);
+          if (score > 0) {
+            scoredCurated.add(MapEntry(score, place));
+          }
+        }
+        scoredCurated.sort((a, b) => b.key.compareTo(a.key));
+        for (final entry in scoredCurated.take(25)) {
+          addUnique(entry.value);
+        }
+      }
     }
 
     // 2. Local Gazetteer Offline Fallback (80 Laoag Barangays + Ilocos Norte Municipal Hubs)
@@ -549,35 +695,7 @@ class LocationService {
         ...laoagComprehensiveGazetteer,
         ...ilocosNorteMunicipalHubs,
       ]) {
-        final lowerName = place.name.toLowerCase();
-        final normalizedName =
-            lowerName.replaceAll(RegExp(r'[^\w\s]'), ' ').trim();
-
-        int score = 0;
-        if (lowerName.startsWith(lowerQuery) ||
-            normalizedName.startsWith(lowerQuery)) {
-          score += 120;
-        } else if (lowerName.contains(lowerQuery) ||
-            normalizedName.contains(lowerQuery)) {
-          score += 90;
-        }
-
-        if (queryTokens.isNotEmpty) {
-          int matchedTokens = 0;
-          for (final token in queryTokens) {
-            if (normalizedName.contains(token)) {
-              matchedTokens++;
-            }
-          }
-          if (matchedTokens == queryTokens.length) {
-            score += 60 + (matchedTokens * 10);
-          } else if (queryTokens.length > 1 &&
-              matchedTokens >= queryTokens.length - 1 &&
-              matchedTokens >= 2) {
-            score += 25;
-          }
-        }
-
+        final score = _scorePlaceMatch(place, lowerQuery, queryTokens);
         if (score > 0) {
           scoredLocal.add(MapEntry(score, place));
         }
@@ -589,7 +707,7 @@ class LocationService {
       }
     }
 
-    // 3. Google Maps Places / Geocoding API (if GOOGLE_MAPS_API_KEY is configured)
+    // 3. Google Maps Places / Geocoding API (optional; disabled by default at $0/mo)
     if (googleMapsApiKey.isNotEmpty && combinedResults.length < 12) {
       final gmapsQuery = lowerQuery.contains('laoag')
           ? trimmed
@@ -639,7 +757,7 @@ class LocationService {
       } catch (_) {}
     }
 
-    // 3. Esri ArcGIS World Geocoder Live API (bounded to Ilocos Norte service area)
+    // 4. Esri ArcGIS World Geocoder Live API (filtered for score >= 70 & non-generic pins)
     if (combinedResults.length < 12) {
       final arcgisQuery = lowerQuery.contains('ilocos norte') ||
               lowerQuery.contains('laoag')
@@ -651,7 +769,7 @@ class LocationService {
         '&searchExtent=$serviceMinLng,$serviceMinLat,$serviceMaxLng,$serviceMaxLat'
         '&location=120.5938,18.1960'
         '&countryCode=PHL'
-        '&outFields=PlaceName,Place_addr,StAddr,Nbrhd,City'
+        '&outFields=PlaceName,Place_addr,StAddr,Nbrhd,City,Addr_type,Score'
         '&maxLocations=10'
         '&f=json',
       );
@@ -661,8 +779,19 @@ class LocationService {
         if (resp.statusCode == 200) {
           final data = jsonDecode(resp.body) as Map<String, dynamic>;
           final candidates = data['candidates'] as List<dynamic>? ?? [];
+          const blockedGenericTypes = {
+            'Locality',
+            'Subadmin',
+            'Admin',
+            'Postal',
+            'PostalExt',
+            'Country',
+          };
           for (final raw in candidates) {
             final cMap = raw as Map<String, dynamic>;
+            final double score = (cMap['score'] as num?)?.toDouble() ?? 0.0;
+            if (score < 70.0) continue;
+
             final loc = cMap['location'] as Map<String, dynamic>?;
             if (loc == null) continue;
             final lon = (loc['x'] as num?)?.toDouble();
@@ -672,11 +801,14 @@ class LocationService {
               continue;
             }
             final attrs = cMap['attributes'] as Map<String, dynamic>? ?? {};
+            final addrType = (attrs['Addr_type']?.toString() ?? '').trim();
+            if (blockedGenericTypes.contains(addrType)) continue;
+
             final pName = (attrs['PlaceName']?.toString() ??
                     cMap['address']?.toString() ??
                     '')
                 .trim();
-            if (pName.isEmpty || pName.toLowerCase() == 'laoag city') continue;
+            if (_isGenericAreaName(pName)) continue;
             final stAddr = (attrs['StAddr']?.toString() ?? '').trim();
             final nbrhd = (attrs['Nbrhd']?.toString() ?? '').trim();
             final city = (attrs['City']?.toString() ?? '').trim();
@@ -707,7 +839,7 @@ class LocationService {
       } catch (_) {}
     }
 
-    // 4. Live Photon OSM Geocoder (bounded to Ilocos Norte service area)
+    // 5. Live Photon OSM Geocoder (bounded to Ilocos Norte service area)
     if (combinedResults.length < 10) {
       final photonUri = Uri.parse(
         'https://photon.komoot.io/api/'
@@ -737,12 +869,14 @@ class LocationService {
               continue;
             }
 
-            final pName = props['name']?.toString() ?? '';
-            final pStreet = props['street']?.toString() ?? '';
-            final pDistrict = props['district']?.toString() ??
-                props['locality']?.toString() ??
+            final pName = props['name']?.toString().trim() ?? '';
+            final pStreet = props['street']?.toString().trim() ?? '';
+            final pDistrict = props['district']?.toString().trim() ??
+                props['locality']?.toString().trim() ??
                 '';
-            final pCity = props['city']?.toString() ?? 'Laoag City';
+            final pCity = props['city']?.toString().trim() ?? 'Laoag City';
+
+            if (_isGenericAreaName(pName) && pStreet.isEmpty) continue;
 
             final labelParts = <String>[
               if (pName.isNotEmpty) pName,
@@ -765,7 +899,7 @@ class LocationService {
       } catch (_) {}
     }
 
-    // 5. Live Nominatim Geocoder bounded strictly to Ilocos Norte (countrycodes=ph, bounded=1)
+    // 6. Live Nominatim Geocoder bounded strictly to Ilocos Norte (countrycodes=ph, bounded=1)
     if (combinedResults.length < 10) {
       final searchQuery = lowerQuery.contains('ilocos norte') ||
               lowerQuery.contains('laoag')
@@ -806,6 +940,10 @@ class LocationService {
             }
 
             final formattedName = _formatDetailedAddress(map, trimmed);
+            if (_isGenericAreaName(formattedName) &&
+                !_isGenericAreaName(lowerQuery)) {
+              continue;
+            }
             addUnique(
               LocationPoint(
                 name: formattedName,
@@ -822,12 +960,30 @@ class LocationService {
     return combinedResults;
   }
 
-  // Reverse geocodes any tapped coordinate on the map into its real street / barangay address
+  // Reverse geocodes any tapped coordinate on the map into its real landmark / street / barangay address
   static Future<String> reverseGeocodePoint(double lat, double lng) async {
-    // 1. Check if the point is within 40 meters of a known landmark in our 2,400+ place verified dataset
+    // 1. Prioritize live Supabase admin-curated landmarks (laoag_locations + toda_terminals) within 60m
+    LocationPoint? nearestSupabase;
+    double minSupabaseDistKm = double.infinity;
+    final supabaseLandmarks = await _getSupabaseCuratedLandmarks();
+    for (final p in supabaseLandmarks) {
+      final d = calculateDistanceInKm(lat, lng, p.latitude, p.longitude);
+      if (d < minSupabaseDistKm) {
+        minSupabaseDistKm = d;
+        nearestSupabase = p;
+      }
+    }
+    if (nearestSupabase != null && minSupabaseDistKm <= 0.06) {
+      return nearestSupabase.name;
+    }
+
+    // 2. Check local curated dataset (Laoag gazetteer + Ilocos Norte hubs) within 40 meters
     LocationPoint? nearestKnown;
     double minKnownDistKm = double.infinity;
-    for (final p in laoagComprehensiveGazetteer) {
+    for (final p in [
+      ...laoagComprehensiveGazetteer,
+      ...ilocosNorteMunicipalHubs,
+    ]) {
       final d = calculateDistanceInKm(lat, lng, p.latitude, p.longitude);
       if (d < minKnownDistKm) {
         minKnownDistKm = d;
@@ -838,7 +994,7 @@ class LocationService {
       return nearestKnown.name;
     }
 
-    // 2. Try Esri ArcGIS Reverse Geocoder (commercial street & POI database)
+    // 3. Try Esri ArcGIS Reverse Geocoder (prioritizing PlaceName & ShortLabel over generic street)
     try {
       final arcgisRevUri = Uri.parse(
         'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode'
@@ -850,16 +1006,35 @@ class LocationService {
         final arcData = jsonDecode(arcResp.body) as Map<String, dynamic>;
         final addr = arcData['address'] as Map<String, dynamic>?;
         if (addr != null) {
+          final placeName = (addr['PlaceName']?.toString() ?? '').trim();
+          final shortLabel = (addr['ShortLabel']?.toString() ?? '').trim();
           final addressLabel = (addr['Address']?.toString() ?? '').trim();
           final nbrhd = (addr['Neighborhood']?.toString() ?? '').trim();
           final city = (addr['City']?.toString() ?? 'Laoag City').trim();
-          final parts = <String>[
-            if (addressLabel.isNotEmpty) addressLabel,
-            if (nbrhd.isNotEmpty &&
-                !addressLabel.toLowerCase().contains(nbrhd.toLowerCase()))
-              nbrhd,
-            if (city.isNotEmpty) city,
-          ];
+
+          final primary = placeName.isNotEmpty
+              ? placeName
+              : (shortLabel.isNotEmpty ? shortLabel : addressLabel);
+
+          final parts = <String>[];
+          if (primary.isNotEmpty && !_isGenericAreaName(primary)) {
+            parts.add(primary);
+          }
+          if (addressLabel.isNotEmpty &&
+              !parts.any(
+                  (p) => p.toLowerCase().contains(addressLabel.toLowerCase()))) {
+            parts.add(addressLabel);
+          }
+          if (nbrhd.isNotEmpty &&
+              !parts
+                  .any((p) => p.toLowerCase().contains(nbrhd.toLowerCase()))) {
+            parts.add(nbrhd);
+          }
+          if (city.isNotEmpty &&
+              !parts
+                  .any((p) => p.toLowerCase().contains(city.toLowerCase()))) {
+            parts.add(city);
+          }
           if (parts.length >= 2) {
             return parts.take(3).join(', ');
           }
@@ -867,7 +1042,7 @@ class LocationService {
       }
     } catch (_) {}
 
-    // 3. Try Nominatim Reverse Geocoder
+    // 4. Try Nominatim Reverse Geocoder (OSM)
     final uri = Uri.parse(
       'https://nominatim.openstreetmap.org/reverse'
       '?lat=$lat&lon=$lng&format=jsonv2&zoom=18&addressdetails=1',
@@ -886,16 +1061,58 @@ class LocationService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final formatted = _formatDetailedAddress(data, '');
-        if (formatted.isNotEmpty) {
+        if (formatted.isNotEmpty && !_isGenericAreaName(formatted)) {
           return formatted;
         }
       }
     } catch (_) {}
 
-    if (nearestKnown != null && minKnownDistKm <= 0.8) {
-      return minKnownDistKm <= 0.08
-          ? nearestKnown.name
-          : 'Near ${nearestKnown.name}';
+    // 5. Try Photon Reverse Geocoder (free OSM backup when Nominatim is sparse or rate-limited)
+    try {
+      final photonRevUri = Uri.parse(
+        'https://photon.komoot.io/reverse?lat=$lat&lon=$lng',
+      );
+      final pResp =
+          await http.get(photonRevUri).timeout(const Duration(seconds: 3));
+      if (pResp.statusCode == 200) {
+        final pData = jsonDecode(pResp.body) as Map<String, dynamic>;
+        final features = pData['features'] as List<dynamic>? ?? [];
+        if (features.isNotEmpty) {
+          final props =
+              (features.first as Map<String, dynamic>)['properties']
+                  as Map<String, dynamic>?;
+          if (props != null) {
+            final pName = (props['name']?.toString() ?? '').trim();
+            final pStreet = (props['street']?.toString() ?? '').trim();
+            final pDistrict = (props['district']?.toString() ??
+                    props['locality']?.toString() ??
+                    '')
+                .trim();
+            final pCity = (props['city']?.toString() ?? 'Laoag City').trim();
+            final parts = <String>[
+              if (pName.isNotEmpty && !_isGenericAreaName(pName)) pName,
+              if (pStreet.isNotEmpty && pStreet != pName) pStreet,
+              if (pDistrict.isNotEmpty && pDistrict != pName) pDistrict,
+              if (pCity.isNotEmpty) pCity,
+            ];
+            if (parts.isNotEmpty) {
+              return parts.take(3).join(', ');
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 6. Nearest known landmark fallback (preferring admin-curated Supabase landmark)
+    final bestFallback = (nearestSupabase != null &&
+            minSupabaseDistKm <= minKnownDistKm)
+        ? nearestSupabase
+        : nearestKnown;
+    final bestDist = min(minSupabaseDistKm, minKnownDistKm);
+    if (bestFallback != null && bestDist <= 0.8) {
+      return bestDist <= 0.08
+          ? bestFallback.name
+          : 'Near ${bestFallback.name}';
     }
 
     return 'Pinned Location (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})';

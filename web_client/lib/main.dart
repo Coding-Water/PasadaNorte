@@ -541,6 +541,15 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   final MapController _laoagMapController = MapController();
   bool _isLaoagMapSatellite = false;
 
+  // Places & Landmarks Pin Editor State (synced live with public.laoag_locations)
+  final List<Map<String, dynamic>> _curatedPlaces = [];
+  final MapController _placesPinMapController = MapController();
+  bool _isPlacesMapSatellite = true;
+  bool _isLoadingPlaces = false;
+  String _placesSearchQuery = '';
+  String _placesZoneFilter = 'All';
+  String? _selectedPlaceKey;
+
   // Driver Applications & Vehicle Compliance Queue (populated live from Supabase)
   String _driverAppFilter = 'All'; // 'All', 'submitted', 'under_review', 'approved', 'resubmission_requested', 'rejected'
   String _driverAppSearchQuery = '';
@@ -2037,6 +2046,9 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         }
       } catch (_) {}
 
+      // Sync curated places & landmarks (public.laoag_locations) for Pin Editor
+      await _loadCuratedPlacesFromSupabase();
+
       // Sync live 1-hour completed_trips per zone
       try {
         final oneHourAgo =
@@ -2577,6 +2589,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       _buildSidebarItem(Icons.psychology_outlined, 'ML Demand Forecasts'),
                       _buildSidebarItem(Icons.map_outlined, 'Laoag 10-Zone Map & Heatmap'),
                       _buildSidebarItem(Icons.local_taxi_outlined, 'TODA Stations'),
+                      _buildSidebarItem(Icons.pin_drop_outlined, 'Places & Landmarks'),
                       _buildSidebarItem(Icons.payments_outlined, 'Fare Matrix (Ord. 2023-005)'),
 
                       const SizedBox(height: 16),
@@ -2979,6 +2992,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return Icons.map_outlined;
       case 'TODA Stations':
         return Icons.local_taxi_outlined;
+      case 'Places & Landmarks':
+        return Icons.pin_drop_outlined;
       case 'Fare Matrix (Ord. 2023-005)':
         return Icons.payments_outlined;
       case 'Directory & Drivers':
@@ -3017,6 +3032,8 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return _buildLaoagMapCanvasView();
       case 'TODA Stations':
         return _buildTodaStationsView();
+      case 'Places & Landmarks':
+        return _buildPlacesPinEditorView();
       case 'Fare Matrix (Ord. 2023-005)':
         return _buildFareMatrixView();
       case 'Directory & Drivers':
@@ -7619,6 +7636,890 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
           );
         }),
         ],
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // 7B. PLACES & LANDMARKS PIN EDITOR (Synced with public.laoag_locations)
+  // ===========================================================================
+  static const List<String> _placeZoneCodeOptions = [
+    'Z01',
+    'Z02',
+    'Z03',
+    'Z04',
+    'Z05',
+    'Z06',
+    'Z07',
+    'Z08',
+    'Z09',
+    'Z10',
+    'IN-SN',
+    'IN-BAC',
+    'IN-SAR',
+    'IN-PAO',
+    'IN-BAT',
+    'IN-CUR',
+    'IN-DIN',
+    'IN-SOL',
+    'IN-PAS',
+    'IN-BUR',
+    'IN-BAN',
+    'IN-PAG',
+    'PIN',
+  ];
+
+  String _placeKeyOf(Map<String, dynamic> place) {
+    final id = place['id']?.toString() ?? '';
+    if (id.isNotEmpty) return 'id_$id';
+    return '${place['name']}_${place['latitude']}_${place['longitude']}';
+  }
+
+  Future<void> _loadCuratedPlacesFromSupabase({String? serverSearch}) async {
+    if (mounted) {
+      setState(() => _isLoadingPlaces = true);
+    }
+    try {
+      final q = (serverSearch ?? '').trim();
+      final List<dynamic> rows;
+      if (q.isNotEmpty) {
+        rows = await Supabase.instance.client
+            .from('laoag_locations')
+            .select()
+            .ilike('name', '%$q%')
+            .order('name', ascending: true)
+            .limit(400);
+      } else {
+        rows = await Supabase.instance.client
+            .from('laoag_locations')
+            .select()
+            .order('name', ascending: true)
+            .limit(600);
+      }
+      if (!mounted) return;
+      setState(() {
+        _curatedPlaces
+          ..clear()
+          ..addAll(rows.map((r) => Map<String, dynamic>.from(r as Map)));
+        _isLoadingPlaces = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingPlaces = false);
+      }
+    }
+  }
+
+  Future<void> _openCreateOrEditPlacePinDialog({
+    Map<String, dynamic>? existing,
+    LatLng? initialPin,
+  }) async {
+    final isEditing = existing != null;
+    final originalName = (existing?['name'] ?? '').toString();
+    final nameCtrl = TextEditingController(text: originalName);
+    String selectedZone =
+        (existing?['zone_code']?.toString().trim().isNotEmpty ?? false)
+            ? existing!['zone_code'].toString().trim()
+            : 'Z01';
+    if (!_placeZoneCodeOptions.contains(selectedZone)) {
+      selectedZone = 'PIN';
+    }
+    LatLng pinnedPoint = initialPin ??
+        LatLng(
+          (existing?['latitude'] as num?)?.toDouble() ?? 18.1960,
+          (existing?['longitude'] as num?)?.toDouble() ?? 120.5937,
+        );
+    bool isSatellite = true;
+    bool isSaving = false;
+    final dialogMapController = MapController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Row(
+            children: [
+              const Icon(Icons.pin_drop_rounded, color: Color(0xFF059669)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isEditing
+                      ? 'Edit Place / Landmark Pin'
+                      : 'Add Place / Landmark Pin',
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 660,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: nameCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Place / Landmark Name & Barangay',
+                            hintText:
+                                'e.g. Mariano Marcos State University (CIT), P. Gomez St, Laoag',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 1,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedZone,
+                          decoration: const InputDecoration(
+                            labelText: 'Zone / Town',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _placeZoneCodeOptions
+                              .map((z) => DropdownMenuItem(value: z, child: Text(z)))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => selectedZone = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Tap the exact rooftop, gate, or street corner on Satellite view:',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        'Lat: ${pinnedPoint.latitude.toStringAsFixed(6)}, Lng: ${pinnedPoint.longitude.toStringAsFixed(6)}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 320,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Stack(
+                        children: [
+                          FlutterMap(
+                            mapController: dialogMapController,
+                            options: MapOptions(
+                              initialCenter: pinnedPoint,
+                              initialZoom: 18.0,
+                              minZoom: 11.0,
+                              maxZoom: 21.0,
+                              interactionOptions: const InteractionOptions(
+                                flags: InteractiveFlag.all,
+                              ),
+                              onTap: (_, latLng) {
+                                setDialogState(() => pinnedPoint = latLng);
+                              },
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: isSatellite
+                                    ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                                    : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                                userAgentPackageName: 'com.pasadanorte.web_admin',
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: pinnedPoint,
+                                    width: 46,
+                                    height: 46,
+                                    alignment: Alignment.topCenter,
+                                    child: const Icon(
+                                      Icons.location_on_rounded,
+                                      color: Color(0xFFDC2626),
+                                      size: 42,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: Material(
+                              color: Colors.white.withValues(alpha: 0.94),
+                              elevation: 2,
+                              borderRadius: BorderRadius.circular(8),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () =>
+                                    setDialogState(() => isSatellite = !isSatellite),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  child: Text(
+                                    isSatellite ? 'Streets' : 'Satellite',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 10,
+                            bottom: 10,
+                            child: _buildMapZoomControls(
+                              dialogMapController,
+                              centerTarget: pinnedPoint,
+                              minZoom: 11.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      final cleanName = nameCtrl.text.trim();
+                      if (cleanName.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please enter a place or landmark name.'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                        return;
+                      }
+                      setDialogState(() => isSaving = true);
+                      try {
+                        final payload = {
+                          'name': cleanName,
+                          'latitude': double.parse(
+                            pinnedPoint.latitude.toStringAsFixed(6),
+                          ),
+                          'longitude': double.parse(
+                            pinnedPoint.longitude.toStringAsFixed(6),
+                          ),
+                          'zone_code': selectedZone,
+                        };
+                        final List<dynamic> saved;
+                        if (isEditing) {
+                          final existingId = existing['id'];
+                          if (existingId != null) {
+                            saved = await Supabase.instance.client
+                                .from('laoag_locations')
+                                .update(payload)
+                                .eq('id', existingId)
+                                .select();
+                          } else {
+                            saved = await Supabase.instance.client
+                                .from('laoag_locations')
+                                .update(payload)
+                                .eq('name', originalName)
+                                .select();
+                          }
+                        } else {
+                          saved = await Supabase.instance.client
+                              .from('laoag_locations')
+                              .insert(payload)
+                              .select();
+                        }
+                        if (saved.isEmpty) {
+                          throw Exception(
+                            'No row updated (ensure 20261119200000_laoag_locations_admin_rls.sql is applied).',
+                          );
+                        }
+                        if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                        await _loadCuratedPlacesFromSupabase(
+                          serverSearch: _placesSearchQuery,
+                        );
+                        if (mounted) {
+                          setState(() {
+                            _selectedPlaceKey = _placeKeyOf(
+                              Map<String, dynamic>.from(saved.first as Map),
+                            );
+                          });
+                          try {
+                            _placesPinMapController.move(pinnedPoint, 17.5);
+                          } catch (_) {}
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isEditing
+                                    ? 'Updated pin for "$cleanName" — live on mobile search!'
+                                    : 'Added pin "$cleanName" — live on mobile search!',
+                              ),
+                              backgroundColor: const Color(0xFF059669),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isSaving = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to save place pin: $e'),
+                              backgroundColor: const Color(0xFFDC2626),
+                            ),
+                          );
+                        }
+                      }
+                    },
+              icon: isSaving
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.save_rounded, size: 17),
+              label: Text(isEditing ? 'Save Pin Changes' : 'Save New Pin'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    nameCtrl.dispose();
+  }
+
+  Future<void> _deletePlacePin(Map<String, dynamic> place) async {
+    final name = (place['name'] ?? 'Place').toString();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Place Pin?'),
+        content: Text(
+          'Permanently remove "$name" from public.laoag_locations? Mobile search will no longer suggest this custom pin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final id = place['id'];
+      final List<dynamic> deleted;
+      if (id != null) {
+        deleted = await Supabase.instance.client
+            .from('laoag_locations')
+            .delete()
+            .eq('id', id)
+            .select();
+      } else {
+        deleted = await Supabase.instance.client
+            .from('laoag_locations')
+            .delete()
+            .eq('name', name)
+            .select();
+      }
+      if (deleted.isEmpty) {
+        throw Exception(
+          'Delete blocked by RLS (apply 20261119200000_laoag_locations_admin_rls.sql).',
+        );
+      }
+      await _loadCuratedPlacesFromSupabase(serverSearch: _placesSearchQuery);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Deleted "$name" from laoag_locations.'),
+            backgroundColor: const Color(0xFF059669),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete place pin: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildPlacesPinEditorView() {
+    final q = _placesSearchQuery.trim().toLowerCase();
+    final filteredPlaces = _curatedPlaces.where((p) {
+      final zone = (p['zone_code'] ?? '').toString();
+      if (_placesZoneFilter != 'All' && zone != _placesZoneFilter) {
+        return false;
+      }
+      if (q.isEmpty) return true;
+      final name = (p['name'] ?? '').toString().toLowerCase();
+      return name.contains(q) || zone.toLowerCase().contains(q);
+    }).toList();
+
+    final mapPins = filteredPlaces.take(80).toList();
+    final selectedPin = filteredPlaces.cast<Map<String, dynamic>?>().firstWhere(
+          (p) => p != null && _placeKeyOf(p) == _selectedPlaceKey,
+          orElse: () => null,
+        );
+    if (selectedPin != null &&
+        !mapPins.any((p) => _placeKeyOf(p) == _selectedPlaceKey)) {
+      mapPins.add(selectedPin);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Places & Landmarks Pin Editor',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Fix misplaced addresses or add missing Laoag & Ilocos Norte landmarks on Satellite view. Changes sync instantly to all passenger apps at \$0 cost.',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: _isLoadingPlaces
+                  ? null
+                  : () => _loadCuratedPlacesFromSupabase(
+                        serverSearch: _placesSearchQuery,
+                      ),
+              icon: _isLoadingPlaces
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded, size: 17),
+              label: const Text('Reload DB'),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () => _openCreateOrEditPlacePinDialog(),
+              icon: const Icon(Icons.add_location_alt_rounded, size: 18),
+              label: const Text('Add Place Pin'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Interactive Satellite / Streets Map (tap anywhere to quick-add a pin)
+        Container(
+          width: double.infinity,
+          height: 360,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _placesPinMapController,
+                  options: MapOptions(
+                    initialCenter: const LatLng(18.1960, 120.5937),
+                    initialZoom: 15.0,
+                    minZoom: 10.5,
+                    maxZoom: 21.0,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all,
+                    ),
+                    onTap: (_, latLng) => _openCreateOrEditPlacePinDialog(
+                      initialPin: latLng,
+                    ),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: _isPlacesMapSatellite
+                          ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                          : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                      userAgentPackageName: 'com.pasadanorte.web_admin',
+                    ),
+                    MarkerLayer(
+                      markers: mapPins.map((p) {
+                        final lat = (p['latitude'] as num?)?.toDouble();
+                        final lng = (p['longitude'] as num?)?.toDouble();
+                        if (lat == null || lng == null) {
+                          return const Marker(
+                            point: LatLng(18.1960, 120.5937),
+                            child: SizedBox.shrink(),
+                          );
+                        }
+                        final key = _placeKeyOf(p);
+                        final isSelected = key == _selectedPlaceKey;
+                        return Marker(
+                          point: LatLng(lat, lng),
+                          width: isSelected ? 44 : 30,
+                          height: isSelected ? 44 : 30,
+                          alignment: Alignment.topCenter,
+                          child: Tooltip(
+                            message:
+                                '${p['name']} (${p['zone_code'] ?? 'PIN'}) — click to edit',
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() => _selectedPlaceKey = key);
+                                _openCreateOrEditPlacePinDialog(existing: p);
+                              },
+                              child: Icon(
+                                Icons.location_on_rounded,
+                                size: isSelected ? 40 : 28,
+                                color: isSelected
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFFDC2626),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black12, blurRadius: 6),
+                      ],
+                    ),
+                    child: Text(
+                      'Tap anywhere on map to add pin • Showing ${mapPins.length} of ${filteredPlaces.length} places',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Material(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    elevation: 2,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => setState(
+                        () => _isPlacesMapSatellite = !_isPlacesMapSatellite,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                        child: Text(
+                          _isPlacesMapSatellite ? 'Streets' : 'Satellite',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: _buildMapZoomControls(
+                    _placesPinMapController,
+                    centerTarget: const LatLng(18.1960, 120.5937),
+                    minZoom: 10.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Search & Zone Filter Toolbar
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText:
+                        'Search place, barangay, school, hospital, or street...',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 19),
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onChanged: (val) => setState(() => _placesSearchQuery = val),
+                  onSubmitted: (val) =>
+                      _loadCuratedPlacesFromSupabase(serverSearch: val),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 150,
+                child: DropdownButtonFormField<String>(
+                  initialValue: _placesZoneFilter,
+                  isDense: true,
+                  decoration: InputDecoration(
+                    labelText: 'Zone Filter',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  items: ['All', ..._placeZoneCodeOptions]
+                      .map((z) => DropdownMenuItem(value: z, child: Text(z)))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) setState(() => _placesZoneFilter = val);
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: _isLoadingPlaces
+                    ? null
+                    : () => _loadCuratedPlacesFromSupabase(
+                          serverSearch: _placesSearchQuery,
+                        ),
+                icon: const Icon(Icons.cloud_sync_rounded, size: 16),
+                label: const Text('Query Supabase'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Curated Places List
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: filteredPlaces.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 28),
+                  child: Center(
+                    child: Text(
+                      _isLoadingPlaces
+                          ? 'Loading places from Supabase laoag_locations...'
+                          : 'No matching places found. Tap anywhere on the map or click "Add Place Pin" to create one.',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Showing ${filteredPlaces.take(60).length} of ${filteredPlaces.length} curated places (public.laoag_locations)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...filteredPlaces.take(60).map((place) {
+                      final key = _placeKeyOf(place);
+                      final isSelected = key == _selectedPlaceKey;
+                      final lat = (place['latitude'] as num?)?.toDouble() ?? 0.0;
+                      final lng =
+                          (place['longitude'] as num?)?.toDouble() ?? 0.0;
+                      final zone = (place['zone_code'] ?? 'PIN').toString();
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFFECFDF5)
+                              : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF059669)
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE0F2FE),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                zone,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0369A1),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    (place['name'] ?? '').toString(),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                  Text(
+                                    'Lat ${lat.toStringAsFixed(6)}, Lng ${lng.toStringAsFixed(6)}',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Focus on Map',
+                              icon: const Icon(
+                                Icons.my_location_rounded,
+                                size: 18,
+                                color: Color(0xFF059669),
+                              ),
+                              onPressed: () {
+                                setState(() => _selectedPlaceKey = key);
+                                try {
+                                  _placesPinMapController.move(
+                                    LatLng(lat, lng),
+                                    18.0,
+                                  );
+                                } catch (_) {}
+                              },
+                            ),
+                            IconButton(
+                              tooltip: 'Edit Pin & Name',
+                              icon: const Icon(
+                                Icons.edit_location_alt_outlined,
+                                size: 18,
+                                color: Color(0xFF0284C7),
+                              ),
+                              onPressed: () => _openCreateOrEditPlacePinDialog(
+                                existing: place,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Delete Pin',
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 18,
+                                color: Color(0xFFDC2626),
+                              ),
+                              onPressed: () => _deletePlacePin(place),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+        ),
       ],
     );
   }

@@ -31,6 +31,8 @@ class RiderMapBookingScreen extends StatefulWidget {
 class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
   final MapController _mapController = MapController();
   final TextEditingController _deliveryNotesController = TextEditingController();
+  final TextEditingController _pickupLandmarkController =
+      TextEditingController();
 
   // Pickup is automatically the user's live GPS location; dropoff starts as null
   // so no destination is ever hardcoded or predicted for the passenger.
@@ -71,6 +73,7 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
   @override
   void dispose() {
     _deliveryNotesController.dispose();
+    _pickupLandmarkController.dispose();
     super.dispose();
   }
 
@@ -298,6 +301,7 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
           durationMinutes: _estimatedDurationMinutes,
           fareBreakdown: _fareBreakdown!,
           deliveryNotes: _deliveryNotesController.text,
+          pickupLandmarkNote: _pickupLandmarkController.text.trim(),
         ),
       ),
     );
@@ -311,7 +315,7 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
     final double bottomSheetHeight = bottomInset +
         152.0 +
         (isDelivery ? 54.0 : 0.0) +
-        (hasDestination ? 66.0 : 0.0);
+        (hasDestination ? 124.0 : 0.0);
 
     return Scaffold(
       body: Stack(
@@ -634,9 +638,26 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
                       ),
                     ],
 
-                    // Show "Book Ride" CTA only after the passenger chooses a destination
+                    // Show Pickup Landmark Note + "Book Ride" CTA once a destination is selected
                     if (hasDestination) ...[
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _pickupLandmarkController,
+                        textInputAction: TextInputAction.done,
+                        decoration: const InputDecoration(
+                          hintText:
+                              'Pickup landmark / note (optional, e.g. Beside 7-Eleven, blue gate)',
+                          prefixIcon: Icon(
+                            Icons.flag_outlined,
+                            size: 18,
+                            color: AppTheme.accentEmerald,
+                          ),
+                          contentPadding:
+                              EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        ),
+                        style: const TextStyle(fontSize: 12.5),
+                      ),
+                      const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
