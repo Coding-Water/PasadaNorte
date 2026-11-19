@@ -30,11 +30,11 @@
 - [x] **LTO / MINC OCR Validation**: Connect automated license number validation or manual TODA admin verification workflow before enabling driver duty toggle.
 
 ### 5. SMS OTP Gateway & Security (Remove Static OTP)
-- [x] **Remove Static OTP Bypasses**: Remove `123456` and `202601` static fallback in `mobile_client/lib/features/auth/views/otp_verification_screen.dart`.
+- [x] **Remove Static OTP Bypasses**: Remove `123456`, `202601`, and local `+639123456789` test bypasses from `mobile_client/lib/features/auth/views/phone_input_screen.dart` and `otp_verification_screen.dart`.
 - [x] **Remove Auto-Fill Static OTP Buttons**: Remove testing auto-fill widgets and testing banners.
-- [ ] **Activate SMS Gateway (Spare Android + SMSGate or PH Gateway)**:
-  - **Academic / Low-Cost Option (SMSGate + Unli-Text SIM):** Install [SMSGate](https://github.com/capcom6/android-sms-gateway/releases) on a spare Android phone with a PH Unli-All-Net Text promo, enable Cloud Server, disable Battery Optimization, and store `SMSGATE_USER` / `SMSGATE_PASS` in a Supabase Edge Function (`send-sms`) calling `https://api.sms-gate.app/3rdparty/v1/message`.
-  - **Production Gateway Option:** Connect Semaphore / PhilSMS / Twilio via Supabase Edge Function with 60-second cooldown and 3-attempt lockout.
+- [x] **Activate SMS Gateway (Spare Android + SMSGate Cloud Server)**:
+  - Deployed `send-otp-sms`, `verify-otp-sms`, and `sms-gate-status` (with `lastSeen` heartbeat check) Edge Functions backed by `capcom6/android-sms-gateway` (`api.sms-gate.app`) and `supabase/migrations/20261119_sms_otp_codes.sql` (SHA-256 hashed OTPs, expiry, and attempt limits).
+  - Enforced phone number uniqueness across `public.users` and `public.driver_applications` (`20261119_unique_phone_constraints.sql`).
 
 ### 6. Input Validation & Name Sanitization
 - [x] **Reject Numbers & Special Symbols in Name Fields**: Update `Last Name`, `First Name`, and `Middle Name` inputs in `mobile_client/lib/features/auth/views/user_details_input_screen.dart` to reject numeric digits (`0-9`) and invalid symbols (`!`, `>`, `?`, `@`, `#`, `$`, `%`, etc.) using `FilteringTextInputFormatter` and form `validator` rules (allowing only letters including `ñ`/`Ñ`, spaces, hyphens `-`, and apostrophes `'`).
@@ -46,7 +46,7 @@
 
 ### 8. Application Decision Notifications (Android + SMS)
 - [x] **Native Android Notification Center Alerts**: Dispatch local Android notifications for Driver and Passenger Application decisions (Approved, Resubmission Requested, Rejected).
-- [ ] **SMS Decision Alerts (SMSGate / PH Gateway)**: Trigger the `send-sms` Edge Function (backed by Spare Android SMSGate or Semaphore) alongside Android Notification Center alerts for Approved, Resubmission Requested, and Rejected decisions.
+- [x] **SMS Decision Alerts (Android SMS Gateway)**: Deployed `send-sms-notice` Edge Function and wired `web_client` admin actions (Approved, Resubmission Requested, Rejected, and Document Renewal Grace notices) to send live SMS alerts alongside Android Notification Center alerts.
 
 ### 9. Multi-Emulator Testing Launch Configuration (Remove After Deployment)
 - [ ] **Remove Dual-Emulator Compound Launch Profile in `.vscode/launch.json`**:
@@ -77,13 +77,13 @@
 
 | Item | Component | Current Development State | Production Requirement | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Face Scan** | `face_scan_screen.dart` | Skip removed & physical camera permission enforced | Mandatory real camera 1:1 match | 🟢 Completed |
+| **Face Scan** | `face_scan_screen.dart`, `face_verification_service.dart` | Live blink/head-turn liveness + MobileFaceNet 192D TFLite embeddings + `0.0%` blank-photo check + R8 keep rules | Mandatory real camera 1:1 match (no manual bypass) | 🟢 Completed |
 | **Service Geofence & Inter-Town Fares** | `rider_map_booking_screen.dart`, `location_service.dart`, `fare_calculator_service.dart` | Hard Ilocos Norte geofence, `CameraConstraint.contain`, and two-tier intra-city / inter-municipality fare matrix active | Hard Ilocos Norte geofence + two-tier intra-city / inter-municipality tricycle fare matrix | 🟢 Completed |
 | **Tricycle Photos** | `id_upload_screen.dart` | Skip removed & 4-angle uploads enforced | Mandatory 4-angle physical photos | 🟢 Completed |
 | **Driver ID Type & Duty Gate** | `id_upload_screen.dart`, `driver_map_duty_screen.dart` | Professional Driver's License + MINC approval required before going online | Strict MINC approval before duty active | 🟢 Completed |
-| **SMS OTP** | `otp_verification_screen.dart` | Static OTP `123456` / `202601` removed; wired to Supabase Auth | Activate SMSGate (`api.sms-gate.app`) or PH SMS gateway | 🟡 Static Bypass Removed / Gateway Pending |
+| **SMS OTP & Phone Uniqueness** | `otp_verification_screen.dart`, `phone_input_screen.dart`, `send-otp-sms`, `verify-otp-sms` | Static & test bypasses removed; live Android SMS Gateway OTP + unique `phone_number` enforcement active | Live SMS OTP verification with rate/attempt limits | 🟢 Completed |
 | **Name Validation** | `user_details_input_screen.dart` | Digits & symbols blocked in Last, First, and Middle Name fields + tests added | Block numbers & invalid symbols (`!`, `>`, `?`, etc.) | 🟢 Completed |
-| **Face Bio Auto-Pass & Passenger Reuse** | `web_client/lib/main.dart`, `face_verification_service.dart` | Auto-marks `face_bio_scan` Pass when `>= 85.0%` + Passenger Applications active | Auto-mark `face_bio_scan` Pass in web checklist when `>= 85%` | 🟢 Completed |
-| **Decision Notifications** | `system_notification_service.dart` | Native Android Notification Center alerts active for Drivers & Passengers | Add SMS alerts via SMSGate / PH gateway for Approved / Resubmit / Rejected | 🟡 Android Done / SMS Pending |
-| **Dual-Emulator Launch Config** | `.vscode/launch.json` | Compound profile `"Run Both Phones (Driver + Passenger)"` (`emulator-5554` + `emulator-5556`) enabled for 2-device testing | Remove after deployment / defense testing | 🟡 Remove After Deployment |
-| **Google Maps Addresses & Map SDK** | `location_service.dart`, `rider_map_booking_screen.dart` | Uses OSM (`flutter_map`) + mixed ArcGIS/Nominatim/gazetteer; Google Geocoding optional & reverse geocoding missing | Proxy Google Places (New) + Geocoding via Supabase Edge Function with caching & migrate to `google_maps_flutter` | 🟡 Pending Implementation |
+| **Face Bio Auto-Pass & Passenger Reuse** | `web_client/lib/main.dart`, `face_verification_service.dart` | Auto-marks `face_bio_scan` Pass when `>= 85.0%` + Passenger Applications side-by-side ID/Selfie inspection active | Auto-mark `face_bio_scan` Pass in web checklist when `>= 85%` | 🟢 Completed |
+| **Decision Notifications (Android + SMS)** | `system_notification_service.dart`, `send-sms-notice`, `sms-gate-status` | Native Android alerts + live SMS Gateway alerts + 60s `lastSeen` gateway health monitor active | Android + SMS alerts for Approved / Resubmit / Rejected | 🟢 Completed |
+| **Dual-Emulator Launch Config** | `.vscode/launch.json` | Compound profile `"Run Both Phones (Driver + Passenger)"` (`emulator-5554` + `emulator-5556`) enabled for 2-device testing | Remove after deployment / defense testing | 🟡 Optional Post-Defense Cleanup |
+| **Google Maps Addresses & Map SDK** | `location_service.dart`, `rider_map_booking_screen.dart` | Uses OSM (`flutter_map`) + Ilocos Norte gazetteer/geocoding ($0/mo); Google Maps Platform optional | Optional future migration to Google Places (New) + `google_maps_flutter` | 🟡 Optional Future Upgrade |
