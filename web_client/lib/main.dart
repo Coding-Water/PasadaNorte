@@ -2565,7 +2565,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           );
                         }(),
                       ),
-                      _buildSidebarItem(Icons.verified_user_outlined, '1:1 Face Verifications'),
                       _buildSidebarItem(Icons.settings_outlined, 'Settings & Compliance'),
                     ],
                   ),
@@ -2947,8 +2946,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return Icons.how_to_reg_outlined;
       case 'Passenger Applications':
         return Icons.badge_outlined;
-      case '1:1 Face Verifications':
-        return Icons.verified_user_outlined;
       case 'Settings & Compliance':
         return Icons.settings_outlined;
       default:
@@ -2987,8 +2984,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
         return _buildDriverApplicationsView();
       case 'Passenger Applications':
         return _buildPassengerApplicationsView();
-      case '1:1 Face Verifications':
-        return _buildFaceVerificationsView();
       case 'Settings & Compliance':
         return _buildSettingsView();
       default:
@@ -7724,210 +7719,6 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
   }
 
   // ===========================================================================
-  // 9. 1:1 FACE VERIFICATIONS VIEW (ISO/IEC 19795-1 & RA 10173 COMPLIANT)
-  // ===========================================================================
-  Widget _buildFaceVerificationsView() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('1:1 Face Verification Review Queue (ISO/IEC 19795-1)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 6),
-        const Text('Biometric verification queue ensuring zero fake accounts and validated student/senior/driver discounts.', style: TextStyle(color: Colors.grey)),
-        const SizedBox(height: 14),
-
-        // RA 10173 & NPC Circular 2023-03 Biometric Compliance Banner
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0FDF4),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF86EFAC)),
-          ),
-          child: const Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.privacy_tip_rounded, color: Color(0xFF16A34A), size: 28),
-              SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'RA 10173 (Data Privacy Act of 2012) & NPC Circular 2023-03 Compliance',
-                      style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF15803D), fontSize: 13.5),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      '• Private Storage Buckets: Driver licenses, OSCA/PWD IDs, and face scans reside in non-public Supabase Storage vaults (`id-documents`, `biometric-vault`). Direct public links are blocked.\n'
-                      '• Time-Expiring Signed URLs: Inspectors review sensitive ID documents via HMAC-signed tokens with 300-second expiration.\n'
-                      '• Mandatory Auto-Purge: Raw facial capture staging images are permanently deleted upon approval; only 512-d encrypted vector templates are retained.',
-                      style: TextStyle(color: Color(0xFF166534), fontSize: 12, height: 1.4),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 18),
-        ..._flaggedVerifications.map((item) {
-          final isApproved = item['status'] == 'approved';
-          final phone = item['phone_number'] as String? ?? '';
-          final maskedPhone = _maskPhoneNumber(phone);
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: isApproved ? const Color(0xFFD1FAE5) : const Color(0xFFFEF3C7),
-                      child: Icon(
-                        isApproved ? Icons.check_circle_rounded : Icons.pending_rounded,
-                        color: isApproved ? const Color(0xFF059669) : const Color(0xFFD97706),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                '${item['name']} • ${item['role'].toString().toUpperCase()}',
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.shade50,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  item['idType'] ?? '',
-                                  style: TextStyle(fontSize: 10.5, color: Colors.blue.shade800, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Masked Contact: $maskedPhone • Cosine Similarity: ${item['similarity']}% (Latency: ${item['latency']}s)',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isApproved ? const Color(0xFFD1FAE5) : const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        item['status'].toString().toUpperCase(),
-                        style: TextStyle(
-                          color: isApproved ? const Color(0xFF059669) : const Color(0xFFB45309),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      item['note'] ?? '',
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 11.5, fontStyle: FontStyle.italic),
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            _showFaceBioScanDialog(
-                              context,
-                              {
-                                'full_name': item['name'],
-                                'phone_number': item['phone_number'],
-                                'role': item['role'] ?? 'rider',
-                                'profile_photo_url': item['profile_photo_url'] ?? '',
-                                'id_photo_url': item['id_photo_url'] ?? '',
-                                'id_type': item['idType'] ?? '',
-                              },
-                              item,
-                            );
-                          },
-                          icon: const Icon(Icons.face_retouching_natural_rounded, size: 14),
-                          label: const Text('Inspect 1:1 ID & Live Selfie', style: TextStyle(fontSize: 11.5)),
-                        ),
-                        if (!isApproved)
-                          ElevatedButton.icon(
-                            onPressed: () async {
-                              const approvalNote =
-                                  'Approved by MINC Admin (1:1 ID & Live Selfie verified).';
-                              final itemPhone = (item['phone_number'] ?? '').toString();
-                              try {
-                                await Supabase.instance.client.from('users').update({
-                                  'verification_status': 'approved',
-                                  'admin_review_note': approvalNote,
-                                }).eq('phone_number', itemPhone);
-                              } catch (_) {}
-
-                              await _dispatchAdminSmsNotice(
-                                phoneNumber: itemPhone,
-                                message:
-                                    'PasadaNorte MINC: Hi ${item['name'] ?? 'User'}, your 1:1 ID & face verification is APPROVED.',
-                              );
-
-                              if (!mounted) return;
-                              setState(() {
-                                item['status'] = 'approved';
-                                item['note'] = approvalNote;
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Verification for ${item['name']} approved in Supabase & SMS dispatched.'),
-                                  backgroundColor: const Color(0xFF059669),
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF059669),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                            icon: const Icon(Icons.verified_rounded, size: 14),
-                            label: const Text('Approve & Notify', style: TextStyle(fontSize: 11.5)),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  // ===========================================================================
   // 9B. DRIVER APPLICATIONS & VEHICLE COMPLIANCE VIEW (LAOAG MINC CODE)
   // ===========================================================================
   Widget _buildDriverApplicationsView() {
@@ -9860,15 +9651,35 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           ? 'Approve Passenger'
                           : 'Pass ID & Face Scan First',
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade300,
-                      disabledForegroundColor: Colors.grey.shade600,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        disabledForegroundColor: Colors.grey.shade600,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _permanentlyDeletePassengerApp(pax),
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          size: 16, color: Colors.red),
+                      label: const Text(
+                        'Delete Passenger',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.red.shade300),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
           ],
         ),
       ),
