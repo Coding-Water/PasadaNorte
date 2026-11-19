@@ -9871,16 +9871,46 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     if (confirm != true) return;
 
     try {
-      await Supabase.instance.client
+      final deletedRows = await Supabase.instance.client
           .from('users')
           .delete()
-          .eq('phone_number', pax['phone_number']);
-    } catch (_) {}
+          .eq('phone_number', pax['phone_number'])
+          .select();
+      if (deletedRows.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Delete blocked by Supabase RLS (run migration 20261119_users_admin_delete_policy.sql).',
+              ),
+              backgroundColor: Color(0xFFDC2626),
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete passenger in Supabase: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+      return;
+    }
 
     if (mounted) {
       setState(() {
         _flaggedVerifications.remove(pax);
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${pax['name']} permanently deleted from Supabase.'),
+          backgroundColor: const Color(0xFF059669),
+        ),
+      );
     }
   }
 
