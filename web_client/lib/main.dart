@@ -519,7 +519,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
 
   // MINC Registered Drivers & Operators Directory (populated from approved Supabase driver applications)
   final List<Map<String, dynamic>> _driverDirectory = [];
-  final List<Map<String, dynamic>> _mockSmsDispatchLogs = [];
+  final List<Map<String, dynamic>> _smsDispatchLogs = [];
 
   // TODA Pila FIFO Queue Inspector Data (populated live from terminal queues)
   final Map<String, List<Map<String, dynamic>>> _pilaQueues = {
@@ -5284,13 +5284,10 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     required int graceDays,
   }) async {
     final now = DateTime.now();
-    // graceDays == 0 is a 10-second mock timer for testing Yellow -> Red expiry
-    final graceUntil = graceDays == 0
-        ? now.add(const Duration(seconds: 10))
-        : now.add(Duration(days: graceDays));
-    final graceLabel = graceDays == 0
-        ? '10s mock timer'
-        : '$graceDays-day grace period until ${graceUntil.toIso8601String().split('T').first}';
+    final effectiveGraceDays = graceDays < 1 ? 7 : graceDays;
+    final graceUntil = now.add(Duration(days: effectiveGraceDays));
+    final graceLabel =
+        '$effectiveGraceDays-day grace period until ${graceUntil.toIso8601String().split('T').first}';
     final graceDateLabel = graceUntil.toIso8601String().split('T').first;
     final docNames = issues.map((i) => i['label']).join(', ');
     final phone = (driver['phone'] ?? '').toString();
@@ -5304,11 +5301,11 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
       driver['renewal_grace_until'] = graceUntil.toIso8601String();
       driver['renewal_notice_sent_at'] = now.toIso8601String();
       driver['renewal_notice_message'] = smsMessage;
-      driver['status'] = graceDays == 0 ? 'Grace Timer (10s)' : 'Grace Period ($graceDays d)';
-      _mockSmsDispatchLogs.insert(0, {
+      driver['status'] = 'Grace Period ($effectiveGraceDays d)';
+      _smsDispatchLogs.insert(0, {
         'driver': name,
         'phone': phone,
-        'graceDays': graceDays,
+        'graceDays': effectiveGraceDays,
         'graceUntil': graceDateLabel,
         'message': smsMessage,
         'sentAt': now.toIso8601String(),
@@ -5322,7 +5319,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     _ensureGraceTimerRunning();
 
     final driverId = driver['id']?.toString() ?? '';
-    if (driver['isMockTest'] != true && driverId.isNotEmpty) {
+    if (driverId.isNotEmpty) {
       try {
         await Supabase.instance.client.from('driver_applications').update({
           'renewal_grace_until': graceUntil.toIso8601String(),
@@ -5398,7 +5395,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     });
 
     final driverId = driver['id']?.toString() ?? '';
-    if (driver['isMockTest'] != true && driverId.isNotEmpty) {
+    if (driverId.isNotEmpty) {
       try {
         await Supabase.instance.client.from('driver_applications').update({
           'license_expiry_date': validUntil,
@@ -6115,9 +6112,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                             },
                             icon: const Icon(Icons.sms_outlined, size: 16),
                             label: Text(
-                              selectedGraceDays == 0
-                                  ? 'Notify All (10s Test)'
-                                  : 'Notify All ($selectedGraceDays d Grace)',
+                              'Notify All ($selectedGraceDays d Grace)',
                               style: const TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ),
@@ -6164,7 +6159,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
               ),
             ),
             const SizedBox(width: 12),
-            // Right-Side Admin Expiry Notification & Mock Test Trigger
+            // Right-Side Admin Expiry Notification Banner
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
