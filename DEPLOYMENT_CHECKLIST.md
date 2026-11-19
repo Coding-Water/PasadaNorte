@@ -59,6 +59,18 @@
     ]
     ```
 
+### 10. Official Google Maps Addresses & Map Migration
+- [ ] **Google Cloud Billing, Quotas & Budget Alerts**:
+  - Enable Google Cloud billing with **Places API (New)**, **Geocoding API**, and **Maps SDK for Android/iOS/JS** (stays within the $0/month free tier for small testing groups of 2 drivers + 4–5 passengers).
+  - Set hard daily quota caps (e.g., `300/day` for Places and `300/day` for Geocoding) and a `$1` budget alert to prevent unexpected charges.
+- [ ] **Supabase Edge Function Proxy & Caching (`laoag_locations`)**:
+  - Proxy Google Places Autocomplete (New) (with session tokens, `locationRestriction` to Laoag/Ilocos Norte, and Essentials-only field masks) and Google Reverse Geocoding through a Supabase Edge Function so `GOOGLE_MAPS_API_KEY` is never exposed in the client APK.
+  - Cache resolved landmarks/addresses in `laoag_locations` so repeat lookups are served from Supabase at zero API cost.
+- [ ] **Update `LocationService` (`mobile_client/lib/core/services/location_service.dart`)**:
+  - Route `searchPlacesInLaoag` and `reverseGeocodePoint` through the Google Places / Geocoding Edge Function as the primary source (with local gazetteer as offline fallback) and never trigger reverse geocoding on live GPS stream ticks.
+- [ ] **Migrate Map UI to `google_maps_flutter` (ToS & Visual Alignment)**:
+  - Replace `flutter_map` (OSM tiles) on passenger/driver map screens with `google_maps_flutter` so map labels match Google-sourced addresses 1:1 and comply with Google Maps Platform Terms of Service.
+
 ---
 
 ## 📋 Status Tracking Table
@@ -74,3 +86,4 @@
 | **Face Bio Auto-Pass & Passenger Reuse** | `web_client/lib/main.dart`, `face_verification_service.dart` | Auto-marks `face_bio_scan` Pass when `>= 85.0%` + Passenger Applications active | Auto-mark `face_bio_scan` Pass in web checklist when `>= 85%` | 🟢 Completed |
 | **Decision Notifications** | `system_notification_service.dart` | Native Android Notification Center alerts active for Drivers & Passengers | Add SMS alerts via SMSGate / PH gateway for Approved / Resubmit / Rejected | 🟡 Android Done / SMS Pending |
 | **Dual-Emulator Launch Config** | `.vscode/launch.json` | Compound profile `"Run Both Phones (Driver + Passenger)"` (`emulator-5554` + `emulator-5556`) enabled for 2-device testing | Remove after deployment / defense testing | 🟡 Remove After Deployment |
+| **Google Maps Addresses & Map SDK** | `location_service.dart`, `rider_map_booking_screen.dart` | Uses OSM (`flutter_map`) + mixed ArcGIS/Nominatim/gazetteer; Google Geocoding optional & reverse geocoding missing | Proxy Google Places (New) + Geocoding via Supabase Edge Function with caching & migrate to `google_maps_flutter` | 🟡 Pending Implementation |
