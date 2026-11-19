@@ -7860,61 +7860,49 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                       children: [
                         OutlinedButton.icon(
                           onPressed: () {
-                            final mockToken = 'sign-hmac-${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Row(
-                                  children: [
-                                    Icon(Icons.vpn_key_rounded, color: Color(0xFF0284C7)),
-                                    SizedBox(width: 8),
-                                    Text('Time-Expiring Signed Document URL', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                                content: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'RA 10173 Protected Access: This link expires in 300 seconds (5 minutes). Access is logged in biometric_access_logs.',
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: SelectableText(
-                                        'https://csqikuvfvfqfhhjptwcl.supabase.co/storage/v1/object/sign/id-documents/${item['id']}/license_scan.jpg?token=$mockToken&expires_in=300',
-                                        style: const TextStyle(fontSize: 10.5, fontFamily: 'monospace'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: const Text('Close'),
-                                  ),
-                                ],
-                              ),
+                            _showFaceBioScanDialog(
+                              context,
+                              {
+                                'full_name': item['name'],
+                                'phone_number': item['phone_number'],
+                                'role': item['role'] ?? 'rider',
+                                'profile_photo_url': item['profile_photo_url'] ?? '',
+                                'id_photo_url': item['id_photo_url'] ?? '',
+                                'id_type': item['idType'] ?? '',
+                              },
+                              item,
                             );
                           },
-                          icon: const Icon(Icons.key_rounded, size: 14),
-                          label: const Text('Inspect ID (5m Signed Token)', style: TextStyle(fontSize: 11.5)),
+                          icon: const Icon(Icons.face_retouching_natural_rounded, size: 14),
+                          label: const Text('Inspect 1:1 ID & Live Selfie', style: TextStyle(fontSize: 11.5)),
                         ),
                         if (!isApproved)
                           ElevatedButton.icon(
-                            onPressed: () {
+                            onPressed: () async {
+                              const approvalNote =
+                                  'Approved by MINC Admin (1:1 ID & Live Selfie verified).';
+                              final itemPhone = (item['phone_number'] ?? '').toString();
+                              try {
+                                await Supabase.instance.client.from('users').update({
+                                  'verification_status': 'approved',
+                                  'admin_review_note': approvalNote,
+                                }).eq('phone_number', itemPhone);
+                              } catch (_) {}
+
+                              await _dispatchAdminSmsNotice(
+                                phoneNumber: itemPhone,
+                                message:
+                                    'PasadaNorte MINC: Hi ${item['name'] ?? 'User'}, your 1:1 ID & face verification is APPROVED.',
+                              );
+
+                              if (!mounted) return;
                               setState(() {
                                 item['status'] = 'approved';
-                                item['note'] = 'Approved by MINC Admin. Raw staging images purged from private storage.';
+                                item['note'] = approvalNote;
                               });
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Verification for ${item['name']} approved. Raw staging images purged per NPC Circular 2023-03.'),
+                                  content: Text('Verification for ${item['name']} approved in Supabase & SMS dispatched.'),
                                   backgroundColor: const Color(0xFF059669),
                                 ),
                               );
@@ -7925,7 +7913,7 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             ),
                             icon: const Icon(Icons.verified_rounded, size: 14),
-                            label: const Text('Approve & Purge Photos', style: TextStyle(fontSize: 11.5)),
+                            label: const Text('Approve & Notify', style: TextStyle(fontSize: 11.5)),
                           ),
                       ],
                     ),
@@ -10114,81 +10102,176 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
     final latency = (faceMatch?['latency'] as num?)?.toDouble();
     final status = (faceMatch?['status'] ?? 'pending').toString();
     final note = (faceMatch?['note'] ?? 'Live 1:1 liveness & selfie comparison').toString();
-    final isPassenger = (app['role'] ?? '').toString() == 'rider';
+    final roleStr = (app['role'] ?? faceMatch?['role'] ?? 'driver').toString().toLowerCase();
+    final isPassenger = roleStr == 'rider' || roleStr == 'passenger';
+    final idTypeRaw = (app['id_type'] ?? faceMatch?['idType'] ?? '').toString();
+    final idTypeUpper = idTypeRaw.toUpperCase();
+    final String roleLabel;
+    if (!isPassenger) {
+      roleLabel = 'Driver';
+    } else if (idTypeUpper.contains('STUDENT')) {
+      roleLabel = 'Student Passenger';
+    } else if (idTypeUpper.contains('SENIOR') || idTypeUpper.contains('PWD')) {
+      roleLabel = 'Senior / PWD Passenger';
+    } else {
+      roleLabel = 'Regular Passenger';
+    }
+
     final selfieTitle = isPassenger
-        ? 'Passenger Live Verification Selfie'
-        : 'Driver White-BG Selfie';
-    final selfieUrl = (app['profile_photo_url'] ?? '').toString().trim();
-    final submittedIdUrl = (app['id_photo_url'] ?? '').toString().trim();
+        ? '$roleLabel Live Verification Selfie'
+        : 'Driver Live Verification Selfie';
+    final idTitle = isPassenger
+        ? '$roleLabel Submitted ID${idTypeRaw.isNotEmpty ? ' ($idTypeRaw)' : ''}'
+        : 'Driver License / Submitted ID';
+
+    final liveSelfieUrl = (faceMatch?['profile_photo_url'] ?? '').toString().trim();
+    final appSelfieUrl = (app['profile_photo_url'] ?? '').toString().trim();
+    final selfieUrl = liveSelfieUrl.isNotEmpty ? liveSelfieUrl : appSelfieUrl;
+
+    final rawIdUrl = (app['id_photo_url'] ??
+            app['license_photo_url'] ??
+            faceMatch?['id_photo_url'] ??
+            '')
+        .toString()
+        .trim();
+
+    Widget buildPhotoCard(BuildContext dialogCtx, String label, String url, String vaultTitle) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 180,
+                width: double.infinity,
+                child: url.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No photo uploaded',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500),
+                        ),
+                      )
+                    : FutureBuilder<String?>(
+                        future: _resolveDriverDocUrl(url),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                          }
+                          final resolved = snapshot.data;
+                          if (resolved == null) {
+                            return Center(
+                              child: Text(
+                                'Preview unavailable\n(legacy local path)',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                              ),
+                            );
+                          }
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              resolved,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Center(
+                                child: Text(
+                                  'Unable to render image',
+                                  style: TextStyle(fontSize: 11, color: Colors.red.shade600),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(dialogCtx);
+                    _showDriverAppDocDialog(
+                      context,
+                      vaultTitle,
+                      url.isNotEmpty ? url : null,
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  ),
+                  child: const Text('Open Full Vault'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.face_retouching_natural_rounded, color: Color(0xFF059669)),
-            SizedBox(width: 8),
-            Text('1:1 Face Bio Scan Inspection', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const Icon(Icons.face_retouching_natural_rounded, color: Color(0xFF059669)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '1:1 Face Bio Scan Inspection ($roleLabel)',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
         content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${isPassenger ? 'Passenger' : 'Driver'} Applicant: ${app['full_name'] ?? (isPassenger ? 'Passenger' : 'Driver')}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              Text('Verification Status: $status', style: const TextStyle(fontSize: 12.5)),
-              Text(
-                'AI Face Similarity: ${similarity != null && similarity > 0 ? '${similarity.toStringAsFixed(1)}%' : 'Manual Review Required'}',
-                style: const TextStyle(fontSize: 12.5),
-              ),
-              if (latency != null && latency > 0)
-                Text('Scan Latency: ${latency.toStringAsFixed(2)}s', style: const TextStyle(fontSize: 12.5)),
-              const SizedBox(height: 6),
-              Text('System Note: $note', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _showDriverAppDocDialog(
-                        context,
-                        selfieTitle,
-                        selfieUrl.isNotEmpty ? selfieUrl : null,
-                      );
-                    },
-                    icon: const Icon(Icons.photo_camera_front_rounded, size: 16),
-                    label: Text(
-                      isPassenger
-                          ? 'Inspect Passenger Live Selfie'
-                          : 'Inspect Submitted Selfie Photo',
-                    ),
-                  ),
-                  if (isPassenger)
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _showDriverAppDocDialog(
-                          context,
-                          'Passenger Submitted ID (${app['id_type'] ?? ''})',
-                          submittedIdUrl.isNotEmpty ? submittedIdUrl : null,
-                        );
-                      },
-                      icon: const Icon(Icons.badge_outlined, size: 16),
-                      label: const Text('Inspect Submitted ID'),
-                    ),
-                ],
-              ),
-            ],
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$roleLabel: ${app['full_name'] ?? roleLabel}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                ),
+                const SizedBox(height: 6),
+                Text('Verification Status: $status', style: const TextStyle(fontSize: 12.5)),
+                Text(
+                  'AI Face Similarity: ${similarity != null && similarity > 0 ? '${similarity.toStringAsFixed(1)}%' : 'Manual Review Required'}',
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+                if (latency != null && latency > 0)
+                  Text('Scan Latency: ${latency.toStringAsFixed(2)}s', style: const TextStyle(fontSize: 12.5)),
+                const SizedBox(height: 6),
+                Text('System Note: $note', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    buildPhotoCard(ctx, 'Submitted ID', rawIdUrl, idTitle),
+                    const SizedBox(width: 12),
+                    buildPhotoCard(ctx, 'Live 1:1 Selfie', selfieUrl, selfieTitle),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
