@@ -2663,14 +2663,16 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                           color: Color(0xFF0F172A),
                         ),
                       ),
-                      const Spacer(),
-                      Flexible(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          reverse: true,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            reverse: true,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
                               // Realtime Supabase Connection Heartbeat Pill
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2865,12 +2867,13 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 },
                                 icon: const Icon(Icons.help_outline_rounded, size: 16),
                                 label: const Text('MINC Help', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                style: TextButton.styleFrom(foregroundColor: Colors.grey.shade600),
-                              ),
-                            ],
-                          ),
+                              style: TextButton.styleFrom(foregroundColor: Colors.grey.shade600),
+                            ),
+                          ],
                         ),
                       ),
+                    ),
+                  ),
                     ],
                   ),
                 ),
