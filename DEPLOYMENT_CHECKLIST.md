@@ -48,28 +48,16 @@
 - [x] **Native Android Notification Center Alerts**: Dispatch local Android notifications for Driver and Passenger Application decisions (Approved, Resubmission Requested, Rejected).
 - [x] **SMS Decision Alerts (Android SMS Gateway)**: Deployed `send-sms-notice` Edge Function and wired `web_client` admin actions (Approved, Resubmission Requested, Rejected, and Document Renewal Grace notices) to send live SMS alerts alongside Android Notification Center alerts.
 
-### 9. Multi-Emulator Testing Launch Configuration (Remove After Deployment)
-- [ ] **Remove Dual-Emulator Compound Launch Profile in `.vscode/launch.json`**:
-  - Remove the temporary multi-emulator testing configuration from `.vscode/launch.json` after defense/deployment testing:
-    ```json
-    "name": "Run Both Phones (Driver + Passenger)",
-    "configurations": [
-      "Phone 1: Pixel 9 Pro (emulator-5554)",
-      "Phone 2: Resizable (emulator-5556)"
-    ]
-    ```
+### 9. Multi-Emulator Testing Launch Configuration (Kept Intentionally)
+- [x] **Keep Dual-Emulator Compound Launch Profile in `.vscode/launch.json`**:
+  - Retained intentionally for local 2-device Driver + Passenger testing (does not affect production APKs or web builds).
 
-### 10. Official Google Maps Addresses & Map Migration
-- [ ] **Google Cloud Billing, Quotas & Budget Alerts**:
-  - Enable Google Cloud billing with **Places API (New)**, **Geocoding API**, and **Maps SDK for Android/iOS/JS** (stays within the $0/month free tier for small testing groups of 2 drivers + 4–5 passengers).
-  - Set hard daily quota caps (e.g., `300/day` for Places and `300/day` for Geocoding) and a `$1` budget alert to prevent unexpected charges.
-- [ ] **Supabase Edge Function Proxy & Caching (`laoag_locations`)**:
-  - Proxy Google Places Autocomplete (New) (with session tokens, `locationRestriction` to Laoag/Ilocos Norte, and Essentials-only field masks) and Google Reverse Geocoding through a Supabase Edge Function so `GOOGLE_MAPS_API_KEY` is never exposed in the client APK.
-  - Cache resolved landmarks/addresses in `laoag_locations` so repeat lookups are served from Supabase at zero API cost.
-- [ ] **Update `LocationService` (`mobile_client/lib/core/services/location_service.dart`)**:
-  - Route `searchPlacesInLaoag` and `reverseGeocodePoint` through the Google Places / Geocoding Edge Function as the primary source (with local gazetteer as offline fallback) and never trigger reverse geocoding on live GPS stream ticks.
-- [ ] **Migrate Map UI to `google_maps_flutter` (ToS & Visual Alignment)**:
-  - Replace `flutter_map` (OSM tiles) on passenger/driver map screens with `google_maps_flutter` so map labels match Google-sourced addresses 1:1 and comply with Google Maps Platform Terms of Service.
+### 10. Free OpenStreetMap & Curated Ilocos Norte Geocoding (Zero-Fee Architecture)
+- [x] **No Paid Google Maps Platform Dependency**: PasadaNorte intentionally stays on `flutter_map` (OpenStreetMap / Esri Satellite tiles) + Valhalla/OSRM road routing + Supabase `laoag_locations` at **\$0/month**.
+- [ ] **Optional Free Accuracy Upgrades (No API Fees)**:
+  - Add a **Places & Landmarks Pin Editor** in `web_client` backed by `public.laoag_locations` so MINC/TODA admins can fix inaccurate pins visually on Satellite view and sync instantly to all mobile clients.
+  - Filter low-confidence (`score < 70`) / generic `Locality` geocoder hits in `location_service.dart` and prioritize `laoag_locations` + `toda_terminals` during reverse geocoding.
+  - Add Grab-style **Drag-to-Pin Crosshair + Satellite Toggle + Pickup Landmark Note** on the passenger booking map, and contribute missing Laoag POIs directly to `openstreetmap.org`.
 
 ---
 
@@ -85,5 +73,5 @@
 | **Name Validation** | `user_details_input_screen.dart` | Digits & symbols blocked in Last, First, and Middle Name fields + tests added | Block numbers & invalid symbols (`!`, `>`, `?`, etc.) | 🟢 Completed |
 | **Face Bio Auto-Pass & Passenger Reuse** | `web_client/lib/main.dart`, `face_verification_service.dart` | Auto-marks `face_bio_scan` Pass when `>= 85.0%` + Passenger Applications side-by-side ID/Selfie inspection active | Auto-mark `face_bio_scan` Pass in web checklist when `>= 85%` | 🟢 Completed |
 | **Decision Notifications (Android + SMS)** | `system_notification_service.dart`, `send-sms-notice`, `sms-gate-status` | Native Android alerts + live SMS Gateway alerts + 60s `lastSeen` gateway health monitor active | Android + SMS alerts for Approved / Resubmit / Rejected | 🟢 Completed |
-| **Dual-Emulator Launch Config** | `.vscode/launch.json` | Compound profile `"Run Both Phones (Driver + Passenger)"` (`emulator-5554` + `emulator-5556`) enabled for 2-device testing | Remove after deployment / defense testing | 🟡 Optional Post-Defense Cleanup |
-| **Google Maps Addresses & Map SDK** | `location_service.dart`, `rider_map_booking_screen.dart` | Uses OSM (`flutter_map`) + Ilocos Norte gazetteer/geocoding ($0/mo); Google Maps Platform optional | Optional future migration to Google Places (New) + `google_maps_flutter` | 🟡 Optional Future Upgrade |
+| **Dual-Emulator Launch Config** | `.vscode/launch.json` | Kept intentionally for local Driver + Passenger multi-emulator testing (excluded from release builds) | Keep for dev workflow | 🟢 Kept Intentionally |
+| **Maps & Geocoding (Zero-Fee OSM)** | `location_service.dart`, `rider_map_booking_screen.dart`, `laoag_locations` | Free OSM (`flutter_map`) + Valhalla/OSRM + `laoag_locations` active at \$0/mo (paid Google Maps excluded) | Optional free pin-accuracy upgrades (Admin Pin Editor, Drag-Pin + Landmark Note, OSM edits) | 🟢 Zero-Fee Active / 🟡 Free Accuracy Upgrades Optional |
