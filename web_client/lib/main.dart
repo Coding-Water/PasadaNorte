@@ -2655,24 +2655,26 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                         size: 20,
                       ),
                       const SizedBox(width: 10),
-                      Text(
-                        _selectedSection,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
+                      Flexible(
+                        flex: 0,
+                        child: Text(
+                          _selectedSection,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: Align(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
                           alignment: Alignment.centerRight,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            reverse: true,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                               // Realtime Supabase Connection Heartbeat Pill
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2867,13 +2869,12 @@ class _WebAdminDashboardState extends State<WebAdminDashboard> {
                                 },
                                 icon: const Icon(Icons.help_outline_rounded, size: 16),
                                 label: const Text('MINC Help', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                              style: TextButton.styleFrom(foregroundColor: Colors.grey.shade600),
-                            ),
-                          ],
+                                style: TextButton.styleFrom(foregroundColor: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
                     ],
                   ),
                 ),
