@@ -65,3 +65,4 @@ tmp/
 *.jks
 *.keystore
 key.properties
+supabase/.temp/
