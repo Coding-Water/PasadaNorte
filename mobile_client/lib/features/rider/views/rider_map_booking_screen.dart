@@ -779,13 +779,13 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
     ),
     LocationPoint(
       name: 'Robinsons Place Ilocos, San Nicolas, Ilocos Norte',
-      latitude: 18.1845,
-      longitude: 120.5912,
+      latitude: 18.1794,
+      longitude: 120.5929,
     ),
     LocationPoint(
       name: 'Laoag Sinking Bell Tower & Plaza, J.P. Rizal St, Laoag',
-      latitude: 18.1965,
-      longitude: 120.5938,
+      latitude: 18.1948,
+      longitude: 120.5934,
     ),
     LocationPoint(
       name: 'Provincial Capitol & Aurora Park, Laoag City',
@@ -794,8 +794,8 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
     ),
     LocationPoint(
       name: 'Northwestern University (NWU), Airport Rd, Laoag',
-      latitude: 18.2020,
-      longitude: 120.5870,
+      latitude: 18.1867,
+      longitude: 120.5705,
     ),
     LocationPoint(
       name: 'Bacarra Town Plaza & Public Market, Bacarra, Ilocos Norte',

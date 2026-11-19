@@ -736,8 +736,9 @@ class _AddAddressMapScreenState extends State<AddAddressMapScreen> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.pasadanorte.mobile',
+                      urlTemplate:
+                          'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                      userAgentPackageName: 'ph.laoag.pasadanorte',
                     ),
                     MarkerLayer(
                       markers: [
@@ -745,6 +746,7 @@ class _AddAddressMapScreenState extends State<AddAddressMapScreen> {
                           point: _pinnedLatLng,
                           width: 48,
                           height: 48,
+                          alignment: Alignment.topCenter,
                           child: const Icon(
                             Icons.location_on_rounded,
                             color: Color(0xFFEF4444),

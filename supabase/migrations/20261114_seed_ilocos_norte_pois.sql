@@ -6,7 +6,7 @@ SELECT v.name, v.latitude, v.longitude, v.zone_code
 FROM (
   VALUES
     -- San Nicolas
-    ('Robinsons Place Ilocos, San Nicolas, Ilocos Norte', 18.1845, 120.5912, 'IN-SN'),
+    ('Robinsons Place Ilocos, San Nicolas, Ilocos Norte', 18.1794, 120.5929, 'IN-SN'),
     ('San Nicolas Public Market & Town Plaza, San Nicolas, Ilocos Norte', 18.1731, 120.5947, 'IN-SN'),
     ('Valdez Center & Venvi IT Park, San Nicolas, Ilocos Norte', 18.1819, 120.5906, 'IN-SN'),
     -- Bacarra

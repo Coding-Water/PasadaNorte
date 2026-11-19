@@ -146,10 +146,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         }
       } on FunctionException catch (e) {
         final details = e.details;
-        if (details is Map && details['error'] != null) {
-          failureMessage = details['error'].toString();
+        if (details is Map &&
+            (details['error'] != null || details['message'] != null)) {
+          failureMessage = (details['error'] ?? details['message']).toString();
         } else {
-          failureMessage = 'Invalid OTP code. Please try again.';
+          failureMessage =
+              'Verification failed (HTTP ${e.status}). Please try again.';
         }
       } catch (_) {
         failureMessage = 'Invalid OTP code. Please try again.';

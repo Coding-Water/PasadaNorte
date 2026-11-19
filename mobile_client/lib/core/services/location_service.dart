@@ -94,8 +94,8 @@ class LocationService {
     // San Nicolas
     LocationPoint(
       name: 'Robinsons Place Ilocos, San Nicolas, Ilocos Norte',
-      latitude: 18.1845,
-      longitude: 120.5912,
+      latitude: 18.1794,
+      longitude: 120.5929,
       zoneCode: 'IN-SN',
     ),
     LocationPoint(
