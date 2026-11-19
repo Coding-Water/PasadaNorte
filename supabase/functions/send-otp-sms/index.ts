@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
 
   const code = generateSixDigitOtp();
   const codeHash = await sha256Hex(`${normalizedPhone}:${code}`);
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
   const { data: insertedRow, error: insertError } = await adminClient
     .from('sms_otp_codes')
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
 
   try {
     const smsText =
-      `PasadaNorte OTP: ${code}. Valid for 5 minutes. Never share this code with anyone.`;
+      `PasadaNorte OTP: ${code}. Valid for 10 minutes. Never share this code with anyone.`;
     const result = await dispatchSmsViaGateway(normalizedPhone, smsText, 100);
     if (!result.ok && insertedRow?.id) {
       await adminClient.from('sms_otp_codes').delete().eq('id', insertedRow.id);
