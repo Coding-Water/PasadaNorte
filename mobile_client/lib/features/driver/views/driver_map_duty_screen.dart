@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/demand_forecast_service.dart';
 import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/resilient_tile_provider.dart';
 import '../../../core/services/session_cache_service.dart';
 import '../../../core/services/sound_alert_service.dart';
 import '../../../core/services/supabase_service.dart';
@@ -1308,6 +1309,9 @@ class _DriverMapDutyScreenState extends State<DriverMapDutyScreen> {
                         ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
                         : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                     userAgentPackageName: 'ph.laoag.pasadanorte',
+                    tileProvider: ResilientCachedTileProvider.instance,
+                    panBuffer: 0,
+                    evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
                   ),
                   // Hotspot Demand Circles - ONLY rendered when _showHotspots is true (Default: OFF)
                   if (_showHotspots) ...[

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/resilient_tile_provider.dart';
 import '../../../core/services/sound_alert_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/system_notification_service.dart';
@@ -1096,6 +1097,9 @@ class _LiveRideTrackingScreenState extends State<LiveRideTrackingScreen>
                   urlTemplate:
                       'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                   userAgentPackageName: 'ph.laoag.pasadanorte',
+                  tileProvider: ResilientCachedTileProvider.instance,
+                  panBuffer: 0,
+                  evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
                 ),
 
                 // Phase 1 Polylines: Driver heading to pickup

@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/resilient_tile_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/views/welcome_onboarding_screen.dart';
 import '../../fare/services/fare_calculator_service.dart';
@@ -350,6 +351,9 @@ class _RiderMapBookingScreenState extends State<RiderMapBookingScreen> {
                       ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
                       : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                   userAgentPackageName: 'ph.laoag.pasadanorte',
+                  tileProvider: ResilientCachedTileProvider.instance,
+                  panBuffer: 0,
+                  evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
                 ),
                 if (hasDestination && _routePolyline.isNotEmpty)
                   PolylineLayer(

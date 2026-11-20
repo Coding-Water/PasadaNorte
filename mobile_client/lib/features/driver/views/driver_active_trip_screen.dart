@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/driver_stats_service.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/resilient_tile_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/system_notification_service.dart';
 import '../../../core/services/toda_queue_service.dart';
@@ -1938,6 +1939,9 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen>
                 TileLayer(
                   urlTemplate: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                   userAgentPackageName: 'ph.laoag.pasadanorte',
+                  tileProvider: ResilientCachedTileProvider.instance,
+                  panBuffer: 0,
+                  evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
                 ),
                 // Route Polylines: Traversed Trail Left Behind + Active Ahead Green Route
                 PolylineLayer(

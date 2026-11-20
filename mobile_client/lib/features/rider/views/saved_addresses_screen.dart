@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/resilient_tile_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../fare/services/fare_calculator_service.dart';
 import 'rider_map_booking_screen.dart';
@@ -739,6 +740,9 @@ class _AddAddressMapScreenState extends State<AddAddressMapScreen> {
                       urlTemplate:
                           'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                       userAgentPackageName: 'ph.laoag.pasadanorte',
+                      tileProvider: ResilientCachedTileProvider.instance,
+                      panBuffer: 0,
+                      evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
                     ),
                     MarkerLayer(
                       markers: [
