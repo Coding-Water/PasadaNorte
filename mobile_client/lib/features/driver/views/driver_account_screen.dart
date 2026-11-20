@@ -995,8 +995,7 @@ class _DriverPayoutMethodsScreen extends StatelessWidget {
                 ListTile(
                   leading: Icon(Icons.account_balance_wallet_outlined, color: Colors.blue),
                   title: Text('GCash / Maya E-Wallet', style: TextStyle(fontWeight: FontWeight.w700)),
-                  // TODO: Wire e-wallet payout linking when Maya/GCash merchant API is enabled.
-                subtitle: Text('E-wallet linking coming soon'),
+                  subtitle: Text('E-wallet linking coming soon'),
                 ),
               ],
             ),

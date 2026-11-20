@@ -346,33 +346,28 @@ class SupabaseService {
         docType: 'rider_id',
         localPathOrName: localPath,
       );
+      if (uploadedUrl == null || uploadedUrl.isEmpty) {
+        return false;
+      }
       try {
-        final updates = <String, dynamic>{};
-        if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
-          updates['id_photo_url'] = uploadedUrl;
-        }
-        if (markPending) {
-          updates['verification_status'] = 'pending';
-          updates['admin_review_note'] =
-              'Passenger completed requested resubmission for admin re-review.';
-        }
-        if (updates.isNotEmpty) {
-          await Supabase.instance.client
-              .from('users')
-              .update(updates)
-              .eq('phone_number', phoneNumber);
-        }
+        await Supabase.instance.client.rpc(
+          'resubmit_rider_verification',
+          params: {
+            'p_phone': phoneNumber,
+            'p_id_photo_url': uploadedUrl,
+            'p_mark_pending': markPending,
+          },
+        );
       } catch (e) {
         debugPrint('Supabase resubmitRiderIdDocument error: $e');
+        return false;
       }
     }
     if (_localRegisteredUsers.containsKey(phoneNumber)) {
       if (markPending) {
         _localRegisteredUsers[phoneNumber]!['verification_status'] = 'pending';
       }
-      if (uploadedUrl != null) {
-        _localRegisteredUsers[phoneNumber]!['id_photo_url'] = uploadedUrl;
-      }
+      _localRegisteredUsers[phoneNumber]!['id_photo_url'] = uploadedUrl;
     }
     return true;
   }
@@ -385,21 +380,18 @@ class SupabaseService {
   }) async {
     if (_isConnected) {
       try {
-        final updates = <String, dynamic>{
-          'ai_similarity_percent': result.similarityScorePercent,
-          'verification_latency_ms': result.processingTimeMs,
-        };
-        if (markPending) {
-          updates['verification_status'] = 'pending';
-          updates['admin_review_note'] =
-              'Passenger completed requested resubmission for admin re-review.';
-        }
-        await Supabase.instance.client
-            .from('users')
-            .update(updates)
-            .eq('phone_number', phoneNumber);
+        await Supabase.instance.client.rpc(
+          'resubmit_rider_verification',
+          params: {
+            'p_phone': phoneNumber,
+            'p_ai_similarity': result.similarityScorePercent,
+            'p_latency_ms': result.processingTimeMs,
+            'p_mark_pending': markPending,
+          },
+        );
       } catch (e) {
         debugPrint('Supabase resubmitRiderFaceScan error: $e');
+        return false;
       }
     }
     if (_localRegisteredUsers.containsKey(phoneNumber)) {
@@ -483,8 +475,8 @@ class SupabaseService {
           );
       return 'storage://driver-documents/$storagePath';
     } catch (e) {
-      debugPrint('Supabase Storage upload fallback ($docType): $e');
-      return localPathOrName;
+      debugPrint('Supabase Storage upload failed ($docType): $e');
+      return null;
     }
   }
 
@@ -636,6 +628,9 @@ class SupabaseService {
         docType: entry.key,
         localPathOrName: entry.value,
       );
+      if (_isConnected && (uploaded == null || uploaded.isEmpty)) {
+        return false;
+      }
       updates[entry.key] = uploaded ?? entry.value;
     }
 

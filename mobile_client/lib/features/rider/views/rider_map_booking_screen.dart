@@ -770,63 +770,8 @@ class _LocationSearchSheetState extends State<_LocationSearchSheet> {
   static const String _recentPrefsKey = 'pasada_recent_destinations_v1';
   static const String _bookmarksPrefsKey = 'pasada_bookmarked_destinations_v1';
 
-  static const List<LocationPoint> _suggestedLaoagPlaces = [
-    LocationPoint(
-      name: 'Laoag City Public Market, Brgy. 11 Sta. Balbina, Laoag',
-      latitude: 18.1972,
-      longitude: 120.5925,
-    ),
-    LocationPoint(
-      name: 'MMSU CIT / CTE Campus, P. Gomez St, Laoag City',
-      latitude: 18.1950,
-      longitude: 120.5970,
-    ),
-    LocationPoint(
-      name: 'Robinsons Place Ilocos, San Nicolas, Ilocos Norte',
-      latitude: 18.1794,
-      longitude: 120.5929,
-    ),
-    LocationPoint(
-      name: 'Laoag Sinking Bell Tower & Plaza, J.P. Rizal St, Laoag',
-      latitude: 18.1948,
-      longitude: 120.5934,
-    ),
-    LocationPoint(
-      name: 'Provincial Capitol & Aurora Park, Laoag City',
-      latitude: 18.1960,
-      longitude: 120.5920,
-    ),
-    LocationPoint(
-      name: 'Northwestern University (NWU), Airport Rd, Laoag',
-      latitude: 18.1867,
-      longitude: 120.5705,
-    ),
-    LocationPoint(
-      name: 'Bacarra Town Plaza & Public Market, Bacarra, Ilocos Norte',
-      latitude: 18.2533,
-      longitude: 120.6119,
-    ),
-    LocationPoint(
-      name: 'Paoay Church (San Agustin) & Plaza, Paoay, Ilocos Norte',
-      latitude: 18.0614,
-      longitude: 120.5217,
-    ),
-    LocationPoint(
-      name: 'Batac City Riverside & MMSU Main Campus, Batac, Ilocos Norte',
-      latitude: 18.0556,
-      longitude: 120.5639,
-    ),
-    LocationPoint(
-      name: 'Bangui Windmills & Town Center, Bangui, Ilocos Norte',
-      latitude: 18.5378,
-      longitude: 120.7667,
-    ),
-    LocationPoint(
-      name: 'Pagudpud Town Center & Saud Beach, Pagudpud, Ilocos Norte',
-      latitude: 18.5614,
-      longitude: 120.7931,
-    ),
-  ];
+  static List<LocationPoint> get _suggestedLaoagPlaces =>
+      LocationService.suggestedPlaces;
 
   late final TextEditingController _searchController;
   final FocusNode _searchFocusNode = FocusNode();

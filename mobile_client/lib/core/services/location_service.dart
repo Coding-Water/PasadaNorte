@@ -90,6 +90,17 @@ class LocationService {
       '120.4200,18.6600,120.9600,17.8800';
 
   // Approved neighboring Ilocos Norte municipal hubs & curated POIs for instant offline & online search
+  static List<LocationPoint> get suggestedPlaces => [
+        ...laoagComprehensiveGazetteer.take(6),
+        ...ilocosNorteMunicipalHubs.where((p) =>
+            p.name.startsWith('Robinsons') ||
+            p.name.startsWith('Bacarra Town') ||
+            p.name.startsWith('Paoay Church') ||
+            p.name.startsWith('Batac City') ||
+            p.name.startsWith('Bangui Windmills') ||
+            p.name.startsWith('Pagudpud Town')),
+      ];
+
   static const List<LocationPoint> ilocosNorteMunicipalHubs = [
     // San Nicolas
     LocationPoint(

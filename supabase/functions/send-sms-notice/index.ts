@@ -4,6 +4,7 @@ import {
   corsHeaders,
   dispatchSmsViaGateway,
   jsonResponse,
+  normalizePhPhone,
 } from '../_shared/sms_gate.ts';
 
 Deno.serve(async (req) => {
@@ -44,10 +45,13 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Invalid JSON body' }, 400);
   }
 
-  const phoneNumber = String(body.phone_number ?? '').trim();
+  const phoneNumber = normalizePhPhone(String(body.phone_number ?? '').trim());
   const message = String(body.message ?? '').trim();
-  if (!phoneNumber || !message) {
-    return jsonResponse({ error: 'phone_number and message are required' }, 400);
+  if (!/^\+639\d{9}$/.test(phoneNumber) || !message) {
+    return jsonResponse(
+      { error: 'Valid Philippine mobile number (+639XXXXXXXXX) and message are required' },
+      400,
+    );
   }
 
   try {
