@@ -253,8 +253,9 @@ def main():
     forecast_rows = []
     for code, name, _ in active_zones:
         # Blend ML forecast with live 1-hour observed requests when live trips exist
-        blended = predictions[code] if total_live_trips == 0 else round(
-            0.70 * predictions[code] + 0.30 * live_1h[code], 1
+        base_pred = predictions.get(code, 0.0)
+        blended = base_pred if total_live_trips == 0 else round(
+            0.70 * base_pred + 0.30 * live_1h[code], 1
         )
         forecast_rows.append(
             {

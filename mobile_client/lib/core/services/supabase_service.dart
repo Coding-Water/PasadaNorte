@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../features/auth/models/user_model.dart';
 import '../../features/fare/services/fare_calculator_service.dart';
-import 'document_expiry_service.dart';
 import 'driver_stats_service.dart';
 import 'face_verification_service.dart';
 import 'location_service.dart';
@@ -998,7 +997,6 @@ class SupabaseService {
         debugPrint('Supabase broadcast document_renewal_submitted error: $e');
       }
     }
-    DocumentExpiryService.mockSmsOutbox.removeWhere((e) => e.phoneNumber == phoneNumber);
   }
 
   /// Handles `document_renewal_approved` from web_client MINC Admin.

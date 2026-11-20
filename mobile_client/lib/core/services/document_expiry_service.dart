@@ -45,8 +45,6 @@ class MockSmsDispatchEntry {
 /// Evaluates driver document expiry dates, extracts expiry dates from OCR text,
 /// and dispatches renewal grace-period notifications + mock/live SMS alerts.
 class DocumentExpiryService {
-  static final List<MockSmsDispatchEntry> mockSmsOutbox = [];
-
   static const Map<String, int> _monthMap = {
     'JAN': 1,
     'JANUARY': 1,
@@ -250,9 +248,8 @@ class DocumentExpiryService {
       graceUntil: graceUntil,
       dispatchedAt: now,
     );
-    mockSmsOutbox.add(entry);
 
-    debugPrint('[MockSMS -> $phoneNumber] $smsBody');
+    debugPrint('[SMS Notice -> $phoneNumber] $smsBody');
 
     await SystemNotificationService.notifyDriverDocumentRenewalGrace(
       driverName: driverName,

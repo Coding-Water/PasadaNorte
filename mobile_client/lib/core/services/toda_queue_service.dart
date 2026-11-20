@@ -135,7 +135,7 @@ class TodaQueueService {
           ),
           radiusMeters: 25.0,
         ),
-        distanceMeters: 0.0,
+        distanceMeters: double.infinity,
       );
     }
     TodaTerminal nearest = laoagTerminals.first;

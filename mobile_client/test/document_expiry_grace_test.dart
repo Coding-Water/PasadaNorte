@@ -2,11 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_client/core/services/document_expiry_service.dart';
 
 void main() {
-  setUp(() {
-    DocumentExpiryService.mockSmsOutbox.clear();
-  });
-
-  group('DocumentExpiryService OCR, Expiry Evaluation & Mock SMS Grace Test', () {
+  group('DocumentExpiryService OCR, Expiry Evaluation & SMS Grace Test', () {
     test('extractExpiryDateFromText parses LTO, OR/CR, and MTOP date formats', () {
       const ltoSample = '''
         REPUBLIC OF THE PHILIPPINES
@@ -72,7 +68,6 @@ void main() {
         referenceDate: ref,
       );
 
-      expect(DocumentExpiryService.mockSmsOutbox.length, 1);
       expect(dispatch.phoneNumber, '+639175550142');
       expect(dispatch.message, contains("Professional Driver's License"));
       expect(dispatch.message, contains('LTO OR/CR'));
