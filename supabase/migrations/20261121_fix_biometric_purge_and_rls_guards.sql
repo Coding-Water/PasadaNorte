@@ -42,16 +42,20 @@ BEGIN
     END IF;
 
     IF to_regclass('public.biometric_access_logs') IS NOT NULL THEN
-        INSERT INTO public.biometric_access_logs (target_user_id, action_type, logged_at)
-        VALUES (
-            'SYSTEM_RETENTION_SCHEDULER',
-            format(
-                'AUTO_PURGE_COMPLETED (user_media=%s, inactive_templates=%s)',
-                v_purged_user_media,
-                v_purged_inactive_templates
-            ),
-            timezone('utc'::text, now())
-        );
+        BEGIN
+            INSERT INTO public.biometric_access_logs (target_user_id, action_type, logged_at)
+            VALUES (
+                NULL,
+                format(
+                    'AUTO_PURGE_COMPLETED (user_media=%s, inactive_templates=%s)',
+                    v_purged_user_media,
+                    v_purged_inactive_templates
+                ),
+                timezone('utc'::text, now())
+            );
+        EXCEPTION WHEN others THEN
+            NULL;
+        END;
     END IF;
 
     RETURN jsonb_build_object(
