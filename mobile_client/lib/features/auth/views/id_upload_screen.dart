@@ -278,32 +278,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
     }
   }
 
-  void _autoFillDemoData() {
-    setState(() {
-      _capturedIdPath = 'demo_license.jpg';
-      if (widget.role == UserRole.driver) {
-        _birthDate = DateTime(1994, 5, 12); // Age 32
-        _profilePhotoPath = 'demo_profile_white_bg.jpg';
-        _nbiClearancePath = 'demo_nbi_clearance.jpg';
-        _policeOrBarangayClearancePath = 'demo_barangay_clearance.jpg';
-        _fitToWorkPath = null;
-        _brandModelController.text = 'Honda TMX 125 Alpha';
-        _displacementController.text = '125';
-        _modelYearController.text = '2022';
-        _plateNumberController.text = '7890-IN';
-        _orPhotoPath = 'demo_lto_or.jpg';
-        _crPhotoPath = 'demo_lto_cr.jpg';
-        _isMotorcycleOwned = true;
-        _vehiclePhotos['Front View'] = 'demo_tricycle_front.jpg';
-        _vehiclePhotos['Back View'] = 'demo_tricycle_back.jpg';
-        _vehiclePhotos['Left Side View'] = 'demo_tricycle_left.jpg';
-        _vehiclePhotos['Right Side View'] = 'demo_tricycle_right.jpg';
-      }
-      _biometricConsentGiven = true;
-      _locationTelemetryConsentGiven = true;
-    });
-      }
-
   Future<void> _selectBirthDate() async {
     final now = DateTime.now();
     final initial = _birthDate ?? DateTime(now.year - 28, now.month, now.day);
@@ -479,16 +453,6 @@ class _IdUploadScreenState extends State<IdUploadScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.primarySlate, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          TextButton.icon(
-            onPressed: _autoFillDemoData,
-            icon: const Icon(Icons.qr_code_scanner_rounded, color: AppTheme.accentEmerald, size: 18),
-            label: const Text(
-              'Auto-Fill',
-              style: TextStyle(color: AppTheme.accentEmerald, fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ),
-        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

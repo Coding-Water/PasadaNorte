@@ -176,22 +176,16 @@ void main() {
         gender: 'Female',
       );
 
-      // Verify Individual Screen: ID Upload
+      // Verify Individual Screen: ID Upload (no Auto-Fill bypass)
       expect(find.byType(IdUploadScreen), findsOneWidget);
+      expect(find.text('Auto-Fill'), findsNothing);
 
-      // Auto-fill demo ID & consents
-      await tester.tap(find.text('Auto-Fill'));
-      await tester.pumpAndSettle();
-
-      // Scroll and Tap Next to Face Scan
+      // Scroll and verify cannot bypass without uploading real ID & consents
       final nextToFaceScan = find.text('Next: 1:1 Live Face Verification');
       await tester.scrollUntilVisible(nextToFaceScan, 300, scrollable: find.byType(Scrollable).first);
       await tester.tap(nextToFaceScan);
       await tester.pumpAndSettle();
-
-      // Verify Individual Screen: Face Scan (no Skip Testing bypass)
-      expect(find.byType(FaceScanScreen), findsOneWidget);
-      expect(find.text('Skip (Testing)'), findsNothing);
+      expect(find.byType(IdUploadScreen), findsOneWidget);
     });
 
     testWidgets('Driver Registration Flow requires 4-angle tricycle photos and removes Skip bypasses', (tester) async {
@@ -236,21 +230,16 @@ void main() {
       expect(find.text('Tap to Select Date of Birth'), findsNothing);
       expect(find.text('Skip Tricycle Photos for now (Testing)'), findsNothing);
 
-      // Verify Driver's License is the exclusive credential
+      // Verify Driver's License is the exclusive credential & Auto-Fill bypass is removed
       expect(find.text("Professional Driver's License (Valid)"), findsOneWidget);
+      expect(find.text('Auto-Fill'), findsNothing);
 
-      // Auto-fill demo ID, 4-angle vehicle photos & consents
-      await tester.tap(find.text('Auto-Fill'));
-      await tester.pumpAndSettle();
-
-      // Scroll and Tap Next to Face Verification
+      // Scroll and verify cannot bypass without uploading real docs & consents
       final nextToFaceScan = find.text('Next: 1:1 Live Face Verification');
       await tester.scrollUntilVisible(nextToFaceScan, 500, scrollable: find.byType(Scrollable).first);
       await tester.tap(nextToFaceScan);
       await tester.pumpAndSettle();
-
-      expect(find.byType(FaceScanScreen), findsOneWidget);
-      expect(find.text('Skip (Testing)'), findsNothing);
+      expect(find.byType(IdUploadScreen), findsOneWidget);
     });
 
     testWidgets('UserDetailsInputScreen blocks digits and symbols in Last, First, and Middle Name fields', (tester) async {
